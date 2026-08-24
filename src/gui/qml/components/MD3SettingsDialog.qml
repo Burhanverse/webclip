@@ -319,95 +319,98 @@ QQC.Popup {
 
                         // Material You Pill Slider Row Card
                         Rectangle {
+                            id: sliderCard
                             Layout.fillWidth: true
-                            implicitHeight: 68
+                            implicitHeight: sliderCol.implicitHeight + 24
                             radius: 16
                             color: MD3Theme.surfaceContainerLow
 
                             ColumnLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 16
-                                anchors.rightMargin: 16
-                                anchors.topMargin: 10
-                                anchors.bottomMargin: 10
+                                id: sliderCol
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.top: parent.top
+                                anchors.margins: 14
                                 spacing: 8
 
                                 RowLayout {
                                     Layout.fillWidth: true
+                                    spacing: 8
+
                                     Text {
                                         text: I18n.tr("settings.sync.polling_title") + ": " + root.controller.pollInterval.toFixed(1) + "s"
                                         font: MD3Theme.bodySmall
                                         color: MD3Theme.onSurface
                                         Layout.fillWidth: true
                                     }
-                                    MD3Icon {
-                                        name: "sync"
-                                        size: 14
-                                        color: MD3Theme.onSurfaceVariant
+
+                                    MD3IconButton {
+                                        iconName: "sync"
+                                        size: 24
+                                        iconColor: root.controller.pollInterval === 1.0 ? MD3Theme.onSurfaceVariant : MD3Theme.primary
+                                        opacity: root.controller.pollInterval === 1.0 ? 0.4 : 1.0
+                                        onClicked: root.controller.pollInterval = 1.0
                                     }
                                 }
 
-                                // Material You Filled Slider Track
+                                // Material You Expressive Slider
                                 Item {
                                     id: sliderContainer
                                     Layout.fillWidth: true
-                                    Layout.preferredHeight: 18
+                                    Layout.preferredHeight: 32
 
+                                    readonly property real minVal: 0.5
+                                    readonly property real maxVal: 5.0
+                                    readonly property real currentVal: root.controller.pollInterval
+                                    readonly property real normalizedPos: Math.max(0.0, Math.min(1.0, (currentVal - minVal) / (maxVal - minVal)))
+
+                                    // Inactive Track (Full Width)
                                     Rectangle {
-                                        id: inactiveTrack
-                                        anchors.fill: parent
-                                        radius: 9
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        height: 16
+                                        radius: 8
                                         color: MD3Theme.surfaceContainerHighest
-
-                                        Rectangle {
-                                            width: 4
-                                            height: 4
-                                            radius: 2
-                                            anchors.right: parent.right
-                                            anchors.rightMargin: 6
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            color: MD3Theme.primary
-                                        }
                                     }
 
+                                    // Active Track (Filled up to handle)
                                     Rectangle {
-                                        id: activeTrack
                                         anchors.left: parent.left
-                                        anchors.top: parent.top
-                                        anchors.bottom: parent.bottom
-                                        width: Math.max(18, Math.min(parent.width, ((root.controller.pollInterval - 0.5) / (5.0 - 0.5)) * parent.width))
-                                        radius: 9
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        height: 16
+                                        radius: 8
+                                        width: Math.max(16, Math.min(sliderContainer.width, sliderContainer.normalizedPos * sliderContainer.width))
                                         color: MD3Theme.primary
 
-                                        Rectangle {
-                                            width: 4
-                                            height: 4
-                                            radius: 2
-                                            anchors.left: parent.left
-                                            anchors.leftMargin: 6
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            color: "#FFFFFF"
+                                        Behavior on width {
+                                            enabled: !sliderArea.pressed
+                                            NumberAnimation { duration: 120; easing.type: Easing.OutCubic }
                                         }
                                     }
 
+                                    // Material 3 Thumb Handle
                                     Rectangle {
-                                        x: Math.max(0, Math.min(sliderContainer.width - width, activeTrack.width - width / 2))
+                                        x: Math.max(0, Math.min(sliderContainer.width - width, (sliderContainer.normalizedPos * sliderContainer.width) - (width / 2)))
                                         anchors.verticalCenter: parent.verticalCenter
-                                        width: 4
-                                        height: 22
-                                        radius: 2
-                                        color: MD3Theme.isDark ? "#FFFFFF" : MD3Theme.primary
+                                        width: 6
+                                        height: 26
+                                        radius: 3
+                                        color: sliderArea.pressed ? MD3Theme.onPrimary : (MD3Theme.isDark ? "#FFFFFF" : MD3Theme.onSurface)
+
+                                        Behavior on color { ColorAnimation { duration: 120 } }
                                     }
 
                                     MouseArea {
+                                        id: sliderArea
                                         anchors.fill: parent
                                         cursorShape: Qt.PointingHandCursor
 
                                         function updateVal(mouse) {
                                             var pct = Math.max(0.0, Math.min(1.0, mouse.x / sliderContainer.width))
-                                            var rawVal = 0.5 + pct * (5.0 - 0.5)
+                                            var rawVal = sliderContainer.minVal + pct * (sliderContainer.maxVal - sliderContainer.minVal)
                                             var stepped = Math.round(rawVal * 2) / 2
-                                            root.controller.pollInterval = Math.max(0.5, Math.min(5.0, stepped))
+                                            root.controller.pollInterval = Math.max(sliderContainer.minVal, Math.min(sliderContainer.maxVal, stepped))
                                         }
 
                                         onPressed: (mouse) => updateVal(mouse)
