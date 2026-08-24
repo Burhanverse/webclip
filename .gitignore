@@ -4,6 +4,7 @@ bin/
 compile_commands.json
 *.o
 *.exe
+webclip
 webclip_sync
 .DS_Store
 .vscode/

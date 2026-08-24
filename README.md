@@ -1,4 +1,4 @@
-# WebClip Sync (`webclip_sync`)
+# WebClip (`webclip`)
 
 A lightweight, standalone C++ client for two-way automatic clipboard synchronization with **Gboard Web Clipboard** (from Gboard Patches).
 
@@ -31,7 +31,7 @@ cmake ..
 make -j$(nproc)
 ```
 
-The resulting binary `webclip_sync` will be located in the `build/` directory.
+The resulting binary `webclip` will be located in the `build/` directory.
 
 ### Windows (MSVC or MinGW)
 
@@ -53,7 +53,7 @@ cmake --build . --config Release
 ## Usage
 
 ```bash
-./webclip_sync --host <PHONE_IP> --code <PAIRING_CODE> [options]
+./webclip --host <PHONE_IP> --code <PAIRING_CODE> [options]
 ```
 
 ### Options
@@ -73,12 +73,12 @@ cmake --build . --config Release
 
 **Standard HTTP Sync:**
 ```bash
-./webclip_sync --host 192.168.1.50 --code 5425
+./webclip --host 192.168.1.50 --code 5425
 ```
 
 **Secure HTTPS Sync:**
 ```bash
-./webclip_sync --host 192.168.1.50 --port 8081 --https --insecure --code 5425
+./webclip --host 192.168.1.50 --port 8081 --https --insecure --code 5425
 ```
 
 ---

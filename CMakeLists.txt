@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(webclip_sync VERSION 1.0.0 LANGUAGES CXX)
+project(webclip VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -26,20 +26,20 @@ set(HEADERS
     src/util/cli.hpp
 )
 
-add_executable(webclip_sync ${SOURCES} ${HEADERS})
+add_executable(webclip ${SOURCES} ${HEADERS})
 
-target_include_directories(webclip_sync PRIVATE
+target_include_directories(webclip PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CURL_INCLUDE_DIRS}
 )
 
-target_link_libraries(webclip_sync PRIVATE
+target_link_libraries(webclip PRIVATE
     Threads::Threads
     ${CURL_LIBRARIES}
 )
 
 if(WIN32)
-    target_link_libraries(webclip_sync PRIVATE
+    target_link_libraries(webclip PRIVATE
         ws2_32
         user32
     )
@@ -47,9 +47,9 @@ endif()
 
 # Compiler warnings and optimization flags
 if(MSVC)
-    target_compile_options(webclip_sync PRIVATE /W4 /O2 /permissive-)
+    target_compile_options(webclip PRIVATE /W4 /O2 /permissive-)
 else()
-    target_compile_options(webclip_sync PRIVATE -Wall -Wextra -Wpedantic -O2)
+    target_compile_options(webclip PRIVATE -Wall -Wextra -Wpedantic -O2)
 endif()
 
-install(TARGETS webclip_sync RUNTIME DESTINATION bin)
+install(TARGETS webclip RUNTIME DESTINATION bin)
