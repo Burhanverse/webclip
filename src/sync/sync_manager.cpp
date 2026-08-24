@@ -204,9 +204,35 @@ void SyncManager::run() {
         }
 
         std::string current_local = clipboard_->get_text();
-        {
+        if (!current_local.empty()) {
+            // Guard: Check if get_text returned raw binary image bytes (PNG / JPEG / GIF / WEBP)
+            const uint8_t* u = reinterpret_cast<const uint8_t*>(current_local.data());
+            size_t len = current_local.size();
+            bool is_png = (len >= 4 && u[0] == 0x89 && u[1] == 0x50 && u[2] == 0x4E && u[3] == 0x47);
+            bool is_jpg = (len >= 3 && u[0] == 0xFF && u[1] == 0xD8 && u[2] == 0xFF);
+            bool is_gif = (len >= 4 && u[0] == 0x47 && u[1] == 0x49 && u[2] == 0x46 && u[3] == 0x38);
+            bool is_webp = (len >= 12 && u[0] == 'R' && u[1] == 'I' && u[2] == 'F' && u[3] == 'F' && u[8] == 'W' && u[9] == 'E' && u[10] == 'B' && u[11] == 'P');
+
+            if (is_png || is_jpg || is_gif || is_webp) {
+                std::string mime = is_png ? "image/png" : (is_jpg ? "image/jpeg" : (is_gif ? "image/gif" : "image/webp"));
+                std::vector<uint8_t> raw_bytes(u, u + len);
+                std::string hash = compute_hash(raw_bytes);
+                std::lock_guard<std::mutex> guard(state_lock_);
+                if (hash != last_local_img_hash_ && hash != last_remote_img_hash_) {
+                    HttpResponse push_resp = client_->push_image(raw_bytes, mime);
+                    if (push_resp.status_code == 200) {
+                        last_local_img_hash_ = hash;
+                        last_remote_img_hash_ = hash;
+                        last_local_text_.clear();
+                        last_remote_text_.clear();
+                        std::cout << "[local -> phone image] " << raw_bytes.size() << " bytes (" << mime << ")" << std::endl;
+                    }
+                }
+                continue;
+            }
+
             std::lock_guard<std::mutex> guard(state_lock_);
-            if (!current_local.empty() && current_local != last_local_text_ && current_local != last_remote_text_) {
+            if (current_local != last_local_text_ && current_local != last_remote_text_) {
                 HttpResponse push_resp = client_->push_clipboard(current_local);
                 if (push_resp.status_code == 200) {
                     last_local_text_ = current_local;

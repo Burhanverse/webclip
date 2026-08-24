@@ -11,6 +11,7 @@
 #include <QFile>
 #include <QFileInfo>
 #include <QMimeDatabase>
+#include <QMimeData>
 
 namespace webclip {
 
@@ -481,16 +482,56 @@ void WebClipController::stopSseListener() {
 void WebClipController::onClipboardDataChanged() {
     if (!connected_ || !autoSync_) return;
 
-    // Check image first
+    // 1. Check Qt Clipboard MIME data for image formats
     if (QGuiApplication::clipboard()) {
-        QImage img = QGuiApplication::clipboard()->image();
-        if (!img.isNull()) {
-            QByteArray ba;
-            QBuffer buf(&ba);
-            buf.open(QIODevice::WriteOnly);
-            img.save(&buf, "PNG");
-            QString hash = computeImageHash(ba);
+        const QMimeData* mimeData = QGuiApplication::clipboard()->mimeData();
+        if (mimeData) {
+            if (mimeData->hasImage() || mimeData->hasFormat("image/png") || mimeData->hasFormat("image/jpeg") || mimeData->hasFormat("image/webp")) {
+                QByteArray ba;
+                QString mime = "image/png";
+                if (mimeData->hasFormat("image/png")) {
+                    ba = mimeData->data("image/png");
+                    mime = "image/png";
+                } else if (mimeData->hasFormat("image/jpeg")) {
+                    ba = mimeData->data("image/jpeg");
+                    mime = "image/jpeg";
+                } else if (mimeData->hasFormat("image/webp")) {
+                    ba = mimeData->data("image/webp");
+                    mime = "image/webp";
+                } else {
+                    QImage img = qvariant_cast<QImage>(mimeData->imageData());
+                    if (!img.isNull()) {
+                        QBuffer buf(&ba);
+                        buf.open(QIODevice::WriteOnly);
+                        img.save(&buf, "PNG");
+                        mime = "image/png";
+                    }
+                }
 
+                if (!ba.isEmpty()) {
+                    QString hash = computeImageHash(ba);
+                    {
+                        std::lock_guard<std::mutex> guard(syncLock_);
+                        if (hash == lastLocalImgHash_ || hash == lastRemoteImgHash_) {
+                            return;
+                        }
+                        lastLocalImgHash_ = hash;
+                        lastLocalText_.clear();
+                    }
+
+                    pushImageBytes(ba, mime);
+                    return;
+                }
+            }
+        }
+    }
+
+    // 2. Check native clipboard for image (xclip/wl-paste/win32)
+    if (nativeClipboard_ && nativeClipboard_->has_image()) {
+        ClipboardImage local_img = nativeClipboard_->get_image();
+        if (local_img.valid && !local_img.data.empty()) {
+            QByteArray ba(reinterpret_cast<const char*>(local_img.data.data()), static_cast<int>(local_img.data.size()));
+            QString hash = computeImageHash(ba);
             {
                 std::lock_guard<std::mutex> guard(syncLock_);
                 if (hash == lastLocalImgHash_ || hash == lastRemoteImgHash_) {
@@ -500,11 +541,12 @@ void WebClipController::onClipboardDataChanged() {
                 lastLocalText_.clear();
             }
 
-            pushImageBytes(ba, "image/png");
+            pushImageBytes(ba, QString::fromStdString(local_img.mime_type.empty() ? "image/png" : local_img.mime_type));
             return;
         }
     }
 
+    // 3. Check text clipboard
     QString current;
     if (QGuiApplication::clipboard()) {
         current = QGuiApplication::clipboard()->text(QClipboard::Clipboard);
@@ -514,6 +556,31 @@ void WebClipController::onClipboardDataChanged() {
     }
 
     if (current.trimmed().isEmpty()) return;
+
+    // Guard: Intercept raw binary image data (e.g. from xclip/wl-paste fallback outputting PNG magic bytes)
+    QByteArray rawBytes = current.toUtf8();
+    if (rawBytes.size() >= 4) {
+        const uint8_t* u = reinterpret_cast<const uint8_t*>(rawBytes.constData());
+        bool isPng = (u[0] == 0x89 && u[1] == 0x50 && u[2] == 0x4E && u[3] == 0x47);
+        bool isJpg = (u[0] == 0xFF && u[1] == 0xD8 && u[2] == 0xFF);
+        bool isGif = (u[0] == 0x47 && u[1] == 0x49 && u[2] == 0x46 && u[3] == 0x38);
+        bool isWebp = (rawBytes.size() >= 12 && u[0] == 'R' && u[1] == 'I' && u[2] == 'F' && u[3] == 'F' && u[8] == 'W' && u[9] == 'E' && u[10] == 'B' && u[11] == 'P');
+
+        if (isPng || isJpg || isGif || isWebp) {
+            QString mime = isPng ? "image/png" : (isJpg ? "image/jpeg" : (isGif ? "image/gif" : "image/webp"));
+            QString hash = computeImageHash(rawBytes);
+            {
+                std::lock_guard<std::mutex> guard(syncLock_);
+                if (hash == lastLocalImgHash_ || hash == lastRemoteImgHash_) {
+                    return;
+                }
+                lastLocalImgHash_ = hash;
+                lastLocalText_.clear();
+            }
+            pushImageBytes(rawBytes, mime);
+            return;
+        }
+    }
 
     {
         std::lock_guard<std::mutex> guard(syncLock_);
@@ -578,31 +645,39 @@ bool WebClipController::pushImage(const QString& filePathOrDataUrl) {
 
     if (src.startsWith("data:image/")) {
         int commaIdx = src.indexOf(',');
-        QByteArray bytes;
-        if (commaIdx >= 0) {
-            bytes = QByteArray::fromBase64(src.mid(commaIdx + 1).toLatin1());
+        if (commaIdx > 0) {
+            QString header = src.left(commaIdx);
+            QString base64Data = src.mid(commaIdx + 1);
+            QString mimeType = "image/png";
+            int semiIdx = header.indexOf(';');
+            if (semiIdx > 5) {
+                mimeType = header.mid(5, semiIdx - 5);
+            }
+            QByteArray bytes = QByteArray::fromBase64(base64Data.toLatin1());
+            if (!bytes.isEmpty()) {
+                return pushImageBytes(bytes, mimeType);
+            }
         }
-        QString mime = "image/png";
-        int colonIdx = src.indexOf(':');
-        int semiIdx = src.indexOf(';');
-        if (colonIdx >= 0 && semiIdx > colonIdx) {
-            mime = src.mid(colonIdx + 1, semiIdx - colonIdx - 1);
-        }
-        return pushImageBytes(bytes, mime);
     }
 
     QFile file(src);
     if (!file.open(QIODevice::ReadOnly)) {
-        emit showToast("Cannot open image file: " + src, true);
+        emit showToast("Failed to open image file: " + file.errorString(), true);
         return false;
     }
 
     QByteArray bytes = file.readAll();
     file.close();
 
-    QMimeDatabase db;
-    QString mime = db.mimeTypeForFile(src).name();
-    if (mime.isEmpty() || !mime.startsWith("image/")) {
+    if (bytes.isEmpty()) {
+        emit showToast("Image file is empty", true);
+        return false;
+    }
+
+    QMimeDatabase mimeDb;
+    QMimeType mimeType = mimeDb.mimeTypeForFile(src);
+    QString mime = mimeType.isValid() ? mimeType.name() : "image/png";
+    if (!mime.startsWith("image/")) {
         mime = "image/png";
     }
 
@@ -614,8 +689,9 @@ bool WebClipController::pushImageBytes(const QByteArray& bytes, const QString& m
         emit showToast("Not connected to phone", true);
         return false;
     }
+
     if (bytes.isEmpty()) {
-        emit showToast("Image is empty", true);
+        emit showToast("No image data to push", true);
         return false;
     }
 
@@ -652,25 +728,71 @@ bool WebClipController::pushImageBytes(const QByteArray& bytes, const QString& m
 }
 
 bool WebClipController::pushCurrentClipboard() {
+    // 1. Check Qt Clipboard MIME data for image formats
     if (QGuiApplication::clipboard()) {
-        QImage img = QGuiApplication::clipboard()->image();
-        if (!img.isNull()) {
-            QByteArray ba;
-            QBuffer buf(&ba);
-            buf.open(QIODevice::WriteOnly);
-            img.save(&buf, "PNG");
-            return pushImageBytes(ba, "image/png");
-        }
-        QString current = QGuiApplication::clipboard()->text(QClipboard::Clipboard);
-        if (current.trimmed().isEmpty() && nativeClipboard_) {
-            current = QString::fromStdString(nativeClipboard_->get_text());
-        }
-        if (!current.trimmed().isEmpty()) {
-            return pushClipboard(current);
+        const QMimeData* mimeData = QGuiApplication::clipboard()->mimeData();
+        if (mimeData) {
+            if (mimeData->hasImage() || mimeData->hasFormat("image/png") || mimeData->hasFormat("image/jpeg") || mimeData->hasFormat("image/webp")) {
+                QByteArray ba;
+                QString mime = "image/png";
+                if (mimeData->hasFormat("image/png")) {
+                    ba = mimeData->data("image/png");
+                } else if (mimeData->hasFormat("image/jpeg")) {
+                    ba = mimeData->data("image/jpeg");
+                    mime = "image/jpeg";
+                } else if (mimeData->hasFormat("image/webp")) {
+                    ba = mimeData->data("image/webp");
+                    mime = "image/webp";
+                } else {
+                    QImage img = qvariant_cast<QImage>(mimeData->imageData());
+                    if (!img.isNull()) {
+                        QBuffer buf(&ba);
+                        buf.open(QIODevice::WriteOnly);
+                        img.save(&buf, "PNG");
+                    }
+                }
+                if (!ba.isEmpty()) {
+                    return pushImageBytes(ba, mime);
+                }
+            }
         }
     }
-    emit showToast("Local clipboard is empty", true);
-    return false;
+
+    // 2. Check native clipboard for image
+    if (nativeClipboard_ && nativeClipboard_->has_image()) {
+        ClipboardImage local_img = nativeClipboard_->get_image();
+        if (local_img.valid && !local_img.data.empty()) {
+            QByteArray ba(reinterpret_cast<const char*>(local_img.data.data()), static_cast<int>(local_img.data.size()));
+            return pushImageBytes(ba, QString::fromStdString(local_img.mime_type.empty() ? "image/png" : local_img.mime_type));
+        }
+    }
+
+    // 3. Check text clipboard
+    QString current;
+    if (QGuiApplication::clipboard()) {
+        current = QGuiApplication::clipboard()->text(QClipboard::Clipboard);
+    }
+    if (current.isEmpty() && nativeClipboard_) {
+        current = QString::fromStdString(nativeClipboard_->get_text());
+    }
+
+    if (current.trimmed().isEmpty()) return false;
+
+    // Check if raw binary image
+    QByteArray rawBytes = current.toUtf8();
+    if (rawBytes.size() >= 4) {
+        const uint8_t* u = reinterpret_cast<const uint8_t*>(rawBytes.constData());
+        bool isPng = (u[0] == 0x89 && u[1] == 0x50 && u[2] == 0x4E && u[3] == 0x47);
+        bool isJpg = (u[0] == 0xFF && u[1] == 0xD8 && u[2] == 0xFF);
+        bool isGif = (u[0] == 0x47 && u[1] == 0x49 && u[2] == 0x46 && u[3] == 0x38);
+        bool isWebp = (rawBytes.size() >= 12 && u[0] == 'R' && u[1] == 'I' && u[2] == 'F' && u[3] == 'F' && u[8] == 'W' && u[9] == 'E' && u[10] == 'B' && u[11] == 'P');
+        if (isPng || isJpg || isGif || isWebp) {
+            QString mime = isPng ? "image/png" : (isJpg ? "image/jpeg" : (isGif ? "image/gif" : "image/webp"));
+            return pushImageBytes(rawBytes, mime);
+        }
+    }
+
+    return pushClipboard(current);
 }
 
 void WebClipController::copyToClipboard(const QString& text) {
