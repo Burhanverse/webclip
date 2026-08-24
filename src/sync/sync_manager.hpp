@@ -44,8 +44,10 @@ private:
     std::mutex state_lock_;
     std::string last_remote_text_;
     std::string last_local_text_;
+    int64_t last_text_time_ms_ = 0;
     std::string last_remote_img_hash_;
     std::string last_local_img_hash_;
+    int64_t last_img_time_ms_ = 0;
 
     std::atomic<bool> stop_flag_{false};
     std::unique_ptr<std::thread> sse_thread_;
@@ -53,6 +55,10 @@ private:
     void handle_sse_event(const SseEvent& event);
     static std::string truncate_preview(const std::string& text, size_t max_len = 60);
     static std::string compute_hash(const std::vector<uint8_t>& data);
+    bool should_suppress_text(const std::string& text, int64_t now_ms, int64_t window_ms = 2500);
+    void mark_text_applied(const std::string& text, int64_t now_ms);
+    bool should_suppress_image(const std::string& hash, int64_t now_ms, int64_t window_ms = 2500);
+    void mark_image_applied(const std::string& hash, int64_t now_ms);
 };
 
 } // namespace webclip

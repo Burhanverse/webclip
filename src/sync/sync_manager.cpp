@@ -53,6 +53,47 @@ std::string SyncManager::compute_hash(const std::vector<uint8_t>& data) {
     return ss.str();
 }
 
+bool SyncManager::should_suppress_text(const std::string& text, int64_t now_ms, int64_t window_ms) {
+    std::lock_guard<std::mutex> guard(state_lock_);
+    if (text == last_local_text_ && (now_ms - last_text_time_ms_) < window_ms) {
+        return true;
+    }
+    if (text == last_remote_text_ && (now_ms - last_text_time_ms_) < window_ms) {
+        return true;
+    }
+    return false;
+}
+
+void SyncManager::mark_text_applied(const std::string& text, int64_t now_ms) {
+    std::lock_guard<std::mutex> guard(state_lock_);
+    last_local_text_ = text;
+    last_remote_text_ = text;
+    last_text_time_ms_ = now_ms;
+    last_local_img_hash_.clear();
+    last_remote_img_hash_.clear();
+}
+
+bool SyncManager::should_suppress_image(const std::string& hash, int64_t now_ms, int64_t window_ms) {
+    if (hash.empty()) return true;
+    std::lock_guard<std::mutex> guard(state_lock_);
+    if (hash == last_local_img_hash_ && (now_ms - last_img_time_ms_) < window_ms) {
+        return true;
+    }
+    if (hash == last_remote_img_hash_ && (now_ms - last_img_time_ms_) < window_ms) {
+        return true;
+    }
+    return false;
+}
+
+void SyncManager::mark_image_applied(const std::string& hash, int64_t now_ms) {
+    std::lock_guard<std::mutex> guard(state_lock_);
+    last_local_img_hash_ = hash;
+    last_remote_img_hash_ = hash;
+    last_img_time_ms_ = now_ms;
+    last_local_text_.clear();
+    last_remote_text_.clear();
+}
+
 void SyncManager::handle_sse_event(const SseEvent& event) {
     if (event.event != "clipboard") {
         return;
@@ -61,11 +102,14 @@ void SyncManager::handle_sse_event(const SseEvent& event) {
     JsonValue data = JsonValue::parse(event.data);
     std::string type = data.get_string("type");
     std::string source = data.get_string("source");
+    std::string client_id = data.get_string("clientId");
 
-    if (source == "web") {
-        // Echo of something pushed by a web/desktop client; ignore
+    if (source == "web" || (!client_id.empty() && client_id == client_->get_client_id())) {
+        // Echo of something pushed by this client; ignore
         return;
     }
+
+    auto now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
     if (type == "image") {
         std::string mime_type = data.get_string("mimeType");
@@ -89,33 +133,22 @@ void SyncManager::handle_sse_event(const SseEvent& event) {
 
         if (!image_bytes.empty()) {
             std::string hash = compute_hash(image_bytes);
-            std::lock_guard<std::mutex> guard(state_lock_);
-            if (hash != last_remote_img_hash_) {
-                last_remote_img_hash_ = hash;
-                last_local_img_hash_ = hash;
-                last_remote_text_.clear();
-                last_local_text_.clear();
-                clipboard_->set_image(image_bytes, mime_type);
-                std::cout << "[phone -> local image] " << image_bytes.size() << " bytes (" << mime_type << ")" << std::endl;
-            }
+            if (should_suppress_image(hash, now)) return;
+            mark_image_applied(hash, now);
+            clipboard_->set_image(image_bytes, mime_type);
+            std::cout << "[phone -> local image] " << image_bytes.size() << " bytes (" << mime_type << ")" << std::endl;
         }
         return;
     }
 
     std::string text = data.get_string("text");
-    std::lock_guard<std::mutex> guard(state_lock_);
-    if (text != last_remote_text_) {
-        last_remote_text_ = text;
-        last_remote_img_hash_.clear();
-        std::string current_local = clipboard_->get_text();
-        if (text != current_local) {
-            clipboard_->set_text(text);
-            last_local_text_ = text;
-            last_local_img_hash_.clear();
-            std::cout << "[phone -> local] " << text.size() << " chars: \""
-                      << truncate_preview(text) << "\"" << std::endl;
-        }
-    }
+    if (text.empty()) return;
+    if (should_suppress_text(text, now)) return;
+    mark_text_applied(text, now);
+
+    clipboard_->set_text(text);
+    std::cout << "[phone -> local] " << text.size() << " chars: \""
+              << truncate_preview(text) << "\"" << std::endl;
 }
 
 void SyncManager::run() {
@@ -179,19 +212,17 @@ void SyncManager::run() {
         std::this_thread::sleep_for(poll_interval);
         if (stop_flag_.load()) break;
 
+        auto now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+
         // Check image clipboard first
         if (clipboard_->has_image()) {
             ClipboardImage local_img = clipboard_->get_image();
             if (local_img.valid && !local_img.data.empty()) {
                 std::string hash = compute_hash(local_img.data);
-                std::lock_guard<std::mutex> guard(state_lock_);
-                if (hash != last_local_img_hash_ && hash != last_remote_img_hash_) {
+                if (!should_suppress_image(hash, now)) {
+                    mark_image_applied(hash, now);
                     HttpResponse push_resp = client_->push_image(local_img.data, local_img.mime_type);
                     if (push_resp.status_code == 200) {
-                        last_local_img_hash_ = hash;
-                        last_remote_img_hash_ = hash;
-                        last_local_text_.clear();
-                        last_remote_text_.clear();
                         std::cout << "[local -> phone image] " << local_img.data.size() << " bytes (" << local_img.mime_type << ")" << std::endl;
                     } else {
                         std::cerr << "[warn] Push image to phone failed (HTTP " << push_resp.status_code
@@ -217,28 +248,20 @@ void SyncManager::run() {
                 std::string mime = is_png ? "image/png" : (is_jpg ? "image/jpeg" : (is_gif ? "image/gif" : "image/webp"));
                 std::vector<uint8_t> raw_bytes(u, u + len);
                 std::string hash = compute_hash(raw_bytes);
-                std::lock_guard<std::mutex> guard(state_lock_);
-                if (hash != last_local_img_hash_ && hash != last_remote_img_hash_) {
+                if (!should_suppress_image(hash, now)) {
+                    mark_image_applied(hash, now);
                     HttpResponse push_resp = client_->push_image(raw_bytes, mime);
                     if (push_resp.status_code == 200) {
-                        last_local_img_hash_ = hash;
-                        last_remote_img_hash_ = hash;
-                        last_local_text_.clear();
-                        last_remote_text_.clear();
                         std::cout << "[local -> phone image] " << raw_bytes.size() << " bytes (" << mime << ")" << std::endl;
                     }
                 }
                 continue;
             }
 
-            std::lock_guard<std::mutex> guard(state_lock_);
-            if (current_local != last_local_text_ && current_local != last_remote_text_) {
+            if (!should_suppress_text(current_local, now)) {
+                mark_text_applied(current_local, now);
                 HttpResponse push_resp = client_->push_clipboard(current_local);
                 if (push_resp.status_code == 200) {
-                    last_local_text_ = current_local;
-                    last_remote_text_ = current_local;
-                    last_local_img_hash_.clear();
-                    last_remote_img_hash_.clear();
                     std::cout << "[local -> phone] " << current_local.size() << " chars: \""
                               << truncate_preview(current_local) << "\"" << std::endl;
                 } else {
