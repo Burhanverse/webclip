@@ -1,3 +1,5 @@
+*.AppImage
+AppDir/
 build/
 bin/
 .cache/
@@ -9,3 +11,4 @@ webclip_sync
 .DS_Store
 .vscode/
 .idea/
+

@@ -11,6 +11,19 @@ if [ ! -f "build/webclip" ]; then
 fi
 
 export APPIMAGE_EXTRACT_AND_RUN=1
+export NO_STRIP=1
+
+# Ensure linuxdeploy-plugin-qt uses Qt 6 qmake, NOT Qt 5
+if command -v qmake6 >/dev/null 2>&1; then
+    export QMAKE="$(command -v qmake6)"
+elif [ -f "/usr/lib/qt6/bin/qmake" ]; then
+    export QMAKE="/usr/lib/qt6/bin/qmake"
+elif [ -f "/usr/lib/x86_64-linux-gnu/qt6/bin/qmake" ]; then
+    export QMAKE="/usr/lib/x86_64-linux-gnu/qt6/bin/qmake"
+elif command -v qmake >/dev/null 2>&1; then
+    export QMAKE="$(command -v qmake)"
+fi
+echo "Using QMake: ${QMAKE:-auto}"
 
 # Download linuxdeploy tools if missing
 if [ ! -f "linuxdeploy-x86_64.AppImage" ]; then
@@ -27,15 +40,15 @@ fi
 
 # Detect system Qt6 QML and Plugins directories
 QT6_QML_DIRS=(
-    "/usr/lib/x86_64-linux-gnu/qt6/qml"
     "/usr/lib/qt6/qml"
+    "/usr/lib/x86_64-linux-gnu/qt6/qml"
     "/usr/lib64/qt6/qml"
     "/usr/local/qt6/qml"
 )
 
 QT6_PLUGINS_DIRS=(
-    "/usr/lib/x86_64-linux-gnu/qt6/plugins"
     "/usr/lib/qt6/plugins"
+    "/usr/lib/x86_64-linux-gnu/qt6/plugins"
     "/usr/lib64/qt6/plugins"
     "/usr/local/qt6/plugins"
 )
@@ -59,11 +72,47 @@ done
 echo "Using Qt6 QML directory: ${FOUND_QML_DIR:-not found}"
 echo "Using Qt6 Plugins directory: ${FOUND_PLUGINS_DIR:-not found}"
 
+# Create a clean isolated plugins directory to avoid broken third-party KDE imageformat plugins (like kimg_jxr)
+if [ -n "$FOUND_PLUGINS_DIR" ]; then
+    rm -rf build/clean_plugins
+    mkdir -p build/clean_plugins
+    for plugindir in "$FOUND_PLUGINS_DIR"/*; do
+        bname="$(basename "$plugindir")"
+        if [ "$bname" = "imageformats" ]; then
+            mkdir -p build/clean_plugins/imageformats
+            for f in "$plugindir"/libq*.so; do
+                if [ -f "$f" ]; then
+                    cp -n "$f" build/clean_plugins/imageformats/
+                fi
+            done
+        elif [ -d "$plugindir" ]; then
+            ln -s "$plugindir" build/clean_plugins/"$bname"
+        fi
+    done
+    export QT_PLUGIN_PATH="$PWD/build/clean_plugins"
+
+    # Create a QMake wrapper to redirect QT_INSTALL_PLUGINS to clean_plugins
+    REAL_QMAKE="${QMAKE:-qmake6}"
+    cat << EOF > build/qmake_wrapper
+#!/usr/bin/env bash
+if [ "\${1:-}" = "-query" ] && [ -z "\${2:-}" ]; then
+    "$REAL_QMAKE" -query | sed "s|QT_INSTALL_PLUGINS:.*|QT_INSTALL_PLUGINS:$PWD/build/clean_plugins|"
+    exit 0
+elif [ "\${1:-}" = "-query" ] && [ "\${2:-}" = "QT_INSTALL_PLUGINS" ]; then
+    echo "$PWD/build/clean_plugins"
+    exit 0
+fi
+exec "$REAL_QMAKE" "\$@"
+EOF
+    chmod +x build/qmake_wrapper
+    export QMAKE="$PWD/build/qmake_wrapper"
+fi
+
 export QML_SOURCES_PATHS="src/gui/qml"
 if [ -n "$FOUND_QML_DIR" ]; then
     export QML_MODULES_PATHS="$FOUND_QML_DIR"
 fi
-export EXTRA_QT_PLUGINS="svg;imageformats;wayland-graphics-integration-client;wayland-shell-integration;wayland-decoration-client;platforms"
+export EXTRA_QT_PLUGINS="svg;platforms;wayland-graphics-integration-client;wayland-shell-integration;wayland-decoration-client;imageformats"
 
 # Clean previous AppDir
 rm -rf AppDir
@@ -75,6 +124,16 @@ echo "Running linuxdeploy with Qt plugin..."
     -d packaging/webclip.desktop \
     -i src/gui/resources/icons/webclip.svg \
     --plugin qt
+
+# Ensure core imageformats (png, jpeg, webp, svg, ico, gif) are bundled
+if [ -n "$FOUND_PLUGINS_DIR" ] && [ -d "$FOUND_PLUGINS_DIR/imageformats" ]; then
+    mkdir -p AppDir/usr/plugins/imageformats
+    for imgplugin in libqjpeg.so libqwebp.so libqsvg.so libqico.so libqgif.so; do
+        if [ -f "$FOUND_PLUGINS_DIR/imageformats/$imgplugin" ]; then
+            cp -n "$FOUND_PLUGINS_DIR/imageformats/$imgplugin" AppDir/usr/plugins/imageformats/ || true
+        fi
+    done
+fi
 
 # Ensure essential QML modules (WorkerScript, Shapes, Dialogs, etc.) are bundled
 if [ -n "$FOUND_QML_DIR" ]; then
