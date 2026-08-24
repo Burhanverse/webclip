@@ -13,6 +13,37 @@ Item {
     property string fullPreviewUrl: ""
     property bool fullPreviewVisible: false
 
+    function linkifyText(rawText, linkColor) {
+        if (!rawText) return ""
+        var escaped = rawText
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+
+        var urlPattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+|[a-zA-Z0-9.-]+\.(?:com|org|net|io|dev|app|edu|gov|eu|co|in|me|info|xyz|tech|online|ai|gg)(?:\/[^\s<]*)?)/gi
+        return escaped.replace(urlPattern, function(match) {
+            var url = match
+            if (!/^https?:\/\//i.test(url)) {
+                url = "https://" + url
+            }
+            return '<a href="' + url + '" style="color: ' + linkColor + '; text-decoration: underline;">' + match + '</a>'
+        }).replace(/\n/g, "<br>")
+    }
+
+    function extractFirstUrl(rawText) {
+        if (!rawText) return ""
+        var urlPattern = /(https?:\/\/[^\s<]+|www\.[^\s<]+|[a-zA-Z0-9.-]+\.(?:com|org|net|io|dev|app|edu|gov|eu|co|in|me|info|xyz|tech|online|ai|gg)(?:\/[^\s<]*)?)/i
+        var match = rawText.match(urlPattern)
+        if (match && match[0]) {
+            var url = match[0]
+            if (!/^https?:\/\//i.test(url)) {
+                url = "https://" + url
+            }
+            return url
+        }
+        return ""
+    }
+
     FileDialog {
         id: openImageDialog
         title: "Select Image to Send"
@@ -292,7 +323,10 @@ Item {
                                     anchors.left: parent.left
                                     anchors.right: parent.right
                                     anchors.top: parent.top
-                                    text: !delegateItem.isImageClip ? model.text : ""
+                                    textFormat: TextEdit.RichText
+                                    text: !delegateItem.isImageClip
+                                        ? root.linkifyText(model.text, isFromPhone ? MD3Theme.primary : (MD3Theme.isDark ? "#8AB4F8" : "#1A73E8"))
+                                        : ""
                                     font: MD3Theme.bodyMedium
                                     color: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
                                     wrapMode: Text.WrapAnywhere
@@ -300,6 +334,16 @@ Item {
                                     selectByMouse: true
                                     selectionColor: MD3Theme.primary
                                     selectedTextColor: MD3Theme.onPrimary
+
+                                    onLinkActivated: (link) => {
+                                        Qt.openUrlExternally(link)
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: bubbleContent.hoveredLink ? Qt.PointingHandCursor : Qt.IBeamCursor
+                                        acceptedButtons: Qt.NoButton
+                                    }
                                 }
 
                                 // Fade gradient at the bottom of preview text
@@ -348,97 +392,97 @@ Item {
                                 }
                             }
 
-                            // Integrated metadata & Action Buttons inline
+                            // Bottom Metadata & Actions Row
                             RowLayout {
                                 id: metadataRow
                                 Layout.fillWidth: true
                                 Layout.topMargin: 2
-                                spacing: 6
+                                spacing: 8
 
+                                // Timestamp
                                 Text {
-                                    text: (isFromPhone ? I18n.tr("chat.source_phone") : I18n.tr("chat.source_pc"))
-                                        + (delegateItem.isImageClip ? (" • " + model.sizeFormatted) : "")
-                                    font.pixelSize: 11
+                                    text: model.timeFormatted
+                                    font: MD3Theme.labelSmall
                                     color: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
-                                    opacity: 0.8
-                                    Layout.fillWidth: true
-                                    elide: Text.ElideRight
+                                    opacity: 0.65
                                 }
 
-                                Row {
-                                    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                                    spacing: 4
+                                Item { Layout.fillWidth: true }
 
-                                    Text {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        text: model.timeFormatted
-                                        font.pixelSize: 11
-                                        color: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
-                                        opacity: 0.85
-                                    }
+                                // Interactive Inline Actions Container
+                                Rectangle {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    height: 24
+                                    width: actionIconsRow.implicitWidth + 8
+                                    radius: 12
+                                    color: isFromPhone
+                                        ? (MD3Theme.isDark ? Qt.rgba(1, 1, 1, 0.09) : Qt.rgba(0, 0, 0, 0.06))
+                                        : (MD3Theme.isDark ? Qt.rgba(0, 0, 0, 0.12) : Qt.rgba(0, 0, 0, 0.06))
 
-                                    Rectangle {
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        height: 24
-                                        width: actionIconsRow.implicitWidth + 8
-                                        radius: 12
-                                        color: isFromPhone
-                                            ? (MD3Theme.isDark ? Qt.rgba(1, 1, 1, 0.09) : Qt.rgba(0, 0, 0, 0.06))
-                                            : (MD3Theme.isDark ? Qt.rgba(0, 0, 0, 0.12) : Qt.rgba(0, 0, 0, 0.06))
+                                    Row {
+                                        id: actionIconsRow
+                                        anchors.centerIn: parent
+                                        spacing: 2
 
-                                        Row {
-                                            id: actionIconsRow
-                                            anchors.centerIn: parent
-                                            spacing: 2
+                                        MD3IconButton {
+                                            visible: !delegateItem.isImageClip && root.extractFirstUrl(model.text) !== ""
+                                            iconName: "link"
+                                            iconColor: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
+                                            size: 20
+                                            iconSize: 13
+                                            onClicked: {
+                                                var url = root.extractFirstUrl(model.text)
+                                                if (url) Qt.openUrlExternally(url)
+                                            }
+                                        }
 
-                                            MD3IconButton {
-                                                iconName: "copy"
-                                                iconColor: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
-                                                size: 20
-                                                iconSize: 13
-                                                onClicked: {
-                                                    if (delegateItem.isImageClip) {
-                                                        controller.copyImageToClipboard(index)
-                                                    } else {
-                                                        controller.copyToClipboard(model.text)
-                                                    }
+                                        MD3IconButton {
+                                            iconName: "copy"
+                                            iconColor: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
+                                            size: 20
+                                            iconSize: 13
+                                            onClicked: {
+                                                if (delegateItem.isImageClip) {
+                                                    controller.copyImageToClipboard(index)
+                                                } else {
+                                                    controller.copyToClipboard(model.text)
                                                 }
                                             }
+                                        }
 
-                                            MD3IconButton {
-                                                visible: delegateItem.isImageClip
-                                                iconName: "download"
-                                                iconColor: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
-                                                size: 20
-                                                iconSize: 13
-                                                onClicked: {
-                                                    saveImageDialog.targetClipIndex = index
-                                                    saveImageDialog.open()
+                                        MD3IconButton {
+                                            visible: delegateItem.isImageClip
+                                            iconName: "download"
+                                            iconColor: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
+                                            size: 20
+                                            iconSize: 13
+                                            onClicked: {
+                                                saveImageDialog.targetClipIndex = index
+                                                saveImageDialog.open()
+                                            }
+                                        }
+
+                                        MD3IconButton {
+                                            visible: controller.connected && !isFromPhone
+                                            iconName: "send"
+                                            iconColor: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
+                                            size: 20
+                                            iconSize: 13
+                                            onClicked: {
+                                                if (delegateItem.isImageClip) {
+                                                    controller.pushImage(model.imageData)
+                                                } else {
+                                                    controller.pushClipboard(model.text)
                                                 }
                                             }
+                                        }
 
-                                            MD3IconButton {
-                                                visible: controller.connected && !isFromPhone
-                                                iconName: "send"
-                                                iconColor: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
-                                                size: 20
-                                                iconSize: 13
-                                                onClicked: {
-                                                    if (delegateItem.isImageClip) {
-                                                        controller.pushImage(model.imageData)
-                                                    } else {
-                                                        controller.pushClipboard(model.text)
-                                                    }
-                                                }
-                                            }
-
-                                            MD3IconButton {
-                                                iconName: "delete"
-                                                iconColor: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
-                                                size: 20
-                                                iconSize: 13
-                                                onClicked: controller.clipModel.removeClip(index)
-                                            }
+                                        MD3IconButton {
+                                            iconName: "delete"
+                                            iconColor: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
+                                            size: 20
+                                            iconSize: 13
+                                            onClicked: controller.clipModel.removeClip(index)
                                         }
                                     }
                                 }
