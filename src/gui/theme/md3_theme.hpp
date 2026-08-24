@@ -17,6 +17,7 @@ class MD3Theme : public QObject {
     Q_PROPERTY(int themeMode READ themeMode WRITE setThemeMode NOTIFY themeModeChanged)
     Q_PROPERTY(bool isDark READ isDark NOTIFY isDarkChanged)
     Q_PROPERTY(QString accentPreset READ accentPreset WRITE setAccentPreset NOTIFY accentPresetChanged)
+    Q_PROPERTY(QColor customColor READ customColor WRITE setCustomColor NOTIFY customColorChanged)
 
     // MD3 Color Tokens
     Q_PROPERTY(QColor primary READ primary NOTIFY themeChanged)
@@ -90,6 +91,9 @@ public:
     QString accentPreset() const { return accentPreset_; }
     void setAccentPreset(const QString& preset);
 
+    QColor customColor() const { return customColor_; }
+    void setCustomColor(const QColor& color);
+
     // Colors
     QColor primary() const;
     QColor onPrimary() const;
@@ -153,11 +157,13 @@ signals:
     void themeModeChanged();
     void isDarkChanged();
     void accentPresetChanged();
+    void customColorChanged();
     void themeChanged();
 
 private:
     int themeMode_ = 0; // 0: System, 1: Light, 2: Dark
-    QString accentPreset_ = "purple"; // purple, blue, teal, green, orange, red, pink
+    QString accentPreset_ = "purple";
+    QColor customColor_ = QColor("#6750A4");
 
     QColor activeSeedColor() const;
 };

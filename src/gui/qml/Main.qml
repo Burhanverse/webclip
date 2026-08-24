@@ -19,6 +19,7 @@ Window {
         id: controller
 
         Component.onCompleted: {
+            MD3Theme.customColor = controller.customColor
             MD3Theme.themeMode = controller.themeMode
             MD3Theme.accentPreset = controller.accentPreset
         }
@@ -33,6 +34,10 @@ Window {
 
         onAccentPresetChanged: {
             MD3Theme.accentPreset = controller.accentPreset
+        }
+
+        onCustomColorChanged: {
+            MD3Theme.customColor = controller.customColor
         }
     }
 

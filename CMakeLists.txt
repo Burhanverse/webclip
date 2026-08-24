@@ -77,6 +77,7 @@ qt_add_qml_module(webclip
         src/gui/qml/components/MD3Badge.qml
         src/gui/qml/components/MD3TextField.qml
         src/gui/qml/components/MD3Switch.qml
+        src/gui/qml/components/MD3ColorPicker.qml
         src/gui/qml/pages/ClipsPage.qml
         src/gui/qml/pages/PushPage.qml
         src/gui/qml/pages/SettingsPage.qml

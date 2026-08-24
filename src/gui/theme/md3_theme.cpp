@@ -34,6 +34,20 @@ void MD3Theme::setThemeMode(int mode) {
 void MD3Theme::setAccentPreset(const QString& preset) {
     if (accentPreset_ != preset) {
         accentPreset_ = preset;
+        if (preset.startsWith('#')) {
+            QColor c(preset);
+            if (c.isValid()) customColor_ = c;
+        }
+        emit accentPresetChanged();
+        emit themeChanged();
+    }
+}
+
+void MD3Theme::setCustomColor(const QColor& color) {
+    if (customColor_ != color && color.isValid()) {
+        customColor_ = color;
+        accentPreset_ = "custom";
+        emit customColorChanged();
         emit accentPresetChanged();
         emit themeChanged();
     }
@@ -55,10 +69,15 @@ QColor MD3Theme::activeSeedColor() const {
     if (accentPreset_ == "orange") return QColor("#FF9800");
     if (accentPreset_ == "red") return QColor("#F44336");
     if (accentPreset_ == "pink") return QColor("#E91E63");
+    if (accentPreset_ == "custom" && customColor_.isValid()) return customColor_;
+    if (accentPreset_.startsWith('#')) {
+        QColor c(accentPreset_);
+        if (c.isValid()) return c;
+    }
     return QColor("#6750A4"); // M3 Default Purple
 }
 
-// MD3 Tonal Palette derived from active preset
+// MD3 Tonal Palette derived from active seed
 QColor MD3Theme::primary() const {
     QColor seed = activeSeedColor();
     if (isDark()) {

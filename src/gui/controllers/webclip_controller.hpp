@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QColor>
 #include <QTimer>
 #include <QThread>
 #include <QSettings>
@@ -34,6 +35,7 @@ class WebClipController : public QObject {
     Q_PROPERTY(QString clipboardBackend READ clipboardBackend CONSTANT)
     Q_PROPERTY(int themeMode READ themeMode WRITE setThemeMode NOTIFY themeModeChanged)
     Q_PROPERTY(QString accentPreset READ accentPreset WRITE setAccentPreset NOTIFY accentPresetChanged)
+    Q_PROPERTY(QColor customColor READ customColor WRITE setCustomColor NOTIFY customColorChanged)
     Q_PROPERTY(ClipboardHistoryModel* clipModel READ clipModel CONSTANT)
 
 public:
@@ -53,6 +55,7 @@ public:
     QString clipboardBackend() const;
     int themeMode() const { return themeMode_; }
     QString accentPreset() const { return accentPreset_; }
+    QColor customColor() const { return customColor_; }
     ClipboardHistoryModel* clipModel() { return &clipModel_; }
 
     void setHost(const QString& host);
@@ -64,6 +67,8 @@ public:
     void setPollInterval(double interval);
     void setThemeMode(int mode);
     void setAccentPreset(const QString& preset);
+    void setCustomColor(const QColor& color);
+    Q_INVOKABLE void setCustomAccentColor(const QString& hexColor);
 
     Q_INVOKABLE void connectToPortal();
     Q_INVOKABLE void disconnectFromPortal();
@@ -87,6 +92,7 @@ signals:
     void statusMessageChanged();
     void themeModeChanged();
     void accentPresetChanged();
+    void customColorChanged();
     void clipReceived(const QString& text, const QString& source);
     void showToast(const QString& message, bool isError);
 
@@ -106,6 +112,7 @@ private:
     double pollInterval_ = 1.0;
     int themeMode_ = 0; // 0: System, 1: Light, 2: Dark
     QString accentPreset_ = "purple";
+    QColor customColor_ = QColor("#6750A4");
     QString statusMessage_ = "Disconnected";
 
     ClipboardHistoryModel clipModel_;

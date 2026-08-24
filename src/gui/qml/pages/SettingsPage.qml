@@ -354,6 +354,96 @@ Flickable {
                                 }
                             }
                         }
+
+                        // Custom Color Pill
+                        Rectangle {
+                            width: customPillRow.implicitWidth + 24
+                            height: 36
+                            radius: 18
+                            color: controller.accentPreset === "custom" ? MD3Theme.primary : "transparent"
+                            border.color: controller.accentPreset === "custom" ? "transparent" : MD3Theme.outlineVariant
+                            border.width: 1
+
+                            Behavior on color { ColorAnimation { duration: 180 } }
+
+                            RowLayout {
+                                id: customPillRow
+                                anchors.centerIn: parent
+                                spacing: 8
+
+                                Rectangle {
+                                    width: 14
+                                    height: 14
+                                    radius: 7
+                                    color: controller.customColor
+                                    border.color: controller.accentPreset === "custom" ? MD3Theme.onPrimary : MD3Theme.outlineVariant
+                                    border.width: 1.5
+                                }
+
+                                Text {
+                                    text: "Custom"
+                                    font: MD3Theme.labelMedium
+                                    color: controller.accentPreset === "custom" ? MD3Theme.onPrimary : MD3Theme.onSurface
+                                }
+
+                                MD3Icon {
+                                    name: "palette"
+                                    size: 14
+                                    color: controller.accentPreset === "custom" ? MD3Theme.onPrimary : MD3Theme.onSurfaceVariant
+                                }
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: controller.accentPreset = "custom"
+                            }
+                        }
+                    }
+
+                    // Interactive Custom Color Picker Panel
+                    Rectangle {
+                        Layout.fillWidth: true
+                        radius: MD3Theme.cornerM
+                        color: MD3Theme.surfaceContainer
+                        border.color: MD3Theme.outlineVariant
+                        border.width: 1
+                        clip: true
+                        visible: controller.accentPreset === "custom"
+
+                        implicitHeight: pickerCol.implicitHeight + 32
+
+                        ColumnLayout {
+                            id: pickerCol
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.top: parent.top
+                            anchors.margins: 16
+                            spacing: 16
+
+                            RowLayout {
+                                Layout.fillWidth: true
+                                MD3Icon {
+                                    name: "palette"
+                                    size: 20
+                                    color: MD3Theme.primary
+                                }
+                                Text {
+                                    text: "Custom Accent Tuner"
+                                    font: MD3Theme.titleSmall
+                                    color: MD3Theme.onSurface
+                                    Layout.fillWidth: true
+                                }
+                            }
+
+                            MD3ColorPicker {
+                                Layout.fillWidth: true
+                                selectedColor: controller.customColor
+                                onColorSelected: (col) => {
+                                    controller.setCustomColor(col)
+                                }
+                            }
+                        }
                     }
                 }
 

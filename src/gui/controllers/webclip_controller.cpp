@@ -118,6 +118,23 @@ void WebClipController::setAccentPreset(const QString& preset) {
     }
 }
 
+void WebClipController::setCustomColor(const QColor& color) {
+    if (customColor_ != color && color.isValid()) {
+        customColor_ = color;
+        accentPreset_ = "custom";
+        MD3Theme::instance()->setCustomColor(color);
+        emit customColorChanged();
+        emit accentPresetChanged();
+    }
+}
+
+void WebClipController::setCustomAccentColor(const QString& hexColor) {
+    QColor c(hexColor);
+    if (c.isValid()) {
+        setCustomColor(c);
+    }
+}
+
 void WebClipController::setConnected(bool c) {
     if (connected_ != c) {
         connected_ = c;
@@ -395,6 +412,7 @@ void WebClipController::saveSettings() {
     s.setValue("pollInterval", pollInterval_);
     s.setValue("themeMode", themeMode_);
     s.setValue("accentPreset", accentPreset_);
+    s.setValue("customColor", customColor_.name());
 }
 
 void WebClipController::loadSettings() {
@@ -408,7 +426,12 @@ void WebClipController::loadSettings() {
     pollInterval_ = s.value("pollInterval", 1.0).toDouble();
     themeMode_ = s.value("themeMode", 0).toInt();
     accentPreset_ = s.value("accentPreset", "purple").toString();
+    customColor_ = QColor(s.value("customColor", "#6750A4").toString());
+    if (!customColor_.isValid()) {
+        customColor_ = QColor("#6750A4");
+    }
 
+    MD3Theme::instance()->setCustomColor(customColor_);
     MD3Theme::instance()->setThemeMode(themeMode_);
     MD3Theme::instance()->setAccentPreset(accentPreset_);
 }
