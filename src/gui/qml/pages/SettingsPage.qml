@@ -263,7 +263,8 @@ Flickable {
                             model: [
                                 { label: "System", mode: 0 },
                                 { label: "Light", mode: 1 },
-                                { label: "Dark", mode: 2 }
+                                { label: "Dark", mode: 2 },
+                                { label: "Pitch Black", mode: 3 }
                             ]
 
                             Rectangle {

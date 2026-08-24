@@ -462,7 +462,8 @@ QQC.Popup {
                                         model: [
                                             { label: I18n.tr("settings.appearance.mode_system"), mode: 0 },
                                             { label: I18n.tr("settings.appearance.mode_light"), mode: 1 },
-                                            { label: I18n.tr("settings.appearance.mode_dark"), mode: 2 }
+                                            { label: I18n.tr("settings.appearance.mode_dark"), mode: 2 },
+                                            { label: I18n.tr("settings.appearance.mode_pitch_black"), mode: 3 }
                                         ]
 
                                         Rectangle {

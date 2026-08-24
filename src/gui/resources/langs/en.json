@@ -52,6 +52,7 @@
       "mode_system": "System",
       "mode_light": "Light",
       "mode_dark": "Dark",
+      "mode_pitch_black": "Pitch Black",
       "accent_color": "Accent Color",
       "accent_custom": "Custom",
       "clipboard_engine": "Clipboard Engine",

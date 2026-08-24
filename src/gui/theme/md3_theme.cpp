@@ -30,6 +30,7 @@ void MD3Theme::setThemeMode(int mode) {
         themeMode_ = mode;
         emit themeModeChanged();
         emit isDarkChanged();
+        emit isPitchBlackChanged();
         emit themeChanged();
     }
 }
@@ -58,7 +59,7 @@ void MD3Theme::setCustomColor(const QColor& color) {
 
 bool MD3Theme::isDark() const {
     if (themeMode_ == 1) return false;
-    if (themeMode_ == 2) return true;
+    if (themeMode_ == 2 || themeMode_ == 3) return true;
 #if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     if (QGuiApplication::styleHints()) {
         return QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
@@ -89,7 +90,9 @@ QColor MD3Theme::activeSeedColor() const {
 
 QColor MD3Theme::primary() const {
     QColor seed = activeSeedColor();
-    if (isDark()) {
+    if (isPitchBlack()) {
+        return QColor::fromHslF(seed.hslHueF(), qBound(0.60f, seed.hslSaturationF(), 0.98f), 0.72f);
+    } else if (isDark()) {
         return QColor::fromHslF(seed.hslHueF(), qBound(0.45f, seed.hslSaturationF(), 0.90f), 0.76f);
     } else {
         return QColor::fromHslF(seed.hslHueF(), qBound(0.55f, seed.hslSaturationF(), 0.95f), 0.44f);
@@ -103,7 +106,9 @@ QColor MD3Theme::onPrimary() const {
 
 QColor MD3Theme::primaryContainer() const {
     QColor seed = activeSeedColor();
-    if (isDark()) {
+    if (isPitchBlack()) {
+        return QColor::fromHslF(seed.hslHueF(), 0.60f, 0.22f);
+    } else if (isDark()) {
         return QColor::fromHslF(seed.hslHueF(), 0.50f, 0.28f);
     } else {
         return QColor::fromHslF(seed.hslHueF(), 0.70f, 0.90f);
@@ -112,7 +117,9 @@ QColor MD3Theme::primaryContainer() const {
 
 QColor MD3Theme::onPrimaryContainer() const {
     QColor seed = activeSeedColor();
-    if (isDark()) {
+    if (isPitchBlack()) {
+        return QColor::fromHslF(seed.hslHueF(), 0.75f, 0.90f);
+    } else if (isDark()) {
         return QColor::fromHslF(seed.hslHueF(), 0.65f, 0.92f);
     } else {
         return QColor::fromHslF(seed.hslHueF(), 0.80f, 0.18f);
@@ -131,7 +138,11 @@ QColor MD3Theme::onSecondary() const {
 
 QColor MD3Theme::secondaryContainer() const {
     QColor seed = activeSeedColor();
-    return isDark() ? QColor::fromHslF(seed.hslHueF(), 0.20f, 0.28f) : QColor::fromHslF(seed.hslHueF(), 0.25f, 0.90f);
+    if (isPitchBlack()) {
+        return QColor::fromHslF(seed.hslHueF(), 0.30f, 0.18f);
+    } else {
+        return isDark() ? QColor::fromHslF(seed.hslHueF(), 0.20f, 0.28f) : QColor::fromHslF(seed.hslHueF(), 0.25f, 0.90f);
+    }
 }
 
 QColor MD3Theme::onSecondaryContainer() const {
@@ -178,6 +189,7 @@ QColor MD3Theme::onErrorContainer() const {
 }
 
 QColor MD3Theme::surface() const {
+    if (isPitchBlack()) return QColor("#000000");
     QColor seed = activeSeedColor();
     float h = seed.hslHueF();
     float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
@@ -185,6 +197,7 @@ QColor MD3Theme::surface() const {
 }
 
 QColor MD3Theme::surfaceDim() const {
+    if (isPitchBlack()) return QColor("#000000");
     QColor seed = activeSeedColor();
     float h = seed.hslHueF();
     float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
@@ -192,6 +205,7 @@ QColor MD3Theme::surfaceDim() const {
 }
 
 QColor MD3Theme::surfaceBright() const {
+    if (isPitchBlack()) return QColor("#161616");
     QColor seed = activeSeedColor();
     float h = seed.hslHueF();
     float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
@@ -199,6 +213,7 @@ QColor MD3Theme::surfaceBright() const {
 }
 
 QColor MD3Theme::surfaceContainerLowest() const {
+    if (isPitchBlack()) return QColor("#000000");
     QColor seed = activeSeedColor();
     float h = seed.hslHueF();
     float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
@@ -206,6 +221,7 @@ QColor MD3Theme::surfaceContainerLowest() const {
 }
 
 QColor MD3Theme::surfaceContainerLow() const {
+    if (isPitchBlack()) return QColor("#0A0A0A");
     QColor seed = activeSeedColor();
     float h = seed.hslHueF();
     float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
@@ -213,6 +229,7 @@ QColor MD3Theme::surfaceContainerLow() const {
 }
 
 QColor MD3Theme::surfaceContainer() const {
+    if (isPitchBlack()) return QColor("#121212");
     QColor seed = activeSeedColor();
     float h = seed.hslHueF();
     float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
@@ -220,6 +237,7 @@ QColor MD3Theme::surfaceContainer() const {
 }
 
 QColor MD3Theme::surfaceContainerHigh() const {
+    if (isPitchBlack()) return QColor("#181818");
     QColor seed = activeSeedColor();
     float h = seed.hslHueF();
     float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
@@ -227,6 +245,7 @@ QColor MD3Theme::surfaceContainerHigh() const {
 }
 
 QColor MD3Theme::surfaceContainerHighest() const {
+    if (isPitchBlack()) return QColor("#222222");
     QColor seed = activeSeedColor();
     float h = seed.hslHueF();
     float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
@@ -234,6 +253,7 @@ QColor MD3Theme::surfaceContainerHighest() const {
 }
 
 QColor MD3Theme::onSurface() const {
+    if (isPitchBlack()) return QColor("#FFFFFF");
     QColor seed = activeSeedColor();
     float h = seed.hslHueF();
     float s = qBound(0.02f, seed.hslSaturationF() * 0.08f, 0.05f);
@@ -241,6 +261,7 @@ QColor MD3Theme::onSurface() const {
 }
 
 QColor MD3Theme::onSurfaceVariant() const {
+    if (isPitchBlack()) return QColor("#9E9E9E");
     QColor seed = activeSeedColor();
     float h = seed.hslHueF();
     float s = qBound(0.03f, seed.hslSaturationF() * 0.15f, 0.10f);
@@ -248,6 +269,7 @@ QColor MD3Theme::onSurfaceVariant() const {
 }
 
 QColor MD3Theme::outline() const {
+    if (isPitchBlack()) return QColor("#383838");
     QColor seed = activeSeedColor();
     float h = seed.hslHueF();
     float s = qBound(0.03f, seed.hslSaturationF() * 0.15f, 0.10f);
@@ -255,6 +277,7 @@ QColor MD3Theme::outline() const {
 }
 
 QColor MD3Theme::outlineVariant() const {
+    if (isPitchBlack()) return QColor("#222222");
     QColor seed = activeSeedColor();
     float h = seed.hslHueF();
     float s = qBound(0.03f, seed.hslSaturationF() * 0.15f, 0.10f);

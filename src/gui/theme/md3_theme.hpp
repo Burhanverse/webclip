@@ -16,6 +16,7 @@ class MD3Theme : public QObject {
 
     Q_PROPERTY(int themeMode READ themeMode WRITE setThemeMode NOTIFY themeModeChanged)
     Q_PROPERTY(bool isDark READ isDark NOTIFY isDarkChanged)
+    Q_PROPERTY(bool isPitchBlack READ isPitchBlack NOTIFY isPitchBlackChanged)
     Q_PROPERTY(QString accentPreset READ accentPreset WRITE setAccentPreset NOTIFY accentPresetChanged)
     Q_PROPERTY(QColor customColor READ customColor WRITE setCustomColor NOTIFY customColorChanged)
 
@@ -87,6 +88,7 @@ public:
     int themeMode() const { return themeMode_; }
     void setThemeMode(int mode);
     bool isDark() const;
+    bool isPitchBlack() const { return themeMode_ == 3; }
 
     QString accentPreset() const { return accentPreset_; }
     void setAccentPreset(const QString& preset);
@@ -156,6 +158,7 @@ public:
 signals:
     void themeModeChanged();
     void isDarkChanged();
+    void isPitchBlackChanged();
     void accentPresetChanged();
     void customColorChanged();
     void themeChanged();

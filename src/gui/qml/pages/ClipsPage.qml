@@ -162,30 +162,52 @@ Item {
                         id: hoverHandler
                     }
 
-                    // Rounded Chat Bubble Container
+                    // Rounded Chat Bubble Container with Telegram-style Corner Tail
                     Rectangle {
                         id: bubbleCard
-                        width: isImageClip
-                            ? Math.min(listView.width * 0.84, 320)
-                            : Math.min(listView.width * 0.84, Math.max(210, Math.max(bubbleContent.implicitWidth + 24, metadataRow.implicitWidth + 24)))
                         anchors.left: isFromPhone ? parent.left : undefined
                         anchors.right: !isFromPhone ? parent.right : undefined
-                        implicitHeight: bubbleInnerCol.implicitHeight + 20
+                        anchors.leftMargin: isFromPhone ? 8 : 0
+                        anchors.rightMargin: !isFromPhone ? 8 : 0
+
+                        width: isImageClip
+                            ? Math.min(listView.width * 0.84, 320)
+                            : Math.min(listView.width * 0.84, Math.max(180, Math.max(bubbleContent.implicitWidth + 24, metadataRow.implicitWidth + 24)))
+                        implicitHeight: bubbleInnerCol.implicitHeight + 16
                         radius: 18
-                        color: isFromPhone ? MD3Theme.surfaceContainerHighest : MD3Theme.primaryContainer
-                        clip: true
+                        color: isFromPhone
+                            ? (MD3Theme.isPitchBlack ? "#14171E" : (MD3Theme.isDark ? "#222731" : "#E8ECF2"))
+                            : (MD3Theme.isPitchBlack ? MD3Theme.primaryContainer : (MD3Theme.isDark ? "#DDD1F9" : "#DDD1F9"))
 
                         Behavior on implicitHeight { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                         Behavior on color { ColorAnimation { duration: 150 } }
 
-                        // Phone chat bubble tail (square corner on anchor side)
+                        // Left Telegram-style tail for incoming / phone messages
                         Rectangle {
-                            width: 12
-                            height: 12
+                            visible: isFromPhone
+                            width: 14
+                            height: 14
                             anchors.bottom: parent.bottom
-                            anchors.left: isFromPhone ? parent.left : undefined
-                            anchors.right: !isFromPhone ? parent.right : undefined
-                            color: parent.color
+                            anchors.left: parent.left
+                            anchors.leftMargin: -4
+                            radius: 3
+                            color: bubbleCard.color
+                            rotation: 45
+                            z: -1
+                        }
+
+                        // Right Telegram-style tail for outgoing / PC messages
+                        Rectangle {
+                            visible: !isFromPhone
+                            width: 14
+                            height: 14
+                            anchors.bottom: parent.bottom
+                            anchors.right: parent.right
+                            anchors.rightMargin: -4
+                            radius: 3
+                            color: bubbleCard.color
+                            rotation: 45
+                            z: -1
                         }
 
                         ColumnLayout {
@@ -194,7 +216,7 @@ Item {
                             anchors.right: parent.right
                             anchors.top: parent.top
                             anchors.margins: 10
-                            spacing: 6
+                            spacing: 4
 
                             // Image Content Area
                             Rectangle {
@@ -203,7 +225,9 @@ Item {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 220
                                 radius: 12
-                                color: MD3Theme.isDark ? "#1E1A22" : "#E8E0EC"
+                                color: isFromPhone
+                                    ? (MD3Theme.isPitchBlack ? "#0E1015" : (MD3Theme.isDark ? "#181B22" : "#D0D6E2"))
+                                    : (MD3Theme.isPitchBlack ? "#221A34" : (MD3Theme.isDark ? "#C6B7E8" : "#C6B7E8"))
                                 clip: true
 
                                 Image {
@@ -245,13 +269,16 @@ Item {
                                     anchors.right: parent.right
                                     anchors.top: parent.top
                                     text: !delegateItem.isImageClip ? model.text : ""
-                                    font: MD3Theme.bodyMedium
-                                    color: isFromPhone ? MD3Theme.onSurface : MD3Theme.onPrimaryContainer
+                                    font.family: "Open Sans"
+                                    font.pixelSize: 14.5
+                                    color: isFromPhone
+                                        ? (MD3Theme.isDark ? "#FFFFFF" : "#1A1D24")
+                                        : (MD3Theme.isPitchBlack ? MD3Theme.onPrimaryContainer : "#1E1535")
                                     wrapMode: Text.WrapAnywhere
                                     readOnly: true
                                     selectByMouse: true
-                                    selectionColor: MD3Theme.primary
-                                    selectedTextColor: MD3Theme.onPrimary
+                                    selectionColor: isFromPhone ? "#50A7EA" : MD3Theme.primary
+                                    selectedTextColor: "#FFFFFF"
                                 }
 
                                 // Fade gradient at the bottom of preview text
@@ -266,7 +293,7 @@ Item {
                                         GradientStop { position: 0.0; color: "transparent" }
                                         GradientStop {
                                             position: 1.0
-                                            color: isFromPhone ? MD3Theme.surfaceContainerHighest : MD3Theme.primaryContainer
+                                            color: bubbleCard.color
                                         }
                                     }
                                 }
@@ -279,14 +306,17 @@ Item {
                                 width: showText.implicitWidth + 24
                                 height: 24
                                 radius: 12
-                                color: isFromPhone ? MD3Theme.surfaceContainerHigh : MD3Theme.surfaceContainerLowest
+                                color: isFromPhone
+                                    ? (MD3Theme.isDark ? Qt.rgba(0, 0, 0, 0.25) : Qt.rgba(0, 0, 0, 0.08))
+                                    : Qt.rgba(0, 0, 0, 0.08)
 
                                 Text {
                                     id: showText
                                     anchors.centerIn: parent
                                     text: I18n.tr("chat.show_full_clip")
-                                    font: MD3Theme.labelSmall
-                                    color: MD3Theme.primary
+                                    font.pixelSize: 11
+                                    font.bold: true
+                                    color: isFromPhone ? "#50A7EA" : (MD3Theme.isPitchBlack ? MD3Theme.onPrimaryContainer : "#6045E2")
                                 }
 
                                 MouseArea {
@@ -297,7 +327,7 @@ Item {
                                 }
                             }
 
-                            // Integrated metadata & action buttons inside the bubble
+                            // Integrated metadata & Action Buttons inline
                             RowLayout {
                                 id: metadataRow
                                 Layout.fillWidth: true
@@ -306,10 +336,11 @@ Item {
 
                                 Text {
                                     text: (isFromPhone ? I18n.tr("chat.source_phone") : I18n.tr("chat.source_pc"))
-                                        + " • " + (delegateItem.isImageClip ? model.sizeFormatted + " • " : "")
-                                        + model.timeFormatted
-                                    font: MD3Theme.labelSmall
-                                    color: isFromPhone ? MD3Theme.onSurfaceVariant : MD3Theme.onPrimaryContainer
+                                        + (delegateItem.isImageClip ? (" • " + model.sizeFormatted) : "")
+                                    font.pixelSize: 11
+                                    color: isFromPhone
+                                        ? (MD3Theme.isDark ? "#8A92A2" : "#6C7484")
+                                        : (MD3Theme.isPitchBlack ? MD3Theme.onPrimaryContainer : "#675D80")
                                     opacity: 0.8
                                     Layout.fillWidth: true
                                     elide: Text.ElideRight
@@ -317,55 +348,78 @@ Item {
 
                                 Row {
                                     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
-                                    opacity: hoverHandler.hovered ? 1.0 : 0.0
-                                    visible: opacity > 0
-                                    spacing: 2
+                                    spacing: 4
 
-                                    Behavior on opacity { NumberAnimation { duration: 150 } }
+                                    Text {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: model.timeFormatted
+                                        font.pixelSize: 11
+                                        color: isFromPhone
+                                            ? (MD3Theme.isDark ? "#8A92A2" : "#6C7484")
+                                            : (MD3Theme.isPitchBlack ? MD3Theme.onPrimaryContainer : "#675D80")
+                                        opacity: 0.85
+                                    }
 
-                                    MD3IconButton {
-                                        iconName: "copy"
-                                        iconColor: isFromPhone ? MD3Theme.onSurface : MD3Theme.onPrimaryContainer
-                                        size: 22
-                                        onClicked: {
-                                            if (delegateItem.isImageClip) {
-                                                controller.copyImageToClipboard(index)
-                                            } else {
-                                                controller.copyToClipboard(model.text)
+                                    Row {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        opacity: hoverHandler.hovered ? 1.0 : 0.0
+                                        visible: opacity > 0
+                                        spacing: 2
+
+                                        Behavior on opacity { NumberAnimation { duration: 150 } }
+
+                                        MD3IconButton {
+                                            iconName: "copy"
+                                            iconColor: isFromPhone
+                                                ? (MD3Theme.isDark ? "#D0D6E2" : "#3C4250")
+                                                : (MD3Theme.isPitchBlack ? MD3Theme.onPrimaryContainer : "#2E2448")
+                                            size: 20
+                                            onClicked: {
+                                                if (delegateItem.isImageClip) {
+                                                    controller.copyImageToClipboard(index)
+                                                } else {
+                                                    controller.copyToClipboard(model.text)
+                                                }
                                             }
                                         }
-                                    }
 
-                                    MD3IconButton {
-                                        visible: delegateItem.isImageClip
-                                        iconName: "download"
-                                        iconColor: isFromPhone ? MD3Theme.onSurface : MD3Theme.onPrimaryContainer
-                                        size: 22
-                                        onClicked: {
-                                            saveImageDialog.targetClipIndex = index
-                                            saveImageDialog.open()
-                                        }
-                                    }
-
-                                    MD3IconButton {
-                                        visible: controller.connected && !isFromPhone
-                                        iconName: "send"
-                                        iconColor: isFromPhone ? MD3Theme.onSurface : MD3Theme.onPrimaryContainer
-                                        size: 22
-                                        onClicked: {
-                                            if (delegateItem.isImageClip) {
-                                                controller.pushImage(model.imageData)
-                                            } else {
-                                                controller.pushClipboard(model.text)
+                                        MD3IconButton {
+                                            visible: delegateItem.isImageClip
+                                            iconName: "download"
+                                            iconColor: isFromPhone
+                                                ? (MD3Theme.isDark ? "#D0D6E2" : "#3C4250")
+                                                : (MD3Theme.isPitchBlack ? MD3Theme.onPrimaryContainer : "#2E2448")
+                                            size: 20
+                                            onClicked: {
+                                                saveImageDialog.targetClipIndex = index
+                                                saveImageDialog.open()
                                             }
                                         }
-                                    }
 
-                                    MD3IconButton {
-                                        iconName: "delete"
-                                        iconColor: isFromPhone ? MD3Theme.onSurfaceVariant : MD3Theme.onPrimaryContainer
-                                        size: 22
-                                        onClicked: controller.clipModel.removeClip(index)
+                                        MD3IconButton {
+                                            visible: controller.connected && !isFromPhone
+                                            iconName: "send"
+                                            iconColor: isFromPhone
+                                                ? (MD3Theme.isDark ? "#D0D6E2" : "#3C4250")
+                                                : (MD3Theme.isPitchBlack ? MD3Theme.onPrimaryContainer : "#2E2448")
+                                            size: 20
+                                            onClicked: {
+                                                if (delegateItem.isImageClip) {
+                                                    controller.pushImage(model.imageData)
+                                                } else {
+                                                    controller.pushClipboard(model.text)
+                                                }
+                                            }
+                                        }
+
+                                        MD3IconButton {
+                                            iconName: "delete"
+                                            iconColor: isFromPhone
+                                                ? (MD3Theme.isDark ? "#8A92A2" : "#6C7484")
+                                                : (MD3Theme.isPitchBlack ? MD3Theme.onPrimaryContainer : "#675D80")
+                                            size: 20
+                                            onClicked: controller.clipModel.removeClip(index)
+                                        }
                                     }
                                 }
                             }
