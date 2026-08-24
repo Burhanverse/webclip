@@ -174,7 +174,7 @@ jobs:
               choco install innosetup --no-progress -y
               $env:PATH += ";C:\Program Files (x86)\Inno Setup 6"
           }
-          iscc.exe /DMyAppVersion="1.0.0" /DReleasePath="deploy" /DOutputDir="." /DSetupIconPath="src\gui\resources\icons\webclip.ico" packaging/setup.iss
+          iscc.exe /DMyAppVersion="1.0.0" packaging/setup.iss
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v6

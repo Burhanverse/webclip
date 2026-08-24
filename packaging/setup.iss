@@ -10,9 +10,6 @@
 #ifndef OutputDir
   #define OutputDir ".."
 #endif
-#ifndef SetupIconPath
-  #define SetupIconPath "..\src\gui\resources\icons\webclip.ico"
-#endif
 
 #define MyAppShortName "WebClip"
 #define MyAppName "WebClip Sync"
@@ -37,7 +34,7 @@ DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir={#OutputDir}
 OutputBaseFilename=webclip-setup-x64
-SetupIconFile={#SetupIconPath}
+SetupIconFile=..\src\gui\resources\icons\webclip.ico
 UninstallDisplayName={#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/ultra64
