@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC
 import QtQuick.Dialogs
+import QtQuick.Shapes
 import WebClip
 
 Item {
@@ -162,52 +163,71 @@ Item {
                         id: hoverHandler
                     }
 
-                    // Rounded Chat Bubble Container with Telegram-style Corner Tail
-                    Rectangle {
+                    // Seamless Chat Bubble Container with Vector Tail
+                    Item {
                         id: bubbleCard
                         anchors.left: isFromPhone ? parent.left : undefined
                         anchors.right: !isFromPhone ? parent.right : undefined
                         anchors.leftMargin: isFromPhone ? 8 : 0
                         anchors.rightMargin: !isFromPhone ? 8 : 0
 
+                        readonly property color bubbleColor: isFromPhone
+                            ? MD3Theme.secondaryContainer
+                            : MD3Theme.primaryContainer
+
                         width: isImageClip
                             ? Math.min(listView.width * 0.84, 320)
-                            : Math.min(listView.width * 0.84, Math.max(180, Math.max(bubbleContent.implicitWidth + 24, metadataRow.implicitWidth + 24)))
+                            : Math.min(listView.width * 0.84, Math.max(180, Math.max(bubbleContent.implicitWidth + 30, metadataRow.implicitWidth + 30)))
                         implicitHeight: bubbleInnerCol.implicitHeight + 16
-                        radius: 18
-                        color: isFromPhone
-                            ? (MD3Theme.isPitchBlack ? "#14171E" : (MD3Theme.isDark ? "#222731" : "#E8ECF2"))
-                            : (MD3Theme.isPitchBlack ? MD3Theme.primaryContainer : (MD3Theme.isDark ? "#DDD1F9" : "#DDD1F9"))
 
                         Behavior on implicitHeight { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-                        Behavior on color { ColorAnimation { duration: 150 } }
 
-                        // Left Telegram-style tail for incoming / phone messages
-                        Rectangle {
-                            visible: isFromPhone
-                            width: 14
-                            height: 14
-                            anchors.bottom: parent.bottom
-                            anchors.left: parent.left
-                            anchors.leftMargin: -4
-                            radius: 3
-                            color: bubbleCard.color
-                            rotation: 45
-                            z: -1
-                        }
+                        Canvas {
+                            id: bubbleCanvas
+                            anchors.fill: parent
+                            property color bubbleColor: bubbleCard.bubbleColor
 
-                        // Right Telegram-style tail for outgoing / PC messages
-                        Rectangle {
-                            visible: !isFromPhone
-                            width: 14
-                            height: 14
-                            anchors.bottom: parent.bottom
-                            anchors.right: parent.right
-                            anchors.rightMargin: -4
-                            radius: 3
-                            color: bubbleCard.color
-                            rotation: 45
-                            z: -1
+                            onBubbleColorChanged: requestPaint()
+                            onWidthChanged: requestPaint()
+                            onHeightChanged: requestPaint()
+
+                            onPaint: {
+                                var ctx = getContext("2d")
+                                ctx.reset()
+                                var w = width
+                                var h = height
+                                var r = 18
+                                var tw = 6
+                                var th = 15
+
+                                ctx.beginPath()
+                                if (!isFromPhone) {
+                                    // Outgoing right bubble: smooth rounded corner & tail on bottom-right
+                                    ctx.moveTo(r, 0)
+                                    ctx.lineTo(w - tw - r, 0)
+                                    ctx.arcTo(w - tw, 0, w - tw, r, r)
+                                    ctx.lineTo(w - tw, h - th)
+                                    ctx.bezierCurveTo(w - tw, h - 7, w - 2, h - 0.5, w, h)
+                                    ctx.lineTo(r, h)
+                                    ctx.arcTo(0, h, 0, h - r, r)
+                                    ctx.lineTo(0, r)
+                                    ctx.arcTo(0, 0, r, 0, r)
+                                } else {
+                                    // Incoming left bubble: smooth rounded corner & tail on bottom-left
+                                    ctx.moveTo(tw + r, 0)
+                                    ctx.lineTo(w - r, 0)
+                                    ctx.arcTo(w, 0, w, r, r)
+                                    ctx.lineTo(w, h - r)
+                                    ctx.arcTo(w, h, w - r, h, r)
+                                    ctx.lineTo(tw, h)
+                                    ctx.bezierCurveTo(2, h - 0.5, tw, h - 7, tw, h - th)
+                                    ctx.lineTo(tw, r)
+                                    ctx.arcTo(tw, 0, tw + r, 0, r)
+                                }
+                                ctx.closePath()
+                                ctx.fillStyle = bubbleColor
+                                ctx.fill()
+                            }
                         }
 
                         ColumnLayout {
@@ -215,7 +235,10 @@ Item {
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.top: parent.top
-                            anchors.margins: 10
+                            anchors.leftMargin: isFromPhone ? 14 : 10
+                            anchors.rightMargin: !isFromPhone ? 14 : 10
+                            anchors.topMargin: 8
+                            anchors.bottomMargin: 8
                             spacing: 4
 
                             // Image Content Area
@@ -225,9 +248,7 @@ Item {
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: 220
                                 radius: 12
-                                color: isFromPhone
-                                    ? (MD3Theme.isPitchBlack ? "#0E1015" : (MD3Theme.isDark ? "#181B22" : "#D0D6E2"))
-                                    : (MD3Theme.isPitchBlack ? "#221A34" : (MD3Theme.isDark ? "#C6B7E8" : "#C6B7E8"))
+                                color: isFromPhone ? MD3Theme.surfaceContainerHigh : MD3Theme.secondaryContainer
                                 clip: true
 
                                 Image {
@@ -270,14 +291,12 @@ Item {
                                     anchors.top: parent.top
                                     text: !delegateItem.isImageClip ? model.text : ""
                                     font: MD3Theme.bodyMedium
-                                    color: isFromPhone
-                                        ? (MD3Theme.isDark ? "#FFFFFF" : "#1A1D24")
-                                        : (MD3Theme.isPitchBlack ? MD3Theme.onPrimaryContainer : "#1E1535")
+                                    color: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
                                     wrapMode: Text.WrapAnywhere
                                     readOnly: true
                                     selectByMouse: true
-                                    selectionColor: isFromPhone ? "#50A7EA" : MD3Theme.primary
-                                    selectedTextColor: "#FFFFFF"
+                                    selectionColor: MD3Theme.primary
+                                    selectedTextColor: MD3Theme.onPrimary
                                 }
 
                                 // Fade gradient at the bottom of preview text
@@ -292,7 +311,7 @@ Item {
                                         GradientStop { position: 0.0; color: "transparent" }
                                         GradientStop {
                                             position: 1.0
-                                            color: bubbleCard.color
+                                            color: bubbleCard.bubbleColor
                                         }
                                     }
                                 }
@@ -306,8 +325,8 @@ Item {
                                 height: 24
                                 radius: 12
                                 color: isFromPhone
-                                    ? (MD3Theme.isDark ? Qt.rgba(0, 0, 0, 0.25) : Qt.rgba(0, 0, 0, 0.08))
-                                    : Qt.rgba(0, 0, 0, 0.08)
+                                    ? MD3Theme.surfaceContainerHigh
+                                    : MD3Theme.surfaceContainerLowest
 
                                 Text {
                                     id: showText
@@ -315,7 +334,7 @@ Item {
                                     text: I18n.tr("chat.show_full_clip")
                                     font.pixelSize: 11
                                     font.bold: true
-                                    color: isFromPhone ? "#50A7EA" : (MD3Theme.isPitchBlack ? MD3Theme.onPrimaryContainer : "#6045E2")
+                                    color: MD3Theme.primary
                                 }
 
                                 MouseArea {
@@ -337,9 +356,7 @@ Item {
                                     text: (isFromPhone ? I18n.tr("chat.source_phone") : I18n.tr("chat.source_pc"))
                                         + (delegateItem.isImageClip ? (" • " + model.sizeFormatted) : "")
                                     font.pixelSize: 11
-                                    color: isFromPhone
-                                        ? (MD3Theme.isDark ? "#8A92A2" : "#6C7484")
-                                        : (MD3Theme.isPitchBlack ? MD3Theme.onPrimaryContainer : "#675D80")
+                                    color: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
                                     opacity: 0.8
                                     Layout.fillWidth: true
                                     elide: Text.ElideRight
@@ -353,71 +370,72 @@ Item {
                                         anchors.verticalCenter: parent.verticalCenter
                                         text: model.timeFormatted
                                         font.pixelSize: 11
-                                        color: isFromPhone
-                                            ? (MD3Theme.isDark ? "#8A92A2" : "#6C7484")
-                                            : (MD3Theme.isPitchBlack ? MD3Theme.onPrimaryContainer : "#675D80")
+                                        color: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
                                         opacity: 0.85
                                     }
 
-                                    Row {
+                                    Rectangle {
                                         anchors.verticalCenter: parent.verticalCenter
-                                        opacity: hoverHandler.hovered ? 1.0 : 0.0
-                                        visible: opacity > 0
-                                        spacing: 2
+                                        height: 24
+                                        width: actionIconsRow.implicitWidth + 8
+                                        radius: 12
+                                        color: isFromPhone
+                                            ? (MD3Theme.isDark ? Qt.rgba(1, 1, 1, 0.09) : Qt.rgba(0, 0, 0, 0.06))
+                                            : (MD3Theme.isDark ? Qt.rgba(0, 0, 0, 0.12) : Qt.rgba(0, 0, 0, 0.06))
 
-                                        Behavior on opacity { NumberAnimation { duration: 150 } }
+                                        Row {
+                                            id: actionIconsRow
+                                            anchors.centerIn: parent
+                                            spacing: 2
 
-                                        MD3IconButton {
-                                            iconName: "copy"
-                                            iconColor: isFromPhone
-                                                ? (MD3Theme.isDark ? "#D0D6E2" : "#3C4250")
-                                                : (MD3Theme.isPitchBlack ? MD3Theme.onPrimaryContainer : "#2E2448")
-                                            size: 20
-                                            onClicked: {
-                                                if (delegateItem.isImageClip) {
-                                                    controller.copyImageToClipboard(index)
-                                                } else {
-                                                    controller.copyToClipboard(model.text)
+                                            MD3IconButton {
+                                                iconName: "copy"
+                                                iconColor: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
+                                                size: 20
+                                                iconSize: 13
+                                                onClicked: {
+                                                    if (delegateItem.isImageClip) {
+                                                        controller.copyImageToClipboard(index)
+                                                    } else {
+                                                        controller.copyToClipboard(model.text)
+                                                    }
                                                 }
                                             }
-                                        }
 
-                                        MD3IconButton {
-                                            visible: delegateItem.isImageClip
-                                            iconName: "download"
-                                            iconColor: isFromPhone
-                                                ? (MD3Theme.isDark ? "#D0D6E2" : "#3C4250")
-                                                : (MD3Theme.isPitchBlack ? MD3Theme.onPrimaryContainer : "#2E2448")
-                                            size: 20
-                                            onClicked: {
-                                                saveImageDialog.targetClipIndex = index
-                                                saveImageDialog.open()
-                                            }
-                                        }
-
-                                        MD3IconButton {
-                                            visible: controller.connected && !isFromPhone
-                                            iconName: "send"
-                                            iconColor: isFromPhone
-                                                ? (MD3Theme.isDark ? "#D0D6E2" : "#3C4250")
-                                                : (MD3Theme.isPitchBlack ? MD3Theme.onPrimaryContainer : "#2E2448")
-                                            size: 20
-                                            onClicked: {
-                                                if (delegateItem.isImageClip) {
-                                                    controller.pushImage(model.imageData)
-                                                } else {
-                                                    controller.pushClipboard(model.text)
+                                            MD3IconButton {
+                                                visible: delegateItem.isImageClip
+                                                iconName: "download"
+                                                iconColor: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
+                                                size: 20
+                                                iconSize: 13
+                                                onClicked: {
+                                                    saveImageDialog.targetClipIndex = index
+                                                    saveImageDialog.open()
                                                 }
                                             }
-                                        }
 
-                                        MD3IconButton {
-                                            iconName: "delete"
-                                            iconColor: isFromPhone
-                                                ? (MD3Theme.isDark ? "#8A92A2" : "#6C7484")
-                                                : (MD3Theme.isPitchBlack ? MD3Theme.onPrimaryContainer : "#675D80")
-                                            size: 20
-                                            onClicked: controller.clipModel.removeClip(index)
+                                            MD3IconButton {
+                                                visible: controller.connected && !isFromPhone
+                                                iconName: "send"
+                                                iconColor: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
+                                                size: 20
+                                                iconSize: 13
+                                                onClicked: {
+                                                    if (delegateItem.isImageClip) {
+                                                        controller.pushImage(model.imageData)
+                                                    } else {
+                                                        controller.pushClipboard(model.text)
+                                                    }
+                                                }
+                                            }
+
+                                            MD3IconButton {
+                                                iconName: "delete"
+                                                iconColor: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
+                                                size: 20
+                                                iconSize: 13
+                                                onClicked: controller.clipModel.removeClip(index)
+                                            }
                                         }
                                     }
                                 }

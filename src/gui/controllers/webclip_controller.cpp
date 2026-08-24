@@ -740,8 +740,6 @@ bool WebClipController::pushClipboard(const QString& text, const QString& clipId
         QMetaObject::invokeMethod(self.data(), [self, text, resp]() {
             if (!self) return;
             if (resp.status_code == 200) {
-                int64_t nowMs = QDateTime::currentMSecsSinceEpoch();
-                self->markTextApplied(text, nowMs);
                 self->clipModel_.addClip(text, "local");
                 emit self->showToast("Pushed " + QString::number(text.length()) + " chars to phone", false);
             } else {
@@ -836,8 +834,6 @@ bool WebClipController::pushImageBytes(const QByteArray& bytes, const QString& m
         QMetaObject::invokeMethod(self.data(), [self, hash, pixelFp, dataUrl, bytes, mime, resp]() {
             if (!self) return;
             if (resp.status_code == 200) {
-                int64_t nowMs = QDateTime::currentMSecsSinceEpoch();
-                self->markImageApplied(hash, pixelFp, nowMs);
                 self->clipModel_.addClipImage(dataUrl, QString::fromStdString(mime), bytes.size(), "local");
                 emit self->showToast("Pushed image (" + QString::number(bytes.size() / 1024) + " KB) to phone", false);
             } else {
