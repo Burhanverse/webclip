@@ -52,7 +52,6 @@ Window {
         anchors.fill: parent
         spacing: 0
 
-        // Modern Phone-style Header App Bar
         Rectangle {
             Layout.fillWidth: true
             Layout.preferredHeight: 58
@@ -64,7 +63,6 @@ Window {
                 anchors.rightMargin: 12
                 spacing: 12
 
-                // Avatar / Phone Icon with Online Status Ring
                 Item {
                     width: 38
                     height: 38
@@ -82,7 +80,6 @@ Window {
                         }
                     }
 
-                    // Online green dot / orange / red
                     Rectangle {
                         width: 10
                         height: 10
@@ -102,7 +99,6 @@ Window {
                     }
                 }
 
-                // Title & Subtitle (Chat Contact Header style)
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 1
@@ -130,7 +126,6 @@ Window {
                     }
                 }
 
-                // Right Action Icons Grouped Neatly
                 Row {
                     spacing: 4
                     Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
@@ -170,7 +165,6 @@ Window {
             }
         }
 
-        // Main Chat Clips Feed
         ClipsPage {
             Layout.fillWidth: true
             Layout.fillHeight: true
@@ -178,13 +172,11 @@ Window {
         }
     }
 
-    // Modern Settings Popup Dialog
     MD3SettingsDialog {
         id: settingsDialog
         controller: controller
     }
 
-    // Floating MD3 Toast Notification
     Rectangle {
         id: toast
         property bool isError: false

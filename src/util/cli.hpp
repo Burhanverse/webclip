@@ -48,7 +48,6 @@ inline void print_usage(const char* prog_name) {
 inline void sanitize_host_and_port(SyncConfig& config, bool port_explicitly_set) {
     std::string host = config.host;
 
-    // 1. Strip protocol scheme if provided
     if (host.rfind("https://", 0) == 0) {
         config.use_https = true;
         host = host.substr(8);
@@ -56,13 +55,11 @@ inline void sanitize_host_and_port(SyncConfig& config, bool port_explicitly_set)
         host = host.substr(7);
     }
 
-    // 2. Strip trailing slash or path if present
     size_t slash_pos = host.find('/');
     if (slash_pos != std::string::npos) {
         host = host.substr(0, slash_pos);
     }
 
-    // 3. Extract port if formatted as host:port
     size_t colon_pos = host.find(':');
     if (colon_pos != std::string::npos) {
         std::string port_str = host.substr(colon_pos + 1);
@@ -75,12 +72,10 @@ inline void sanitize_host_and_port(SyncConfig& config, bool port_explicitly_set)
 
     config.host = host;
 
-    // 4. Default port handling
     if (!port_explicitly_set) {
         config.port = config.use_https ? 8081 : 8080;
     }
 
-    // 5. If HTTPS is enabled or port is 8081, Gboard uses self-signed SSL certs on local network
     if (config.use_https || config.port == 8081) {
         config.insecure = true;
     }

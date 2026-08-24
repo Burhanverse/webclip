@@ -87,7 +87,6 @@ QColor MD3Theme::activeSeedColor() const {
     return QColor("#6750A4"); // M3 Default Purple
 }
 
-// MD3 Tonal Palette derived from active seed
 QColor MD3Theme::primary() const {
     QColor seed = activeSeedColor();
     if (isDark()) {
@@ -262,7 +261,6 @@ QColor MD3Theme::outlineVariant() const {
     return isDark() ? QColor::fromHslF(h, s, 0.25f) : QColor::fromHslF(h, s, 0.82f);
 }
 
-// Typography
 QFont MD3Theme::createFont(int pixelSize, QFont::Weight weight) const {
     QFont f(QStringLiteral("Open Sans"));
     f.setStyleHint(QFont::SansSerif);

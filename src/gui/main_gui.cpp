@@ -26,25 +26,90 @@ extern "C" const char* __lsan_default_suppressions() {
 }
 #endif
 
-int main(int argc, char* argv[]) {
-    // Check for CLI invocation (--help, --version, or connection flags)
-    bool has_cli_args = false;
-    for (int i = 1; i < argc; ++i) {
-        std::string arg = argv[i];
-        if (arg == "--help" || arg == "-h" || arg == "-?") {
-            webclip::print_usage(argv[0]);
-            return 0;
-        }
-        if (arg == "--version" || arg == "-v") {
-            std::cout << webclip::APP_DISPLAY_NAME << " version " << webclip::VERSION_STRING << std::endl;
-            return 0;
-        }
-        if (arg == "--headless" || arg == "--cli" || arg == "--host" || arg == "-c" || arg == "--code") {
-            has_cli_args = true;
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <io.h>
+#include <fcntl.h>
+#include <cstdio>
+
+namespace {
+
+void setup_windows_console() {
+    bool attached = false;
+
+    if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+        attached = true;
+    } else {
+        DWORD err = GetLastError();
+        if (err == ERROR_INVALID_HANDLE || err == ERROR_GEN_FAILURE) {
+            if (AllocConsole()) {
+                attached = true;
+            }
         }
     }
 
-    if (has_cli_args) {
+    if (attached) {
+        FILE* fp_out = nullptr;
+        FILE* fp_err = nullptr;
+        FILE* fp_in = nullptr;
+
+#if defined(_MSC_VER)
+        freopen_s(&fp_out, "CONOUT$", "w", stdout);
+        freopen_s(&fp_err, "CONOUT$", "w", stderr);
+        freopen_s(&fp_in, "CONIN$", "r", stdin);
+#else
+        fp_out = std::freopen("CONOUT$", "w", stdout);
+        fp_err = std::freopen("CONOUT$", "w", stderr);
+        fp_in = std::freopen("CONIN$", "r", stdin);
+#endif
+
+        SetStdHandle(STD_OUTPUT_HANDLE, GetStdHandle(STD_OUTPUT_HANDLE));
+        SetStdHandle(STD_ERROR_HANDLE, GetStdHandle(STD_ERROR_HANDLE));
+        SetStdHandle(STD_INPUT_HANDLE, GetStdHandle(STD_INPUT_HANDLE));
+
+        std::cout.clear();
+        std::cerr.clear();
+        std::cin.clear();
+        std::ios::sync_with_stdio(true);
+    }
+}
+
+} // namespace
+#endif
+
+int main(int argc, char* argv[]) {
+    bool is_cli_mode = false;
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--help" || arg == "-h" || arg == "-?" ||
+            arg == "--version" || arg == "-v" ||
+            arg == "--headless" || arg == "--cli" ||
+            arg == "--host" || arg == "-c" || arg == "--code" ||
+            arg == "--insecure" || arg == "-k" || arg == "--https" ||
+            arg == "-p" || arg == "--port" || arg == "-i" || arg == "--poll-interval" ||
+            arg == "--client-id") {
+            is_cli_mode = true;
+            break;
+        }
+    }
+
+    if (is_cli_mode) {
+#ifdef _WIN32
+        setup_windows_console();
+#endif
+        for (int i = 1; i < argc; ++i) {
+            std::string arg = argv[i];
+            if (arg == "--help" || arg == "-h" || arg == "-?") {
+                webclip::print_usage(argv[0]);
+                return 0;
+            }
+            if (arg == "--version" || arg == "-v") {
+                std::cout << webclip::APP_DISPLAY_NAME << " version " << webclip::VERSION_STRING << std::endl;
+                return 0;
+            }
+        }
+
         webclip::SyncConfig config;
         if (!webclip::parse_cli_args(argc, argv, config)) {
             return 1;

@@ -60,6 +60,11 @@ endif()
 # Unified Standalone WebClip Executable (GUI + Headless CLI Daemon)
 add_executable(webclip src/gui/main_gui.cpp ${WINDOWS_RESOURCE})
 
+if(WIN32)
+    # Instructs MSVC to pass /SUBSYSTEM:WINDOWS and MinGW to pass -mwindows
+    set_target_properties(webclip PROPERTIES WIN32_EXECUTABLE TRUE)
+endif()
+
 target_include_directories(webclip PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
