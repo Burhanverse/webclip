@@ -31,23 +31,23 @@ Designed and styled following **Material Design 3 (MD3)** with dynamic light/dar
 
 ## Build Instructions
 
-### Linux (Arch, Fedora, Ubuntu/Debian)
+For full build prerequisites, Linux AppImage packaging, and Windows MSVC / Inno Setup installer steps, see **[docs/build.md](docs/build.md)**.
 
-**Prerequisites:**
-- C++17 compiler (`g++` or `clang++`)
-- `cmake` (>= 3.16) and `make` or `ninja`
-- `qt6-base-dev`, `qt6-declarative-dev`, `qt6-tools-dev` (or Arch `qt6-base`, `qt6-declarative`)
-- `libcurl` (`libcurl4-openssl-dev` on Debian/Ubuntu, `libcurl-devel` on Fedora, `curl` on Arch)
-- `wl-clipboard` (Wayland) or `xclip` / `xsel` (X11)
+### Quick Start (Linux)
 
 ```bash
-mkdir -p build && cd build
-cmake ..
-make -j$(nproc)
+# Configure and build with Ninja
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
 ```
 
-The resulting binaries:
-- `build/webclip` (or `webclip.exe` on Windows): Unified standalone application (GUI with system tray & headless CLI daemon)
+### Quick Start (Windows MSVC + vcpkg)
+
+```powershell
+vcpkg install curl:x64-windows
+cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+cmake --build build --config Release --parallel
+```
 
 ---
 
