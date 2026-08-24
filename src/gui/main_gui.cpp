@@ -1,6 +1,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
+#include "util/icon_image_provider.hpp"
 
 int main(int argc, char* argv[]) {
     QGuiApplication app(argc, argv);
@@ -13,6 +14,7 @@ int main(int argc, char* argv[]) {
     QQuickStyle::setStyle("Basic");
 
     QQmlApplicationEngine engine;
+    engine.addImageProvider(QStringLiteral("icon"), new webclip::IconImageProvider());
 
     QObject::connect(
         &engine,

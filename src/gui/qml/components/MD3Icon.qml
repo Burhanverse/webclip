@@ -1,5 +1,4 @@
 import QtQuick
-import Qt5Compat.GraphicalEffects
 import WebClip
 
 Item {
@@ -17,16 +16,14 @@ Item {
         anchors.centerIn: parent
         width: root.size
         height: root.size
-        sourceSize: Qt.size(Math.max(48, root.size * 3), Math.max(48, root.size * 3))
-        source: root.name !== "" ? ("qrc:/qt/qml/src/gui/resources/icons/" + root.name + ".svg") : ""
         fillMode: Image.PreserveAspectFit
         smooth: true
-        visible: false
-    }
+        asynchronous: false
 
-    ColorOverlay {
-        anchors.fill: iconImg
-        source: iconImg
-        color: root.color
+        source: root.name !== ""
+            ? ("image://icon/" + root.name
+                + "?color=" + encodeURIComponent(root.color.toString())
+                + "&size=" + Math.max(32, Math.round(root.size * Math.max(1.0, Screen.devicePixelRatio || 1.0))))
+            : ""
     }
 }

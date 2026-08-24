@@ -11,7 +11,7 @@ set(CMAKE_AUTOUIC ON)
 # Find System Dependencies
 find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
-find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Quick Qml QuickControls2 Core5Compat)
+find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Quick Qml QuickControls2 Core5Compat Svg)
 
 if(COMMAND qt_standard_project_setup)
     qt_standard_project_setup(REQUIRES 6.5)
@@ -61,6 +61,7 @@ target_include_directories(webclip PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/models
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/controllers
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/theme
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/util
 )
 
 qt_add_qml_module(webclip
@@ -78,25 +79,36 @@ qt_add_qml_module(webclip
         src/gui/qml/components/MD3TextField.qml
         src/gui/qml/components/MD3Switch.qml
         src/gui/qml/components/MD3ColorPicker.qml
+        src/gui/qml/components/MD3ColorPickerDialog.qml
         src/gui/qml/pages/ClipsPage.qml
         src/gui/qml/pages/PushPage.qml
         src/gui/qml/pages/SettingsPage.qml
     RESOURCES
-        src/gui/resources/icons/copy.svg
-        src/gui/resources/icons/paste.svg
-        src/gui/resources/icons/send.svg
-        src/gui/resources/icons/delete.svg
-        src/gui/resources/icons/phone.svg
-        src/gui/resources/icons/laptop.svg
-        src/gui/resources/icons/settings.svg
-        src/gui/resources/icons/sun.svg
-        src/gui/resources/icons/moon.svg
-        src/gui/resources/icons/sync.svg
+        src/gui/resources/icons/android.svg
         src/gui/resources/icons/check.svg
-        src/gui/resources/icons/close.svg
-        src/gui/resources/icons/palette.svg
-        src/gui/resources/icons/clips.svg
         src/gui/resources/icons/clear_all.svg
+        src/gui/resources/icons/clips.svg
+        src/gui/resources/icons/close.svg
+        src/gui/resources/icons/content_copy.svg
+        src/gui/resources/icons/content_paste.svg
+        src/gui/resources/icons/copy.svg
+        src/gui/resources/icons/dark_mode.svg
+        src/gui/resources/icons/delete.svg
+        src/gui/resources/icons/edit.svg
+        src/gui/resources/icons/laptop.svg
+        src/gui/resources/icons/light_mode.svg
+        src/gui/resources/icons/link.svg
+        src/gui/resources/icons/link_off.svg
+        src/gui/resources/icons/moon.svg
+        src/gui/resources/icons/palette.svg
+        src/gui/resources/icons/paste.svg
+        src/gui/resources/icons/phone.svg
+        src/gui/resources/icons/send.svg
+        src/gui/resources/icons/settings.svg
+        src/gui/resources/icons/smartphone.svg
+        src/gui/resources/icons/sun.svg
+        src/gui/resources/icons/sync.svg
+        src/gui/resources/icons/view_agenda.svg
     SOURCES
         src/gui/theme/md3_theme.hpp
         src/gui/theme/md3_theme.cpp
@@ -104,6 +116,8 @@ qt_add_qml_module(webclip
         src/gui/models/clipboard_history_model.cpp
         src/gui/controllers/webclip_controller.hpp
         src/gui/controllers/webclip_controller.cpp
+        src/gui/util/icon_image_provider.hpp
+        src/gui/util/icon_image_provider.cpp
 )
 
 target_link_libraries(webclip PRIVATE
@@ -114,6 +128,7 @@ target_link_libraries(webclip PRIVATE
     Qt6::Qml
     Qt6::QuickControls2
     Qt6::Core5Compat
+    Qt6::Svg
 )
 
 # Compiler optimization and warning options

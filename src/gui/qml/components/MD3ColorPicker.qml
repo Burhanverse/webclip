@@ -6,17 +6,33 @@ import WebClip
 Item {
     id: root
 
-    property color selectedColor: "#6750A4"
+    property color selectedColor: "#FF416D"
     signal colorSelected(color col)
 
-    // Internal HSL state
-    property real currentHue: 0.74      // 0.0 - 1.0
-    property real currentSat: 0.50      // 0.0 - 1.0
-    property real currentLight: 0.48    // 0.0 - 1.0
+    // Internal HSL and RGB state
+    property real currentHue: 0.96      // 0.0 - 1.0 (e.g. 346 / 360)
+    property real currentSat: 1.0       // 0.0 - 1.0 (100%)
+    property real currentLight: 0.63    // 0.0 - 1.0 (63%)
+
+    property int currentR: 255
+    property int currentG: 65
+    property int currentB: 109
+    property string currentHex: "ff416d"
+
     property bool updatingInternally: false
 
     implicitWidth: 380
     implicitHeight: mainLayout.implicitHeight
+
+    function updateTextFields() {
+        hInput.text = Math.round(currentHue * 360).toString()
+        sInput.text = Math.round(currentSat * 100).toString()
+        lInput.text = Math.round(currentLight * 100).toString()
+        rInput.text = currentR.toString()
+        gInput.text = currentG.toString()
+        bInput.text = currentB.toString()
+        hexTextInput.text = currentHex
+    }
 
     function updateFromColor(col) {
         if (updatingInternally) return
@@ -24,28 +40,72 @@ Item {
         var c = Qt.color(col)
         if (c.r !== undefined) {
             currentHue = c.hslHue >= 0 ? c.hslHue : 0.0
-            currentSat = c.hslSaturation >= 0 ? c.hslSaturation : 0.5
+            currentSat = c.hslSaturation >= 0 ? c.hslSaturation : 1.0
             currentLight = c.hslLightness >= 0 ? c.hslLightness : 0.5
-            hexInput.text = colorToHex(c)
+
+            currentR = Math.round(c.r * 255)
+            currentG = Math.round(c.g * 255)
+            currentB = Math.round(c.b * 255)
+            currentHex = colorToHexNoHash(c)
+            updateTextFields()
         }
         updatingInternally = false
     }
 
-    function emitColor() {
+    function syncFromHsl() {
         if (updatingInternally) return
         updatingInternally = true
         var col = Qt.hsla(currentHue, currentSat, currentLight, 1.0)
         selectedColor = col
-        hexInput.text = colorToHex(col)
+        currentR = Math.round(col.r * 255)
+        currentG = Math.round(col.g * 255)
+        currentB = Math.round(col.b * 255)
+        currentHex = colorToHexNoHash(col)
+        updateTextFields()
         colorSelected(col)
         updatingInternally = false
     }
 
-    function colorToHex(c) {
+    function syncFromRgb() {
+        if (updatingInternally) return
+        updatingInternally = true
+        var col = Qt.rgba(currentR / 255.0, currentG / 255.0, currentB / 255.0, 1.0)
+        selectedColor = col
+        currentHue = col.hslHue >= 0 ? col.hslHue : 0.0
+        currentSat = col.hslSaturation >= 0 ? col.hslSaturation : 0.0
+        currentLight = col.hslLightness >= 0 ? col.hslLightness : 0.5
+        currentHex = colorToHexNoHash(col)
+        updateTextFields()
+        colorSelected(col)
+        updatingInternally = false
+    }
+
+    function syncFromHex(hexStr) {
+        if (updatingInternally) return
+        var clean = hexStr.trim()
+        if (clean.startsWith("#")) clean = clean.substring(1)
+        if (/^[0-9A-Fa-f]{6}$/.test(clean)) {
+            updatingInternally = true
+            var col = Qt.color("#" + clean)
+            selectedColor = col
+            currentHue = col.hslHue >= 0 ? col.hslHue : 0.0
+            currentSat = col.hslSaturation >= 0 ? col.hslSaturation : 0.0
+            currentLight = col.hslLightness >= 0 ? col.hslLightness : 0.5
+            currentR = Math.round(col.r * 255)
+            currentG = Math.round(col.g * 255)
+            currentB = Math.round(col.b * 255)
+            currentHex = clean.toLowerCase()
+            updateTextFields()
+            colorSelected(col)
+            updatingInternally = false
+        }
+    }
+
+    function colorToHexNoHash(c) {
         var r = Math.round(c.r * 255).toString(16).padStart(2, '0')
         var g = Math.round(c.g * 255).toString(16).padStart(2, '0')
         var b = Math.round(c.b * 255).toString(16).padStart(2, '0')
-        return ("#" + r + g + b).toUpperCase()
+        return (r + g + b).toLowerCase()
     }
 
     onSelectedColorChanged: {
@@ -63,403 +123,389 @@ Item {
         anchors.top: parent.top
         spacing: 16
 
-        // Live preview & Hex Input Bar
-        Rectangle {
+        // Main Editor Row
+        RowLayout {
             Layout.fillWidth: true
-            height: 56
-            radius: MD3Theme.cornerM
-            color: MD3Theme.surfaceContainerHighest
-            border.color: MD3Theme.outlineVariant
-            border.width: 1
+            spacing: 16
 
-            RowLayout {
-                anchors.fill: parent
-                anchors.margins: 8
+            // Left Column: 2D Spectrum Box + Bottom Lightness Slider
+            ColumnLayout {
                 spacing: 12
 
-                // Large Preview Swatch
+                // 2D Hue x Saturation Spectrum Area
                 Rectangle {
-                    width: 40
-                    height: 40
-                    radius: MD3Theme.cornerS
-                    color: root.selectedColor
+                    id: spectrumArea
+                    width: 220
+                    height: 220
+                    radius: 4
+                    clip: true
+
+                    // Horizontal rainbow hue gradient
+                    Rectangle {
+                        anchors.fill: parent
+                        gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0.00; color: "#FF0000" }
+                            GradientStop { position: 0.17; color: "#FFFF00" }
+                            GradientStop { position: 0.33; color: "#00FF00" }
+                            GradientStop { position: 0.50; color: "#00FFFF" }
+                            GradientStop { position: 0.67; color: "#0000FF" }
+                            GradientStop { position: 0.83; color: "#FF00FF" }
+                            GradientStop { position: 1.00; color: "#FF0000" }
+                        }
+                    }
+
+                    // Vertical Saturation overlay (Top: transparent / full color, Bottom: gray)
+                    Rectangle {
+                        anchors.fill: parent
+                        gradient: Gradient {
+                            orientation: Gradient.Vertical
+                            GradientStop { position: 0.0; color: "transparent" }
+                            GradientStop { position: 1.0; color: "#808080" }
+                        }
+                    }
+
                     border.color: MD3Theme.outlineVariant
                     border.width: 1
 
-                    Behavior on color { ColorAnimation { duration: 100 } }
+                    // Draggable Pointer Ring
+                    Rectangle {
+                        id: spectrumHandle
+                        x: Math.max(0, Math.min(spectrumArea.width - width, root.currentHue * spectrumArea.width - width / 2))
+                        y: Math.max(0, Math.min(spectrumArea.height - height, (1.0 - root.currentSat) * spectrumArea.height - height / 2))
+                        width: 16
+                        height: 16
+                        radius: 8
+                        color: "transparent"
+                        border.color: "#FFFFFF"
+                        border.width: 2
 
-                    MD3Icon {
-                        anchors.centerIn: parent
-                        name: "palette"
-                        size: 20
-                        color: root.currentLight > 0.6 ? "#1A1A1A" : "#FFFFFF"
+                        Rectangle {
+                            anchors.centerIn: parent
+                            width: 18
+                            height: 18
+                            radius: 9
+                            color: "transparent"
+                            border.color: Qt.rgba(0, 0, 0, 0.4)
+                            border.width: 1
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.CrossCursor
+
+                        function updateFromMouse(mouse) {
+                            var h = Math.max(0, Math.min(1.0, mouse.x / spectrumArea.width))
+                            var s = Math.max(0, Math.min(1.0, 1.0 - (mouse.y / spectrumArea.height)))
+                            root.currentHue = h
+                            root.currentSat = s
+                            root.syncFromHsl()
+                        }
+
+                        onPressed: (mouse) => updateFromMouse(mouse)
+                        onPositionChanged: (mouse) => {
+                            if (pressed) updateFromMouse(mouse)
+                        }
                     }
                 }
 
-                // Hex input
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 0
+                // Bottom Lightness Slider Track
+                Item {
+                    id: lightSliderContainer
+                    width: 220
+                    height: 20
 
-                    Text {
-                        text: "HEX COLOR"
-                        font: MD3Theme.labelSmall
-                        color: MD3Theme.onSurfaceVariant
+                    Rectangle {
+                        id: lightSliderTrack
+                        anchors.left: parent.left
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        height: 14
+                        radius: 2
+                        clip: true
+
+                        gradient: Gradient {
+                            orientation: Gradient.Horizontal
+                            GradientStop { position: 0.0; color: "#000000" }
+                            GradientStop { position: 1.0; color: Qt.hsla(root.currentHue, root.currentSat, 0.5, 1.0) }
+                        }
+
+                        border.color: MD3Theme.outlineVariant
+                        border.width: 1
                     }
 
+                    // Top & Bottom Indicator Arrows
+                    Item {
+                        x: Math.max(0, Math.min(lightSliderContainer.width, root.currentLight * lightSliderContainer.width)) - 4
+                        anchors.fill: parent
+
+                        // Top Arrow
+                        Canvas {
+                            width: 8
+                            height: 5
+                            anchors.top: parent.top
+                            onPaint: {
+                                var ctx = getContext("2d")
+                                ctx.reset()
+                                ctx.fillStyle = MD3Theme.onSurface
+                                ctx.beginPath()
+                                ctx.moveTo(0, 0)
+                                ctx.lineTo(8, 0)
+                                ctx.lineTo(4, 5)
+                                ctx.closePath()
+                                ctx.fill()
+                            }
+                        }
+
+                        // Bottom Arrow
+                        Canvas {
+                            width: 8
+                            height: 5
+                            anchors.bottom: parent.bottom
+                            onPaint: {
+                                var ctx = getContext("2d")
+                                ctx.reset()
+                                ctx.fillStyle = MD3Theme.onSurface
+                                ctx.beginPath()
+                                ctx.moveTo(4, 0)
+                                ctx.lineTo(0, 5)
+                                ctx.lineTo(8, 5)
+                                ctx.closePath()
+                                ctx.fill()
+                            }
+                        }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+
+                        function updateLight(mouse) {
+                            var l = Math.max(0.05, Math.min(0.95, mouse.x / lightSliderContainer.width))
+                            root.currentLight = l
+                            root.syncFromHsl()
+                        }
+
+                        onPressed: (mouse) => updateLight(mouse)
+                        onPositionChanged: (mouse) => {
+                            if (pressed) updateLight(mouse)
+                        }
+                    }
+                }
+            }
+
+            // Right Column: Dual Swatch + HSL, RGB, HEX Inputs
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: 6
+
+                // Dual Color Preview Swatch
+                Rectangle {
+                    Layout.preferredWidth: 80
+                    Layout.preferredHeight: 64
+                    Layout.alignment: Qt.AlignRight
+                    radius: 6
+                    clip: true
+                    border.color: MD3Theme.outlineVariant
+                    border.width: 1
+
+                    Column {
+                        anchors.fill: parent
+                        Rectangle {
+                            width: parent.width
+                            height: parent.height / 2
+                            color: root.selectedColor
+                        }
+                        Rectangle {
+                            width: parent.width
+                            height: parent.height / 2
+                            color: Qt.hsla(root.currentHue, Math.min(1.0, root.currentSat * 0.7), 0.85, 1.0)
+                        }
+                    }
+                }
+
+                Item { Layout.preferredHeight: 4 }
+
+                // HSL Section
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Text { text: "H"; font.pixelSize: 13; color: MD3Theme.onSurfaceVariant; Layout.preferredWidth: 14 }
                     TextInput {
-                        id: hexInput
+                        id: hInput
                         Layout.fillWidth: true
-                        text: colorToHex(root.selectedColor)
-                        font: MD3Theme.titleSmall
+                        text: "346"
+                        font.pixelSize: 13
                         color: MD3Theme.onSurface
                         selectByMouse: true
-                        maximumLength: 7
-
-                        onTextChanged: {
+                        onTextEdited: {
                             if (root.updatingInternally) return
-                            var str = text.trim()
-                            if (!str.startsWith("#")) str = "#" + str
-                            if (/^#[0-9A-Fa-f]{6}$/.test(str)) {
-                                var col = Qt.color(str)
-                                root.updatingInternally = true
-                                root.selectedColor = col
-                                root.currentHue = col.hslHue >= 0 ? col.hslHue : 0.0
-                                root.currentSat = col.hslSaturation >= 0 ? col.hslSaturation : 0.5
-                                root.currentLight = col.hslLightness >= 0 ? col.hslLightness : 0.5
-                                root.colorSelected(col)
-                                root.updatingInternally = false
+                            var val = parseInt(text)
+                            if (!isNaN(val)) {
+                                root.currentHue = Math.max(0, Math.min(360, val)) / 360.0
+                                root.syncFromHsl()
+                            }
+                        }
+                    }
+                    Text { text: "°"; font.pixelSize: 13; color: MD3Theme.onSurfaceVariant }
+                }
+                Rectangle { Layout.fillWidth: true; height: 1; color: MD3Theme.outlineVariant }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Text { text: "S"; font.pixelSize: 13; color: MD3Theme.onSurfaceVariant; Layout.preferredWidth: 14 }
+                    TextInput {
+                        id: sInput
+                        Layout.fillWidth: true
+                        text: "100"
+                        font.pixelSize: 13
+                        color: MD3Theme.onSurface
+                        selectByMouse: true
+                        onTextEdited: {
+                            if (root.updatingInternally) return
+                            var val = parseInt(text)
+                            if (!isNaN(val)) {
+                                root.currentSat = Math.max(0, Math.min(100, val)) / 100.0
+                                root.syncFromHsl()
+                            }
+                        }
+                    }
+                    Text { text: "%"; font.pixelSize: 13; color: MD3Theme.onSurfaceVariant }
+                }
+                Rectangle { Layout.fillWidth: true; height: 1; color: MD3Theme.outlineVariant }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Text { text: "L"; font.pixelSize: 13; color: MD3Theme.onSurfaceVariant; Layout.preferredWidth: 14 }
+                    TextInput {
+                        id: lInput
+                        Layout.fillWidth: true
+                        text: "63"
+                        font.pixelSize: 13
+                        color: MD3Theme.onSurface
+                        selectByMouse: true
+                        onTextEdited: {
+                            if (root.updatingInternally) return
+                            var val = parseInt(text)
+                            if (!isNaN(val)) {
+                                root.currentLight = Math.max(0, Math.min(100, val)) / 100.0
+                                root.syncFromHsl()
+                            }
+                        }
+                    }
+                    Text { text: "%"; font.pixelSize: 13; color: MD3Theme.onSurfaceVariant }
+                }
+                Rectangle { Layout.fillWidth: true; height: 1; color: MD3Theme.outlineVariant }
+
+                Item { Layout.preferredHeight: 2 }
+
+                // RGB Section
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Text { text: "R"; font.pixelSize: 13; color: MD3Theme.onSurfaceVariant; Layout.preferredWidth: 14 }
+                    TextInput {
+                        id: rInput
+                        Layout.fillWidth: true
+                        text: "255"
+                        font.pixelSize: 13
+                        color: MD3Theme.onSurface
+                        selectByMouse: true
+                        onTextEdited: {
+                            if (root.updatingInternally) return
+                            var val = parseInt(text)
+                            if (!isNaN(val)) {
+                                root.currentR = Math.max(0, Math.min(255, val))
+                                root.syncFromRgb()
                             }
                         }
                     }
                 }
+                Rectangle { Layout.fillWidth: true; height: 1; color: MD3Theme.outlineVariant }
 
-                // Active RGB / HSL stats badge
-                Rectangle {
-                    radius: MD3Theme.cornerXS
-                    color: MD3Theme.surfaceContainer
-                    implicitHeight: 32
-                    implicitWidth: statCol.implicitWidth + 16
-
-                    ColumnLayout {
-                        id: statCol
-                        anchors.centerIn: parent
-                        spacing: 0
-
-                        Text {
-                            text: "H: " + Math.round(root.currentHue * 360) + "°  S: " + Math.round(root.currentSat * 100) + "%"
-                            font: MD3Theme.labelSmall
-                            color: MD3Theme.onSurfaceVariant
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Text { text: "G"; font.pixelSize: 13; color: MD3Theme.onSurfaceVariant; Layout.preferredWidth: 14 }
+                    TextInput {
+                        id: gInput
+                        Layout.fillWidth: true
+                        text: "65"
+                        font.pixelSize: 13
+                        color: MD3Theme.onSurface
+                        selectByMouse: true
+                        onTextEdited: {
+                            if (root.updatingInternally) return
+                            var val = parseInt(text)
+                            if (!isNaN(val)) {
+                                root.currentG = Math.max(0, Math.min(255, val))
+                                root.syncFromRgb()
+                            }
                         }
                     }
                 }
-            }
-        }
+                Rectangle { Layout.fillWidth: true; height: 1; color: MD3Theme.outlineVariant }
 
-        // Hue Slider Track
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: 6
-
-            RowLayout {
-                Layout.fillWidth: true
-                Text {
-                    text: "Hue"
-                    font: MD3Theme.labelMedium
-                    color: MD3Theme.onSurface
+                RowLayout {
                     Layout.fillWidth: true
-                }
-                Text {
-                    text: Math.round(root.currentHue * 360) + "°"
-                    font: MD3Theme.labelMedium
-                    color: MD3Theme.primary
-                }
-            }
-
-            Rectangle {
-                id: hueTrack
-                Layout.fillWidth: true
-                height: 24
-                radius: 12
-                clip: true
-
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0.00; color: "#FF0000" }
-                    GradientStop { position: 0.17; color: "#FFFF00" }
-                    GradientStop { position: 0.33; color: "#00FF00" }
-                    GradientStop { position: 0.50; color: "#00FFFF" }
-                    GradientStop { position: 0.67; color: "#0000FF" }
-                    GradientStop { position: 0.83; color: "#FF00FF" }
-                    GradientStop { position: 1.00; color: "#FF0000" }
-                }
-
-                border.color: MD3Theme.outlineVariant
-                border.width: 1
-
-                // Draggable thumb
-                Rectangle {
-                    x: Math.max(0, Math.min(hueTrack.width - width, (root.currentHue * (hueTrack.width - width))))
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 22
-                    height: 22
-                    radius: 11
-                    color: Qt.hsla(root.currentHue, 1.0, 0.5, 1.0)
-                    border.color: "#FFFFFF"
-                    border.width: 2.5
-
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: 11
-                        color: "transparent"
-                        border.color: "rgba(0,0,0,0.3)"
-                        border.width: 1
-                    }
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-
-                    function updateHue(mouse) {
-                        var h = Math.max(0, Math.min(1.0, mouse.x / hueTrack.width))
-                        root.currentHue = h
-                        root.emitColor()
-                    }
-
-                    onPressed: (mouse) => updateHue(mouse)
-                    onPositionChanged: (mouse) => {
-                        if (pressed) updateHue(mouse)
-                    }
-                }
-            }
-        }
-
-        // Saturation Slider Track
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: 6
-
-            RowLayout {
-                Layout.fillWidth: true
-                Text {
-                    text: "Saturation"
-                    font: MD3Theme.labelMedium
-                    color: MD3Theme.onSurface
-                    Layout.fillWidth: true
-                }
-                Text {
-                    text: Math.round(root.currentSat * 100) + "%"
-                    font: MD3Theme.labelMedium
-                    color: MD3Theme.primary
-                }
-            }
-
-            Rectangle {
-                id: satTrack
-                Layout.fillWidth: true
-                height: 20
-                radius: 10
-                clip: true
-
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0.0; color: Qt.hsla(root.currentHue, 0.0, root.currentLight, 1.0) }
-                    GradientStop { position: 1.0; color: Qt.hsla(root.currentHue, 1.0, root.currentLight, 1.0) }
-                }
-
-                border.color: MD3Theme.outlineVariant
-                border.width: 1
-
-                // Draggable thumb
-                Rectangle {
-                    x: Math.max(0, Math.min(satTrack.width - width, (root.currentSat * (satTrack.width - width))))
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 18
-                    height: 18
-                    radius: 9
-                    color: Qt.hsla(root.currentHue, root.currentSat, root.currentLight, 1.0)
-                    border.color: "#FFFFFF"
-                    border.width: 2
-
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: 9
-                        color: "transparent"
-                        border.color: "rgba(0,0,0,0.3)"
-                        border.width: 1
-                    }
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-
-                    function updateSat(mouse) {
-                        var s = Math.max(0, Math.min(1.0, mouse.x / satTrack.width))
-                        root.currentSat = s
-                        root.emitColor()
-                    }
-
-                    onPressed: (mouse) => updateSat(mouse)
-                    onPositionChanged: (mouse) => {
-                        if (pressed) updateSat(mouse)
-                    }
-                }
-            }
-        }
-
-        // Lightness / Tone Slider Track
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: 6
-
-            RowLayout {
-                Layout.fillWidth: true
-                Text {
-                    text: "Lightness"
-                    font: MD3Theme.labelMedium
-                    color: MD3Theme.onSurface
-                    Layout.fillWidth: true
-                }
-                Text {
-                    text: Math.round(root.currentLight * 100) + "%"
-                    font: MD3Theme.labelMedium
-                    color: MD3Theme.primary
-                }
-            }
-
-            Rectangle {
-                id: lightTrack
-                Layout.fillWidth: true
-                height: 20
-                radius: 10
-                clip: true
-
-                gradient: Gradient {
-                    orientation: Gradient.Horizontal
-                    GradientStop { position: 0.0; color: "#000000" }
-                    GradientStop { position: 0.5; color: Qt.hsla(root.currentHue, root.currentSat, 0.5, 1.0) }
-                    GradientStop { position: 1.0; color: "#FFFFFF" }
-                }
-
-                border.color: MD3Theme.outlineVariant
-                border.width: 1
-
-                // Draggable thumb
-                Rectangle {
-                    x: Math.max(0, Math.min(lightTrack.width - width, (root.currentLight * (lightTrack.width - width))))
-                    anchors.verticalCenter: parent.verticalCenter
-                    width: 18
-                    height: 18
-                    radius: 9
-                    color: Qt.hsla(root.currentHue, root.currentSat, root.currentLight, 1.0)
-                    border.color: "#FFFFFF"
-                    border.width: 2
-
-                    Rectangle {
-                        anchors.fill: parent
-                        radius: 9
-                        color: "transparent"
-                        border.color: "rgba(0,0,0,0.3)"
-                        border.width: 1
-                    }
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-
-                    function updateLight(mouse) {
-                        var l = Math.max(0.1, Math.min(0.9, mouse.x / lightTrack.width))
-                        root.currentLight = l
-                        root.emitColor()
-                    }
-
-                    onPressed: (mouse) => updateLight(mouse)
-                    onPositionChanged: (mouse) => {
-                        if (pressed) updateLight(mouse)
-                    }
-                }
-            }
-        }
-
-        // Curated Material Design 3 Extended Palette Swatches
-        ColumnLayout {
-            Layout.fillWidth: true
-            spacing: 8
-
-            Text {
-                text: "Curated Swatches"
-                font: MD3Theme.labelMedium
-                color: MD3Theme.onSurfaceVariant
-            }
-
-            Flow {
-                Layout.fillWidth: true
-                spacing: 8
-
-                Repeater {
-                    model: [
-                        { name: "Deep Purple", hex: "#6750A4" },
-                        { name: "Violet", hex: "#7C4DFF" },
-                        { name: "Indigo", hex: "#3F51B5" },
-                        { name: "Royal Blue", hex: "#2563EB" },
-                        { name: "Sky Blue", hex: "#0288D1" },
-                        { name: "Cyan", hex: "#00BCD4" },
-                        { name: "Teal", hex: "#009688" },
-                        { name: "Mint", hex: "#10B981" },
-                        { name: "Green", hex: "#4CAF50" },
-                        { name: "Lime", hex: "#84CC16" },
-                        { name: "Amber", hex: "#FFB300" },
-                        { name: "Orange", hex: "#FF9800" },
-                        { name: "Deep Orange", hex: "#FF5722" },
-                        { name: "Red", hex: "#F44336" },
-                        { name: "Rose", hex: "#E11D48" },
-                        { name: "Pink", hex: "#E91E63" },
-                        { name: "Fuchsia", hex: "#D946EF" },
-                        { name: "Slate", hex: "#64748B" }
-                    ]
-
-                    Rectangle {
-                        id: swatchChip
-                        width: 32
-                        height: 32
-                        radius: 16
-                        color: modelData.hex
-                        border.color: root.colorToHex(root.selectedColor) === modelData.hex ? MD3Theme.primary : MD3Theme.outlineVariant
-                        border.width: root.colorToHex(root.selectedColor) === modelData.hex ? 2.5 : 1
-
-                        scale: swatchMa.containsMouse ? 1.15 : (swatchMa.pressed ? 0.95 : 1.0)
-                        Behavior on scale { NumberAnimation { duration: 120 } }
-
-                        MD3Icon {
-                            anchors.centerIn: parent
-                            name: "check"
-                            size: 16
-                            color: "#FFFFFF"
-                            visible: root.colorToHex(root.selectedColor) === modelData.hex
+                    spacing: 4
+                    Text { text: "B"; font.pixelSize: 13; color: MD3Theme.onSurfaceVariant; Layout.preferredWidth: 14 }
+                    TextInput {
+                        id: bInput
+                        Layout.fillWidth: true
+                        text: "109"
+                        font.pixelSize: 13
+                        color: MD3Theme.onSurface
+                        selectByMouse: true
+                        onTextEdited: {
+                            if (root.updatingInternally) return
+                            var val = parseInt(text)
+                            if (!isNaN(val)) {
+                                root.currentB = Math.max(0, Math.min(255, val))
+                                root.syncFromRgb()
+                            }
                         }
+                    }
+                }
+                Rectangle { Layout.fillWidth: true; height: 1; color: MD3Theme.outlineVariant }
 
-                        MouseArea {
-                            id: swatchMa
+                Item { Layout.preferredHeight: 2 }
+
+                // Hex Row
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+                    Text { text: "#"; font.pixelSize: 13; color: MD3Theme.onSurfaceVariant; Layout.preferredWidth: 14 }
+                    Rectangle {
+                        Layout.fillWidth: true
+                        height: 22
+                        color: MD3Theme.isDark ? "#3A3340" : "#E8DCE4"
+                        radius: 2
+
+                        TextInput {
+                            id: hexTextInput
                             anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                var col = Qt.color(modelData.hex)
-                                root.updatingInternally = true
-                                root.selectedColor = col
-                                root.currentHue = col.hslHue >= 0 ? col.hslHue : 0.0
-                                root.currentSat = col.hslSaturation >= 0 ? col.hslSaturation : 0.5
-                                root.currentLight = col.hslLightness >= 0 ? col.hslLightness : 0.5
-                                root.hexInput.text = modelData.hex
-                                root.colorSelected(col)
-                                root.updatingInternally = false
+                            anchors.leftMargin: 4
+                            anchors.rightMargin: 4
+                            text: "ff416d"
+                            font.pixelSize: 13
+                            font.family: "monospace"
+                            color: MD3Theme.onSurface
+                            selectByMouse: true
+                            maximumLength: 6
+                            verticalAlignment: TextInput.AlignVCenter
+
+                            onTextEdited: {
+                                if (root.updatingInternally) return
+                                root.syncFromHex(text)
                             }
                         }
                     }
                 }
+                Rectangle { Layout.fillWidth: true; height: 2; color: MD3Theme.primary }
             }
         }
     }

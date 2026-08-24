@@ -396,57 +396,14 @@ Flickable {
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: controller.accentPreset = "custom"
-                            }
-                        }
-                    }
-
-                    // Interactive Custom Color Picker Panel
-                    Rectangle {
-                        Layout.fillWidth: true
-                        radius: MD3Theme.cornerM
-                        color: MD3Theme.surfaceContainer
-                        border.color: MD3Theme.outlineVariant
-                        border.width: 1
-                        clip: true
-                        visible: controller.accentPreset === "custom"
-
-                        implicitHeight: pickerCol.implicitHeight + 32
-
-                        ColumnLayout {
-                            id: pickerCol
-                            anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.top: parent.top
-                            anchors.margins: 16
-                            spacing: 16
-
-                            RowLayout {
-                                Layout.fillWidth: true
-                                MD3Icon {
-                                    name: "palette"
-                                    size: 20
-                                    color: MD3Theme.primary
-                                }
-                                Text {
-                                    text: "Custom Accent Tuner"
-                                    font: MD3Theme.titleSmall
-                                    color: MD3Theme.onSurface
-                                    Layout.fillWidth: true
-                                }
-                            }
-
-                            MD3ColorPicker {
-                                Layout.fillWidth: true
-                                selectedColor: controller.customColor
-                                onColorSelected: (col) => {
-                                    controller.setCustomColor(col)
+                                onClicked: {
+                                    controller.accentPreset = "custom"
+                                    colorPickerDialog.openWithColor(controller.customColor)
                                 }
                             }
                         }
                     }
                 }
-
                 RowLayout {
                     Layout.fillWidth: true
                     Text {
@@ -472,6 +429,14 @@ Flickable {
                     onClicked: controller.clipModel.clear()
                 }
             }
+        }
+    }
+
+    MD3ColorPickerDialog {
+        id: colorPickerDialog
+        onAccepted: (col) => {
+            controller.customColor = col
+            controller.accentPreset = "custom"
         }
     }
 }

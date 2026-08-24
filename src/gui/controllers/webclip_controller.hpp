@@ -65,9 +65,9 @@ public:
     void setInsecure(bool insecure);
     void setAutoSync(bool autoSync);
     void setPollInterval(double interval);
-    void setThemeMode(int mode);
-    void setAccentPreset(const QString& preset);
-    void setCustomColor(const QColor& color);
+    Q_INVOKABLE void setThemeMode(int mode);
+    Q_INVOKABLE void setAccentPreset(const QString& preset);
+    Q_INVOKABLE void setCustomColor(const QColor& color);
     Q_INVOKABLE void setCustomAccentColor(const QString& hexColor);
 
     Q_INVOKABLE void connectToPortal();
