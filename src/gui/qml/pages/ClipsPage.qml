@@ -132,12 +132,11 @@ Item {
                                 ? Math.min(120, bubbleContent.implicitHeight + 20)
                                 : bubbleContent.implicitHeight + 20
                             radius: 18
-                            color: isFromPhone
-                                ? (MD3Theme.isDark ? "#2C2834" : "#EAE6ED")
-                                : (MD3Theme.isDark ? "#483857" : "#EADDFF")
+                            color: isFromPhone ? MD3Theme.surfaceContainerHighest : MD3Theme.primaryContainer
                             clip: true
 
                             Behavior on implicitHeight { NumberAnimation { duration: 150; easing.type: Easing.OutCubic } }
+                            Behavior on color { ColorAnimation { duration: 150 } }
 
                             // Phone chat bubble tail (square corner on anchor side)
                             Rectangle {
@@ -157,9 +156,7 @@ Item {
                                 anchors.margins: 10
                                 text: model.text
                                 font: MD3Theme.bodyMedium
-                                color: isFromPhone
-                                    ? (MD3Theme.isDark ? "#E6E1E5" : "#1C1B1F")
-                                    : (MD3Theme.isDark ? "#F5EEFA" : "#21005D")
+                                color: isFromPhone ? MD3Theme.onSurface : MD3Theme.onPrimaryContainer
                                 wrapMode: Text.WrapAnywhere
                                 readOnly: true
                                 selectByMouse: true
@@ -174,9 +171,7 @@ Item {
                                 anchors.bottom: parent.bottom
                                 height: 30
                                 visible: delegateItem.isLong && !delegateItem.expanded
-                                color: isFromPhone
-                                    ? (MD3Theme.isDark ? "#2C2834" : "#EAE6ED")
-                                    : (MD3Theme.isDark ? "#483857" : "#EADDFF")
+                                color: isFromPhone ? MD3Theme.surfaceContainerHighest : MD3Theme.primaryContainer
 
                                 // Top seamless gradient
                                 Rectangle {
@@ -189,9 +184,7 @@ Item {
                                         GradientStop { position: 0.0; color: "transparent" }
                                         GradientStop {
                                             position: 1.0
-                                            color: isFromPhone
-                                                ? (MD3Theme.isDark ? "#2C2834" : "#EAE6ED")
-                                                : (MD3Theme.isDark ? "#483857" : "#EADDFF")
+                                            color: isFromPhone ? MD3Theme.surfaceContainerHighest : MD3Theme.primaryContainer
                                         }
                                     }
                                 }
@@ -201,9 +194,7 @@ Item {
                                     width: showText.implicitWidth + 20
                                     height: 22
                                     radius: 11
-                                    color: isFromPhone
-                                        ? (MD3Theme.isDark ? "#3D3748" : "#DDD7E2")
-                                        : (MD3Theme.isDark ? "#5D4970" : "#D8C4F4")
+                                    color: isFromPhone ? MD3Theme.surfaceContainerHigh : MD3Theme.surfaceContainerLowest
 
                                     Text {
                                         id: showText

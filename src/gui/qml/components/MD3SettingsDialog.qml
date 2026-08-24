@@ -20,19 +20,11 @@ QQC.Popup {
     background: Rectangle {
         id: bgRect
         radius: 28
-        color: MD3Theme.isDark ? "#211D26" : "#FFF7FB"
+        color: MD3Theme.surfaceContainer
         border.color: MD3Theme.outlineVariant
         border.width: 1
 
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: -1
-            radius: 29
-            color: "transparent"
-            border.color: Qt.rgba(0, 0, 0, 0.25)
-            border.width: 1
-            z: -1
-        }
+        Behavior on color { ColorAnimation { duration: 150 } }
     }
 
     QQC.Overlay.modal: Rectangle {
@@ -40,26 +32,24 @@ QQC.Popup {
     }
 
     contentItem: Item {
-        anchors.fill: parent
-
         ColumnLayout {
             anchors.fill: parent
             spacing: 0
 
-            // Solid Dialog Header (hides scrolling items behind it)
+            // Solid Elevated Header with top rounded corners
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 56
-                color: MD3Theme.isDark ? "#211D26" : "#FFF7FB"
                 radius: 28
+                color: MD3Theme.surfaceContainer
 
-                // Square out bottom corners of header
+                // Fill bottom square corners of the header
                 Rectangle {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.bottom: parent.bottom
                     height: 28
-                    color: parent.color
+                    color: MD3Theme.surfaceContainer
                 }
 
                 RowLayout {
@@ -75,12 +65,11 @@ QQC.Popup {
                         Layout.fillWidth: true
                     }
 
-                    // Circular Close Button
                     Rectangle {
                         width: 32
                         height: 32
                         radius: 16
-                        color: closeArea.pressed ? MD3Theme.surfaceContainerHighest : (closeArea.containsMouse ? MD3Theme.surfaceContainerHigh : (MD3Theme.isDark ? "#2E2836" : "#F4E8EE"))
+                        color: closeArea.pressed ? MD3Theme.surfaceContainerHighest : (closeArea.containsMouse ? MD3Theme.surfaceContainerHigh : MD3Theme.surfaceContainerLow)
 
                         MD3Icon {
                             anchors.centerIn: parent
@@ -171,8 +160,8 @@ QQC.Popup {
                             Layout.fillWidth: true
                             implicitHeight: connCol.implicitHeight + 24
                             radius: 16
-                            color: MD3Theme.isDark ? "#2A2432" : "#FFF0F6"
-                            border.color: MD3Theme.isDark ? "#3A3245" : "#F7DFE8"
+                            color: MD3Theme.surfaceContainerLow
+                            border.color: MD3Theme.outlineVariant
                             border.width: 1
 
                             ColumnLayout {
@@ -249,8 +238,8 @@ QQC.Popup {
                             Layout.fillWidth: true
                             implicitHeight: 56
                             radius: 16
-                            color: MD3Theme.isDark ? "#2A2432" : "#FFF0F6"
-                            border.color: MD3Theme.isDark ? "#3A3245" : "#F7DFE8"
+                            color: MD3Theme.surfaceContainerLow
+                            border.color: MD3Theme.outlineVariant
                             border.width: 1
 
                             RowLayout {
@@ -279,8 +268,8 @@ QQC.Popup {
                             Layout.fillWidth: true
                             implicitHeight: 56
                             radius: 16
-                            color: MD3Theme.isDark ? "#2A2432" : "#FFF0F6"
-                            border.color: MD3Theme.isDark ? "#3A3245" : "#F7DFE8"
+                            color: MD3Theme.surfaceContainerLow
+                            border.color: MD3Theme.outlineVariant
                             border.width: 1
 
                             RowLayout {
@@ -321,8 +310,8 @@ QQC.Popup {
                             Layout.fillWidth: true
                             implicitHeight: 56
                             radius: 16
-                            color: MD3Theme.isDark ? "#2A2432" : "#FFF0F6"
-                            border.color: MD3Theme.isDark ? "#3A3245" : "#F7DFE8"
+                            color: MD3Theme.surfaceContainerLow
+                            border.color: MD3Theme.outlineVariant
                             border.width: 1
 
                             RowLayout {
@@ -351,8 +340,8 @@ QQC.Popup {
                             Layout.fillWidth: true
                             implicitHeight: 68
                             radius: 16
-                            color: MD3Theme.isDark ? "#2A2432" : "#FFF0F6"
-                            border.color: MD3Theme.isDark ? "#3A3245" : "#F7DFE8"
+                            color: MD3Theme.surfaceContainerLow
+                            border.color: MD3Theme.outlineVariant
                             border.width: 1
 
                             ColumnLayout {
@@ -388,7 +377,7 @@ QQC.Popup {
                                         id: inactiveTrack
                                         anchors.fill: parent
                                         radius: 9
-                                        color: MD3Theme.isDark ? "#3C3246" : "#F6D2E0"
+                                        color: MD3Theme.surfaceContainerHighest
 
                                         Rectangle {
                                             width: 4
@@ -467,8 +456,8 @@ QQC.Popup {
                             Layout.fillWidth: true
                             implicitHeight: 56
                             radius: 16
-                            color: MD3Theme.isDark ? "#2A2432" : "#FFF0F6"
-                            border.color: MD3Theme.isDark ? "#3A3245" : "#F7DFE8"
+                            color: MD3Theme.surfaceContainerLow
+                            border.color: MD3Theme.outlineVariant
                             border.width: 1
 
                             RowLayout {
@@ -499,7 +488,7 @@ QQC.Popup {
                                             width: modeText.implicitWidth + 16
                                             height: 26
                                             radius: 13
-                                            color: root.controller.themeMode === modelData.mode ? MD3Theme.primary : (MD3Theme.isDark ? "#3C3246" : "#F6D2E0")
+                                            color: root.controller.themeMode === modelData.mode ? MD3Theme.primary : MD3Theme.surfaceContainerHigh
 
                                             Text {
                                                 id: modeText
@@ -525,8 +514,8 @@ QQC.Popup {
                             Layout.fillWidth: true
                             implicitHeight: accentCol.implicitHeight + 24
                             radius: 16
-                            color: MD3Theme.isDark ? "#2A2432" : "#FFF0F6"
-                            border.color: MD3Theme.isDark ? "#3A3245" : "#F7DFE8"
+                            color: MD3Theme.surfaceContainerLow
+                            border.color: MD3Theme.outlineVariant
                             border.width: 1
 
                             ColumnLayout {
@@ -563,7 +552,7 @@ QQC.Popup {
                                             height: 26
                                             radius: 13
                                             color: root.controller.accentPreset === modelData.name ? MD3Theme.primary : "transparent"
-                                            border.color: root.controller.accentPreset === modelData.name ? "transparent" : (MD3Theme.isDark ? "#483C54" : "#E8CFD9")
+                                            border.color: root.controller.accentPreset === modelData.name ? "transparent" : MD3Theme.outlineVariant
                                             border.width: 1
 
                                             Behavior on color { ColorAnimation { duration: 150 } }
@@ -603,7 +592,7 @@ QQC.Popup {
                                         height: 26
                                         radius: 13
                                         color: root.controller.accentPreset === "custom" ? MD3Theme.primary : "transparent"
-                                        border.color: root.controller.accentPreset === "custom" ? "transparent" : (MD3Theme.isDark ? "#483C54" : "#E8CFD9")
+                                        border.color: root.controller.accentPreset === "custom" ? "transparent" : MD3Theme.outlineVariant
                                         border.width: 1
 
                                         Behavior on color { ColorAnimation { duration: 150 } }
@@ -653,8 +642,8 @@ QQC.Popup {
                             Layout.fillWidth: true
                             implicitHeight: 52
                             radius: 16
-                            color: MD3Theme.isDark ? "#2A2432" : "#FFF0F6"
-                            border.color: MD3Theme.isDark ? "#3A3245" : "#F7DFE8"
+                            color: MD3Theme.surfaceContainerLow
+                            border.color: MD3Theme.outlineVariant
                             border.width: 1
 
                             RowLayout {
@@ -703,8 +692,8 @@ QQC.Popup {
                             Layout.fillWidth: true
                             implicitHeight: aboutCol.implicitHeight + 24
                             radius: 16
-                            color: MD3Theme.isDark ? "#2A2432" : "#FFF0F6"
-                            border.color: MD3Theme.isDark ? "#3A3245" : "#F7DFE8"
+                            color: MD3Theme.surfaceContainerLow
+                            border.color: MD3Theme.outlineVariant
                             border.width: 1
 
                             ColumnLayout {
@@ -736,7 +725,6 @@ QQC.Popup {
                                     ColumnLayout {
                                         Layout.fillWidth: true
                                         spacing: 1
-
                                         Text {
                                             text: I18n.tr("settings.about.app_name")
                                             font: MD3Theme.titleSmall
@@ -760,7 +748,7 @@ QQC.Popup {
                                 Rectangle {
                                     Layout.fillWidth: true
                                     height: 1
-                                    color: MD3Theme.isDark ? "#3A3245" : "#F0D3DE"
+                                    color: MD3Theme.outlineVariant
                                 }
 
                                 RowLayout {
@@ -811,7 +799,7 @@ QQC.Popup {
                                 Rectangle {
                                     Layout.fillWidth: true
                                     height: 1
-                                    color: MD3Theme.isDark ? "#3A3245" : "#F0D3DE"
+                                    color: MD3Theme.outlineVariant
                                 }
 
                                 MD3Button {
