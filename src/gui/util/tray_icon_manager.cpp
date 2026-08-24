@@ -31,7 +31,10 @@ TrayIconManager::~TrayIconManager() {
 }
 
 void TrayIconManager::createTrayIcon() {
-    QIcon icon(":/qt/qml/src/gui/resources/icons/clips.svg");
+    QIcon icon(":/qt/qml/src/gui/resources/icons/webclip.svg");
+    if (icon.isNull()) {
+        icon = QIcon(":/qt/qml/src/gui/resources/icons/clips.svg");
+    }
     if (icon.isNull()) {
         icon = QIcon(":/qt/qml/src/gui/resources/icons/sync.svg");
     }
@@ -39,7 +42,10 @@ void TrayIconManager::createTrayIcon() {
     // Generate crisp multi-size icon if needed
     QPixmap pixmap(64, 64);
     pixmap.fill(Qt::transparent);
-    QSvgRenderer renderer(QStringLiteral(":/qt/qml/src/gui/resources/icons/clips.svg"));
+    QSvgRenderer renderer(QStringLiteral(":/qt/qml/src/gui/resources/icons/webclip.svg"));
+    if (!renderer.isValid()) {
+        renderer.load(QStringLiteral(":/qt/qml/src/gui/resources/icons/clips.svg"));
+    }
     if (renderer.isValid()) {
         QPainter painter(&pixmap);
         renderer.render(&painter);

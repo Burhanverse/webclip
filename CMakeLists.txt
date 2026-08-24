@@ -52,8 +52,13 @@ if(WIN32)
     )
 endif()
 
+set(WINDOWS_RESOURCE "")
+if(WIN32)
+    set(WINDOWS_RESOURCE src/gui/resources/webclip.rc)
+endif()
+
 # Unified Standalone WebClip Executable (GUI + Headless CLI Daemon)
-add_executable(webclip src/gui/main_gui.cpp)
+add_executable(webclip src/gui/main_gui.cpp ${WINDOWS_RESOURCE})
 
 target_include_directories(webclip PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -88,6 +93,8 @@ qt_add_qml_module(webclip
         src/gui/resources/fonts/OpenSans-SemiBold.ttf
         src/gui/resources/fonts/OpenSans-Bold.ttf
         src/gui/resources/langs/en.json
+        src/gui/resources/icons/webclip.svg
+        src/gui/resources/icons/webclip.ico
         src/gui/resources/icons/android.svg
         src/gui/resources/icons/check.svg
         src/gui/resources/icons/clear_all.svg

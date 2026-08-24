@@ -73,7 +73,7 @@ int main(int argc, char* argv[]) {
     defaultFont.setStyleHint(QFont::SansSerif);
     app.setFont(defaultFont);
 
-    app.setWindowIcon(QIcon(QStringLiteral(":/qt/qml/src/gui/resources/icons/clips.svg")));
+    app.setWindowIcon(QIcon(QStringLiteral(":/qt/qml/src/gui/resources/icons/webclip.svg")));
     app.setOrganizationName(QString::fromUtf8(webclip::APP_ORGANIZATION.data(), webclip::APP_ORGANIZATION.size()));
     app.setOrganizationDomain(QString::fromUtf8(webclip::APP_DOMAIN.data(), webclip::APP_DOMAIN.size()));
     app.setApplicationName(QString::fromUtf8(webclip::APP_NAME.data(), webclip::APP_NAME.size()));

@@ -34,6 +34,7 @@ DefaultGroupName={#MyAppName}
 AllowNoIcons=yes
 OutputDir={#OutputDir}
 OutputBaseFilename=webclip-setup-x64
+SetupIconFile=src\gui\resources\icons\webclip.ico
 UninstallDisplayName={#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/ultra64
