@@ -88,6 +88,9 @@ qt_add_qml_module(webclip
         src/gui/qml/components/MD3SmoothScroll.qml
         src/gui/qml/pages/ClipsPage.qml
     RESOURCES
+        src/gui/resources/fonts/OpenSans-Regular.ttf
+        src/gui/resources/fonts/OpenSans-SemiBold.ttf
+        src/gui/resources/fonts/OpenSans-Bold.ttf
         src/gui/resources/icons/android.svg
         src/gui/resources/icons/check.svg
         src/gui/resources/icons/clear_all.svg

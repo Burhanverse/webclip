@@ -2,6 +2,7 @@
 #include <QQmlApplicationEngine>
 #include <QQuickStyle>
 #include <QFont>
+#include <QFontDatabase>
 #include <QLoggingCategory>
 #include "util/icon_image_provider.hpp"
 
@@ -10,7 +11,11 @@ int main(int argc, char* argv[]) {
 
     QGuiApplication app(argc, argv);
 
-    QFont defaultFont = app.font();
+    QFontDatabase::addApplicationFont(QStringLiteral(":/qt/qml/src/gui/resources/fonts/OpenSans-Regular.ttf"));
+    QFontDatabase::addApplicationFont(QStringLiteral(":/qt/qml/src/gui/resources/fonts/OpenSans-SemiBold.ttf"));
+    QFontDatabase::addApplicationFont(QStringLiteral(":/qt/qml/src/gui/resources/fonts/OpenSans-Bold.ttf"));
+
+    QFont defaultFont(QStringLiteral("Open Sans"));
     defaultFont.setStyleHint(QFont::SansSerif);
     app.setFont(defaultFont);
 

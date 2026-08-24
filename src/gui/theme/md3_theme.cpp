@@ -218,7 +218,7 @@ QColor MD3Theme::outlineVariant() const {
 
 // Typography
 QFont MD3Theme::createFont(int pixelSize, QFont::Weight weight) const {
-    QFont f = QGuiApplication::font();
+    QFont f(QStringLiteral("Open Sans"));
     f.setStyleHint(QFont::SansSerif);
     f.setPixelSize(pixelSize);
     f.setWeight(weight);
