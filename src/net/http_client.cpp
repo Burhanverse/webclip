@@ -179,7 +179,7 @@ HttpResponse HttpClient::get_image(const std::string& path_or_url) {
     return resp;
 }
 
-HttpResponse HttpClient::push_clipboard(const std::string& text) {
+HttpResponse HttpClient::push_clipboard(const std::string& text, const std::string& clip_id) {
     HttpResponse resp;
     CURL* curl = curl_easy_init();
     if (!curl) {
@@ -192,6 +192,9 @@ HttpResponse HttpClient::push_clipboard(const std::string& text) {
     json.set("type", JsonValue("text"));
     json.set("text", JsonValue(text));
     json.set("clientId", JsonValue(client_id_));
+    if (!clip_id.empty()) {
+        json.set("clipId", JsonValue(clip_id));
+    }
     std::string json_body = json.serialize();
 
     struct curl_slist* headers = nullptr;
@@ -229,14 +232,14 @@ HttpResponse HttpClient::push_clipboard(const std::string& text) {
     return resp;
 }
 
-HttpResponse HttpClient::push_image(const std::vector<uint8_t>& bytes, const std::string& mime_type) {
+HttpResponse HttpClient::push_image(const std::vector<uint8_t>& bytes, const std::string& mime_type, const std::string& clip_id) {
     std::string mime = mime_type.empty() ? "image/png" : mime_type;
     std::string b64 = base64::encode(bytes);
     std::string data_url = "data:" + mime + ";base64," + b64;
-    return push_image_data_url(data_url, mime);
+    return push_image_data_url(data_url, mime, clip_id);
 }
 
-HttpResponse HttpClient::push_image_data_url(const std::string& data_url, const std::string& mime_type) {
+HttpResponse HttpClient::push_image_data_url(const std::string& data_url, const std::string& mime_type, const std::string& clip_id) {
     HttpResponse resp;
     CURL* curl = curl_easy_init();
     if (!curl) {
@@ -250,6 +253,9 @@ HttpResponse HttpClient::push_image_data_url(const std::string& data_url, const 
     json.set("mimeType", JsonValue(mime_type.empty() ? "image/png" : mime_type));
     json.set("data", JsonValue(data_url));
     json.set("clientId", JsonValue(client_id_));
+    if (!clip_id.empty()) {
+        json.set("clipId", JsonValue(clip_id));
+    }
     std::string json_body = json.serialize();
 
     struct curl_slist* headers = nullptr;

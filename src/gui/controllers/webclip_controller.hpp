@@ -12,6 +12,8 @@
 #include <memory>
 #include <atomic>
 #include <mutex>
+#include <deque>
+#include <unordered_set>
 #include <QtQml/qqmlregistration.h>
 #include "../models/clipboard_history_model.hpp"
 #include "../../clipboard/clipboard.hpp"
@@ -81,9 +83,9 @@ public:
     Q_INVOKABLE void connectToPortal();
     Q_INVOKABLE void disconnectFromPortal();
     Q_INVOKABLE void toggleConnection();
-    Q_INVOKABLE bool pushClipboard(const QString& text);
+    Q_INVOKABLE bool pushClipboard(const QString& text, const QString& clipId = "");
     Q_INVOKABLE bool pushImage(const QString& filePathOrDataUrl);
-    Q_INVOKABLE bool pushImageBytes(const QByteArray& bytes, const QString& mimeType = "image/png");
+    Q_INVOKABLE bool pushImageBytes(const QByteArray& bytes, const QString& mimeType = "image/png", const QString& clipId = "");
     Q_INVOKABLE bool pushCurrentClipboard();
     Q_INVOKABLE void copyToClipboard(const QString& text);
     Q_INVOKABLE void copyImageToClipboard(int index);
@@ -148,6 +150,9 @@ private:
     QString lastLocalPixelFp_;
     int64_t lastImgTimeMs_ = 0;
 
+    std::deque<std::string> handledClipIds_;
+    std::unordered_set<std::string> handledClipIdSet_;
+
     void setConnected(bool c);
     void setConnecting(bool c);
     void setStatusMessage(const QString& msg);
@@ -156,6 +161,9 @@ private:
     void sanitizeHostInput();
     static QString computeImageHash(const QByteArray& data);
     static QString computeQImageFingerprint(const QImage& img);
+    static std::string generateClipId();
+    bool isClipIdHandled(const std::string& clipId);
+    void markClipIdHandled(const std::string& clipId);
     bool shouldSuppressText(const QString& text, int64_t nowMs, int64_t windowMs = 3000);
     void markTextApplied(const QString& text, int64_t nowMs);
     bool shouldSuppressImage(const QString& hash, const QString& pixelFp, int64_t nowMs, int64_t windowMs = 3000);

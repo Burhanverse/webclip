@@ -133,8 +133,14 @@ void SyncManager::handle_sse_event(const SseEvent& event) {
 
         if (!image_bytes.empty()) {
             std::string hash = compute_hash(image_bytes);
-            if (should_suppress_image(hash, now)) return;
-            mark_image_applied(hash, now);
+            {
+                std::lock_guard<std::mutex> guard(state_lock_);
+                last_local_img_hash_ = hash;
+                last_remote_img_hash_ = hash;
+                last_local_text_.clear();
+                last_remote_text_.clear();
+                last_img_time_ms_ = now;
+            }
             clipboard_->set_image(image_bytes, mime_type);
             std::cout << "[phone -> local image] " << image_bytes.size() << " bytes (" << mime_type << ")" << std::endl;
         }
@@ -143,8 +149,14 @@ void SyncManager::handle_sse_event(const SseEvent& event) {
 
     std::string text = data.get_string("text");
     if (text.empty()) return;
-    if (should_suppress_text(text, now)) return;
-    mark_text_applied(text, now);
+    {
+        std::lock_guard<std::mutex> guard(state_lock_);
+        last_local_text_ = text;
+        last_remote_text_ = text;
+        last_local_img_hash_.clear();
+        last_remote_img_hash_.clear();
+        last_text_time_ms_ = now;
+    }
 
     clipboard_->set_text(text);
     std::cout << "[phone -> local] " << text.size() << " chars: \""
@@ -178,14 +190,16 @@ void SyncManager::run() {
             std::string remote_text = state_json.get_string("text");
             std::string local_text = clipboard_->get_text();
 
-            std::lock_guard<std::mutex> guard(state_lock_);
-            last_remote_text_ = remote_text;
-            last_local_text_ = local_text;
-
-            if (!remote_text.empty() && remote_text != local_text) {
-                std::cout << "Bootstrapped initial clipboard from phone (" << remote_text.size() << " chars)" << std::endl;
+            if (!remote_text.empty() && local_text != remote_text) {
                 clipboard_->set_text(remote_text);
+                std::lock_guard<std::mutex> guard(state_lock_);
+                last_remote_text_ = remote_text;
                 last_local_text_ = remote_text;
+                std::cout << "Bootstrapped initial clipboard from phone: \""
+                          << truncate_preview(remote_text) << "\"" << std::endl;
+            } else if (!local_text.empty()) {
+                std::lock_guard<std::mutex> guard(state_lock_);
+                last_local_text_ = local_text;
             }
         }
     } else if (!initial_state.error.empty()) {
@@ -194,7 +208,7 @@ void SyncManager::run() {
         std::cerr << "[error] Authentication failed: invalid pairing code." << std::endl;
     }
 
-    // Start background SSE listener
+    // Start SSE background thread
     sse_thread_ = std::make_unique<std::thread>([this]() {
         client_->stream_events(
             [this](const SseEvent& ev) { handle_sse_event(ev); },
@@ -219,8 +233,17 @@ void SyncManager::run() {
             ClipboardImage local_img = clipboard_->get_image();
             if (local_img.valid && !local_img.data.empty()) {
                 std::string hash = compute_hash(local_img.data);
-                if (!should_suppress_image(hash, now)) {
-                    mark_image_applied(hash, now);
+                bool should_push = false;
+                {
+                    std::lock_guard<std::mutex> guard(state_lock_);
+                    if (hash != last_local_img_hash_ && hash != last_remote_img_hash_) {
+                        last_local_img_hash_ = hash;
+                        last_local_text_.clear();
+                        last_img_time_ms_ = now;
+                        should_push = true;
+                    }
+                }
+                if (should_push) {
                     HttpResponse push_resp = client_->push_image(local_img.data, local_img.mime_type);
                     if (push_resp.status_code == 200) {
                         std::cout << "[local -> phone image] " << local_img.data.size() << " bytes (" << local_img.mime_type << ")" << std::endl;
@@ -248,8 +271,17 @@ void SyncManager::run() {
                 std::string mime = is_png ? "image/png" : (is_jpg ? "image/jpeg" : (is_gif ? "image/gif" : "image/webp"));
                 std::vector<uint8_t> raw_bytes(u, u + len);
                 std::string hash = compute_hash(raw_bytes);
-                if (!should_suppress_image(hash, now)) {
-                    mark_image_applied(hash, now);
+                bool should_push = false;
+                {
+                    std::lock_guard<std::mutex> guard(state_lock_);
+                    if (hash != last_local_img_hash_ && hash != last_remote_img_hash_) {
+                        last_local_img_hash_ = hash;
+                        last_local_text_.clear();
+                        last_img_time_ms_ = now;
+                        should_push = true;
+                    }
+                }
+                if (should_push) {
                     HttpResponse push_resp = client_->push_image(raw_bytes, mime);
                     if (push_resp.status_code == 200) {
                         std::cout << "[local -> phone image] " << raw_bytes.size() << " bytes (" << mime << ")" << std::endl;
@@ -258,8 +290,18 @@ void SyncManager::run() {
                 continue;
             }
 
-            if (!should_suppress_text(current_local, now)) {
-                mark_text_applied(current_local, now);
+            bool should_push_text = false;
+            {
+                std::lock_guard<std::mutex> guard(state_lock_);
+                if (current_local != last_local_text_ && current_local != last_remote_text_) {
+                    last_local_text_ = current_local;
+                    last_local_img_hash_.clear();
+                    last_text_time_ms_ = now;
+                    should_push_text = true;
+                }
+            }
+
+            if (should_push_text) {
                 HttpResponse push_resp = client_->push_clipboard(current_local);
                 if (push_resp.status_code == 200) {
                     std::cout << "[local -> phone] " << current_local.size() << " chars: \""

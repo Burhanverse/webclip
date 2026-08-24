@@ -38,17 +38,17 @@ public:
     /**
      * Pushes local text to remote portal via POST /clipboard
      */
-    HttpResponse push_clipboard(const std::string& text);
+    HttpResponse push_clipboard(const std::string& text, const std::string& clip_id = "");
 
     /**
      * Pushes local binary image data to remote portal via POST /clipboard
      */
-    HttpResponse push_image(const std::vector<uint8_t>& bytes, const std::string& mime_type = "image/png");
+    HttpResponse push_image(const std::vector<uint8_t>& bytes, const std::string& mime_type = "image/png", const std::string& clip_id = "");
 
     /**
      * Pushes data URL / base64 image data to remote portal via POST /clipboard
      */
-    HttpResponse push_image_data_url(const std::string& data_url, const std::string& mime_type = "image/png");
+    HttpResponse push_image_data_url(const std::string& data_url, const std::string& mime_type = "image/png", const std::string& clip_id = "");
 
     /**
      * Streams SSE events continuously from GET /events.
