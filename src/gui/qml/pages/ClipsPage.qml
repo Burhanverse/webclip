@@ -166,7 +166,7 @@ Item {
                     Rectangle {
                         id: bubbleCard
                         width: isImageClip
-                            ? Math.min(listView.width * 0.84, Math.max(260, Math.min(360, imageContainer.implicitWidth + 24)))
+                            ? Math.min(listView.width * 0.84, 320)
                             : Math.min(listView.width * 0.84, Math.max(210, Math.max(bubbleContent.implicitWidth + 24, metadataRow.implicitWidth + 24)))
                         anchors.left: isFromPhone ? parent.left : undefined
                         anchors.right: !isFromPhone ? parent.right : undefined
@@ -197,37 +197,32 @@ Item {
                             spacing: 6
 
                             // Image Content Area
-                            Item {
+                            Rectangle {
                                 id: imageContainer
                                 visible: delegateItem.isImageClip
                                 Layout.fillWidth: true
-                                implicitWidth: imgPreview.implicitWidth
-                                implicitHeight: imgPreview.height
-                                height: visible ? Math.min(260, Math.max(120, imgPreview.paintedHeight > 0 ? imgPreview.paintedHeight : 200)) : 0
+                                Layout.preferredHeight: 220
+                                radius: 12
+                                color: MD3Theme.isDark ? "#1E1A22" : "#E8E0EC"
+                                clip: true
 
-                                Rectangle {
+                                Image {
+                                    id: imgPreview
                                     anchors.fill: parent
-                                    radius: 12
-                                    color: MD3Theme.isDark ? "#1E1A22" : "#E8E0EC"
-                                    clip: true
+                                    anchors.margins: 4
+                                    source: delegateItem.isImageClip ? model.imageData : ""
+                                    fillMode: Image.PreserveAspectFit
+                                    mipmap: true
+                                    asynchronous: true
+                                }
 
-                                    Image {
-                                        id: imgPreview
-                                        anchors.fill: parent
-                                        source: delegateItem.isImageClip ? model.imageData : ""
-                                        fillMode: Image.PreserveAspectFit
-                                        mipmap: true
-                                        asynchronous: true
-                                    }
-
-                                    MouseArea {
-                                        anchors.fill: parent
-                                        cursorShape: Qt.PointingHandCursor
-                                        hoverEnabled: true
-                                        onClicked: {
-                                            root.fullPreviewUrl = model.imageData
-                                            root.fullPreviewVisible = true
-                                        }
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    hoverEnabled: true
+                                    onClicked: {
+                                        root.fullPreviewUrl = model.imageData
+                                        root.fullPreviewVisible = true
                                     }
                                 }
                             }
