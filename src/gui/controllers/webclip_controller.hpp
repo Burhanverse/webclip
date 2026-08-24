@@ -8,6 +8,7 @@
 #include <QSettings>
 #include <QClipboard>
 #include <QGuiApplication>
+#include <QImage>
 #include <memory>
 #include <atomic>
 #include <mutex>
@@ -81,8 +82,12 @@ public:
     Q_INVOKABLE void disconnectFromPortal();
     Q_INVOKABLE void toggleConnection();
     Q_INVOKABLE bool pushClipboard(const QString& text);
+    Q_INVOKABLE bool pushImage(const QString& filePathOrDataUrl);
+    Q_INVOKABLE bool pushImageBytes(const QByteArray& bytes, const QString& mimeType = "image/png");
     Q_INVOKABLE bool pushCurrentClipboard();
     Q_INVOKABLE void copyToClipboard(const QString& text);
+    Q_INVOKABLE void copyImageToClipboard(int index);
+    Q_INVOKABLE bool saveImage(int index, const QString& destinationPath);
     Q_INVOKABLE void saveSettings();
     Q_INVOKABLE void loadSettings();
     Q_INVOKABLE void notifyMinimizedToTray();
@@ -134,6 +139,8 @@ private:
     std::mutex syncLock_;
     QString lastRemoteText_;
     QString lastLocalText_;
+    QString lastRemoteImgHash_;
+    QString lastLocalImgHash_;
 
     void setConnected(bool c);
     void setConnecting(bool c);
@@ -141,6 +148,7 @@ private:
     void startSseListener();
     void stopSseListener();
     void sanitizeHostInput();
+    static QString computeImageHash(const QByteArray& data);
 };
 
 } // namespace webclip

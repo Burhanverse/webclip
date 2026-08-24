@@ -101,6 +101,7 @@ qt_add_qml_module(webclip
         src/gui/resources/icons/webclip.svg
         src/gui/resources/icons/webclip.ico
         src/gui/resources/icons/android.svg
+        src/gui/resources/icons/attach_file.svg
         src/gui/resources/icons/check.svg
         src/gui/resources/icons/clear_all.svg
         src/gui/resources/icons/clips.svg
@@ -110,7 +111,9 @@ qt_add_qml_module(webclip
         src/gui/resources/icons/copy.svg
         src/gui/resources/icons/dark_mode.svg
         src/gui/resources/icons/delete.svg
+        src/gui/resources/icons/download.svg
         src/gui/resources/icons/edit.svg
+        src/gui/resources/icons/image.svg
         src/gui/resources/icons/laptop.svg
         src/gui/resources/icons/light_mode.svg
         src/gui/resources/icons/link.svg

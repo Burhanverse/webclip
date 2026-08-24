@@ -1,13 +1,28 @@
 #include "webclip_controller.hpp"
 #include "../theme/md3_theme.hpp"
 #include "../../util/json.hpp"
+#include "../../util/base64.hpp"
 #include "../../util/cli.hpp"
 #include <QMetaObject>
 #include <QDesktopServices>
 #include <QUrl>
 #include <QPointer>
+#include <QBuffer>
+#include <QFile>
+#include <QFileInfo>
+#include <QMimeDatabase>
 
 namespace webclip {
+
+QString WebClipController::computeImageHash(const QByteArray& data) {
+    if (data.isEmpty()) return "";
+    uint64_t hash = 14695981039346656037ULL;
+    for (char byte : data) {
+        hash ^= static_cast<uint8_t>(byte);
+        hash *= 1099511628211ULL;
+    }
+    return QString::number(hash, 16) + "-" + QString::number(data.size());
+}
 
 WebClipController::WebClipController(QObject* parent)
     : QObject(parent) {
@@ -22,16 +37,27 @@ WebClipController::WebClipController(QObject* parent)
 
     loadSettings();
 
-    QString current;
+    // Check initial clipboard
     if (QGuiApplication::clipboard()) {
-        current = QGuiApplication::clipboard()->text(QClipboard::Clipboard);
-    }
-    if (current.isEmpty() && nativeClipboard_) {
-        current = QString::fromStdString(nativeClipboard_->get_text());
-    }
-    if (!current.isEmpty()) {
-        lastLocalText_ = current;
-        clipModel_.addClip(lastLocalText_, "local");
+        QImage img = QGuiApplication::clipboard()->image();
+        if (!img.isNull()) {
+            QByteArray ba;
+            QBuffer buf(&ba);
+            buf.open(QIODevice::WriteOnly);
+            img.save(&buf, "PNG");
+            lastLocalImgHash_ = computeImageHash(ba);
+            QString dataUrl = "data:image/png;base64," + QString::fromLatin1(ba.toBase64());
+            clipModel_.addClipImage(dataUrl, "image/png", ba.size(), "local");
+        } else {
+            QString current = QGuiApplication::clipboard()->text(QClipboard::Clipboard);
+            if (current.isEmpty() && nativeClipboard_) {
+                current = QString::fromStdString(nativeClipboard_->get_text());
+            }
+            if (!current.isEmpty()) {
+                lastLocalText_ = current;
+                clipModel_.addClip(lastLocalText_, "local");
+            }
+        }
     }
 }
 
@@ -209,26 +235,66 @@ void WebClipController::connectToPortal() {
     std::thread([self, client, activePort]() {
         HttpResponse stateResp = client->get_state();
         if (!self) return;
-        QMetaObject::invokeMethod(self.data(), [self, stateResp, activePort]() {
+        QMetaObject::invokeMethod(self.data(), [self, stateResp, activePort, client]() {
             if (!self) return;
             if (stateResp.status_code == 200) {
                 JsonValue stateJson = JsonValue::parse(stateResp.body);
-                QString remoteText = QString::fromStdString(stateJson.get_string("text"));
+                std::string type = stateJson.get_string("type");
+                bool hasImage = (type == "image") || stateJson.get_bool("hasImage");
 
-                {
-                    std::lock_guard<std::mutex> guard(self->syncLock_);
-                    self->lastRemoteText_ = remoteText;
-                }
+                if (hasImage) {
+                    std::string imageUrl = stateJson.get_string("imageUrl");
+                    std::string mimeType = stateJson.get_string("mimeType");
+                    if (mimeType.empty()) mimeType = "image/png";
 
-                if (!remoteText.isEmpty()) {
-                    if (QGuiApplication::clipboard()) {
-                        QGuiApplication::clipboard()->setText(remoteText, QClipboard::Clipboard);
+                    std::thread([self, client, imageUrl, mimeType]() {
+                        HttpResponse imgResp = client->get_image(imageUrl);
+                        if (!self) return;
+                        QMetaObject::invokeMethod(self.data(), [self, imgResp, mimeType]() {
+                            if (!self || imgResp.status_code != 200 || imgResp.binary_body.empty()) return;
+                            QByteArray bytes(reinterpret_cast<const char*>(imgResp.binary_body.data()), static_cast<int>(imgResp.binary_body.size()));
+                            QString hash = computeImageHash(bytes);
+
+                            {
+                                std::lock_guard<std::mutex> guard(self->syncLock_);
+                                self->lastRemoteImgHash_ = hash;
+                                self->lastLocalImgHash_ = hash;
+                                self->lastRemoteText_.clear();
+                                self->lastLocalText_.clear();
+                            }
+
+                            QImage qimg;
+                            qimg.loadFromData(bytes);
+                            if (!qimg.isNull()) {
+                                if (QGuiApplication::clipboard()) {
+                                    QGuiApplication::clipboard()->setImage(qimg, QClipboard::Clipboard);
+                                }
+                                if (self->nativeClipboard_) {
+                                    self->nativeClipboard_->set_image(imgResp.binary_body, mimeType);
+                                }
+                            }
+
+                            QString dataUrl = "data:" + QString::fromStdString(mimeType) + ";base64," + QString::fromLatin1(bytes.toBase64());
+                            self->clipModel_.addClipImage(dataUrl, QString::fromStdString(mimeType), bytes.size(), "phone");
+                        });
+                    }).detach();
+                } else {
+                    QString remoteText = QString::fromStdString(stateJson.get_string("text"));
+                    {
+                        std::lock_guard<std::mutex> guard(self->syncLock_);
+                        self->lastRemoteText_ = remoteText;
                     }
-                    if (self->nativeClipboard_) {
-                        self->nativeClipboard_->set_text(remoteText.toStdString());
+
+                    if (!remoteText.isEmpty()) {
+                        if (QGuiApplication::clipboard()) {
+                            QGuiApplication::clipboard()->setText(remoteText, QClipboard::Clipboard);
+                        }
+                        if (self->nativeClipboard_) {
+                            self->nativeClipboard_->set_text(remoteText.toStdString());
+                        }
+                        self->lastLocalText_ = remoteText;
+                        self->clipModel_.addClip(remoteText, "phone");
                     }
-                    self->lastLocalText_ = remoteText;
-                    self->clipModel_.addClip(remoteText, "phone");
                 }
 
                 self->setConnecting(false);
@@ -279,17 +345,104 @@ void WebClipController::startSseListener() {
             [this](const SseEvent& ev) {
                 if (ev.event == "clipboard") {
                     JsonValue data = JsonValue::parse(ev.data);
-                    QString text = QString::fromStdString(data.get_string("text"));
-                    QString source = QString::fromStdString(data.get_string("source"));
+                    std::string type = data.get_string("type");
+                    std::string source = data.get_string("source");
 
                     if (source == "web") return;
 
+                    if (type == "image") {
+                        std::string mimeType = data.get_string("mimeType");
+                        if (mimeType.empty()) mimeType = "image/png";
+                        std::string inlineData = data.get_string("data");
+
+                        if (!inlineData.empty()) {
+                            QString qData = QString::fromStdString(inlineData);
+                            QByteArray bytes;
+                            int commaIdx = qData.indexOf(',');
+                            if (commaIdx >= 0) {
+                                bytes = QByteArray::fromBase64(qData.mid(commaIdx + 1).toLatin1());
+                            } else {
+                                bytes = QByteArray::fromBase64(qData.toLatin1());
+                            }
+
+                            QMetaObject::invokeMethod(this, [this, qData, bytes, mimeType, source]() {
+                                QString hash = computeImageHash(bytes);
+                                {
+                                    std::lock_guard<std::mutex> guard(syncLock_);
+                                    if (hash == lastRemoteImgHash_) return;
+                                    lastRemoteImgHash_ = hash;
+                                    lastLocalImgHash_ = hash;
+                                    lastRemoteText_.clear();
+                                    lastLocalText_.clear();
+                                }
+
+                                QImage qimg;
+                                qimg.loadFromData(bytes);
+                                if (!qimg.isNull()) {
+                                    if (QGuiApplication::clipboard()) {
+                                        QGuiApplication::clipboard()->setImage(qimg, QClipboard::Clipboard);
+                                    }
+                                    if (nativeClipboard_) {
+                                        std::vector<uint8_t> stdBytes(bytes.begin(), bytes.end());
+                                        nativeClipboard_->set_image(stdBytes, mimeType);
+                                    }
+                                }
+
+                                QString dataUrl = qData.startsWith("data:")
+                                    ? qData
+                                    : ("data:" + QString::fromStdString(mimeType) + ";base64," + qData);
+                                clipModel_.addClipImage(dataUrl, QString::fromStdString(mimeType), bytes.size(), QString::fromStdString(source));
+                                emit clipReceived("[Image]", QString::fromStdString(source));
+                            });
+                        } else {
+                            std::string imageUrl = data.get_string("imageUrl");
+                            auto client = httpClient_;
+                            std::thread([this, client, imageUrl, mimeType, source]() {
+                                HttpResponse imgResp = client->get_image(imageUrl);
+                                if (imgResp.status_code != 200 || imgResp.binary_body.empty()) return;
+                                QByteArray bytes(reinterpret_cast<const char*>(imgResp.binary_body.data()), static_cast<int>(imgResp.binary_body.size()));
+                                QString dataUrl = "data:" + QString::fromStdString(mimeType) + ";base64," + QString::fromLatin1(bytes.toBase64());
+
+                                QMetaObject::invokeMethod(this, [this, dataUrl, bytes, mimeType, source]() {
+                                    QString hash = computeImageHash(bytes);
+                                    {
+                                        std::lock_guard<std::mutex> guard(syncLock_);
+                                        if (hash == lastRemoteImgHash_) return;
+                                        lastRemoteImgHash_ = hash;
+                                        lastLocalImgHash_ = hash;
+                                        lastRemoteText_.clear();
+                                        lastLocalText_.clear();
+                                    }
+
+                                    QImage qimg;
+                                    qimg.loadFromData(bytes);
+                                    if (!qimg.isNull()) {
+                                        if (QGuiApplication::clipboard()) {
+                                            QGuiApplication::clipboard()->setImage(qimg, QClipboard::Clipboard);
+                                        }
+                                        if (nativeClipboard_) {
+                                            std::vector<uint8_t> stdBytes(bytes.begin(), bytes.end());
+                                            nativeClipboard_->set_image(stdBytes, mimeType);
+                                        }
+                                    }
+
+                                    clipModel_.addClipImage(dataUrl, QString::fromStdString(mimeType), bytes.size(), QString::fromStdString(source));
+                                    emit clipReceived("[Image]", QString::fromStdString(source));
+                                });
+                            }).detach();
+                        }
+                        return;
+                    }
+
+                    QString text = QString::fromStdString(data.get_string("text"));
                     QMetaObject::invokeMethod(this, [this, text, source]() {
                         {
                             std::lock_guard<std::mutex> guard(syncLock_);
                             if (text == lastRemoteText_) return;
                             lastRemoteText_ = text;
                             lastLocalText_ = text;
+                            lastRemoteImgHash_.clear();
+                            lastLocalImgHash_.clear();
                         }
 
                         if (QGuiApplication::clipboard()) {
@@ -300,7 +453,7 @@ void WebClipController::startSseListener() {
                         }
 
                         clipModel_.addClip(text, "phone");
-                        emit clipReceived(text, source);
+                        emit clipReceived(text, QString::fromStdString(source));
                     });
                 }
             },
@@ -328,6 +481,30 @@ void WebClipController::stopSseListener() {
 void WebClipController::onClipboardDataChanged() {
     if (!connected_ || !autoSync_) return;
 
+    // Check image first
+    if (QGuiApplication::clipboard()) {
+        QImage img = QGuiApplication::clipboard()->image();
+        if (!img.isNull()) {
+            QByteArray ba;
+            QBuffer buf(&ba);
+            buf.open(QIODevice::WriteOnly);
+            img.save(&buf, "PNG");
+            QString hash = computeImageHash(ba);
+
+            {
+                std::lock_guard<std::mutex> guard(syncLock_);
+                if (hash == lastLocalImgHash_ || hash == lastRemoteImgHash_) {
+                    return;
+                }
+                lastLocalImgHash_ = hash;
+                lastLocalText_.clear();
+            }
+
+            pushImageBytes(ba, "image/png");
+            return;
+        }
+    }
+
     QString current;
     if (QGuiApplication::clipboard()) {
         current = QGuiApplication::clipboard()->text(QClipboard::Clipboard);
@@ -344,6 +521,7 @@ void WebClipController::onClipboardDataChanged() {
             return;
         }
         lastLocalText_ = current;
+        lastLocalImgHash_.clear();
     }
 
     pushClipboard(current);
@@ -373,6 +551,8 @@ bool WebClipController::pushClipboard(const QString& text) {
                     std::lock_guard<std::mutex> guard(self->syncLock_);
                     self->lastLocalText_ = text;
                     self->lastRemoteText_ = text;
+                    self->lastLocalImgHash_.clear();
+                    self->lastRemoteImgHash_.clear();
                 }
                 self->clipModel_.addClip(text, "local");
                 emit self->showToast("Pushed " + QString::number(text.length()) + " chars to phone", false);
@@ -385,25 +565,119 @@ bool WebClipController::pushClipboard(const QString& text) {
     return true;
 }
 
-bool WebClipController::pushCurrentClipboard() {
-    QString current;
-    if (QGuiApplication::clipboard()) {
-        current = QGuiApplication::clipboard()->text(QClipboard::Clipboard);
-    }
-    if (current.isEmpty() && nativeClipboard_) {
-        current = QString::fromStdString(nativeClipboard_->get_text());
-    }
-    if (current.trimmed().isEmpty()) {
-        emit showToast("Local clipboard is empty", true);
+bool WebClipController::pushImage(const QString& filePathOrDataUrl) {
+    if (!httpClient_ || !connected_) {
+        emit showToast("Not connected to phone", true);
         return false;
     }
-    return pushClipboard(current);
+
+    QString src = filePathOrDataUrl.trimmed();
+    if (src.startsWith("file://")) {
+        src = QUrl(src).toLocalFile();
+    }
+
+    if (src.startsWith("data:image/")) {
+        int commaIdx = src.indexOf(',');
+        QByteArray bytes;
+        if (commaIdx >= 0) {
+            bytes = QByteArray::fromBase64(src.mid(commaIdx + 1).toLatin1());
+        }
+        QString mime = "image/png";
+        int colonIdx = src.indexOf(':');
+        int semiIdx = src.indexOf(';');
+        if (colonIdx >= 0 && semiIdx > colonIdx) {
+            mime = src.mid(colonIdx + 1, semiIdx - colonIdx - 1);
+        }
+        return pushImageBytes(bytes, mime);
+    }
+
+    QFile file(src);
+    if (!file.open(QIODevice::ReadOnly)) {
+        emit showToast("Cannot open image file: " + src, true);
+        return false;
+    }
+
+    QByteArray bytes = file.readAll();
+    file.close();
+
+    QMimeDatabase db;
+    QString mime = db.mimeTypeForFile(src).name();
+    if (mime.isEmpty() || !mime.startsWith("image/")) {
+        mime = "image/png";
+    }
+
+    return pushImageBytes(bytes, mime);
+}
+
+bool WebClipController::pushImageBytes(const QByteArray& bytes, const QString& mimeType) {
+    if (!httpClient_ || !connected_) {
+        emit showToast("Not connected to phone", true);
+        return false;
+    }
+    if (bytes.isEmpty()) {
+        emit showToast("Image is empty", true);
+        return false;
+    }
+
+    auto client = httpClient_;
+    std::string mime = mimeType.isEmpty() ? "image/png" : mimeType.toStdString();
+    std::vector<uint8_t> vec(bytes.begin(), bytes.end());
+    QString hash = computeImageHash(bytes);
+    QString dataUrl = "data:" + QString::fromStdString(mime) + ";base64," + QString::fromLatin1(bytes.toBase64());
+
+    QPointer<WebClipController> self(this);
+    std::thread([self, client, vec, mime, hash, dataUrl, bytes]() {
+        if (!client) return;
+        HttpResponse resp = client->push_image(vec, mime);
+        if (!self) return;
+        QMetaObject::invokeMethod(self.data(), [self, hash, dataUrl, bytes, mime, resp]() {
+            if (!self) return;
+            if (resp.status_code == 200) {
+                {
+                    std::lock_guard<std::mutex> guard(self->syncLock_);
+                    self->lastLocalImgHash_ = hash;
+                    self->lastRemoteImgHash_ = hash;
+                    self->lastLocalText_.clear();
+                    self->lastRemoteText_.clear();
+                }
+                self->clipModel_.addClipImage(dataUrl, QString::fromStdString(mime), bytes.size(), "local");
+                emit self->showToast("Pushed image (" + QString::number(bytes.size() / 1024) + " KB) to phone", false);
+            } else {
+                emit self->showToast("Push image failed (HTTP " + QString::number(resp.status_code) + ")", true);
+            }
+        });
+    }).detach();
+
+    return true;
+}
+
+bool WebClipController::pushCurrentClipboard() {
+    if (QGuiApplication::clipboard()) {
+        QImage img = QGuiApplication::clipboard()->image();
+        if (!img.isNull()) {
+            QByteArray ba;
+            QBuffer buf(&ba);
+            buf.open(QIODevice::WriteOnly);
+            img.save(&buf, "PNG");
+            return pushImageBytes(ba, "image/png");
+        }
+        QString current = QGuiApplication::clipboard()->text(QClipboard::Clipboard);
+        if (current.trimmed().isEmpty() && nativeClipboard_) {
+            current = QString::fromStdString(nativeClipboard_->get_text());
+        }
+        if (!current.trimmed().isEmpty()) {
+            return pushClipboard(current);
+        }
+    }
+    emit showToast("Local clipboard is empty", true);
+    return false;
 }
 
 void WebClipController::copyToClipboard(const QString& text) {
     {
         std::lock_guard<std::mutex> guard(syncLock_);
         lastLocalText_ = text;
+        lastLocalImgHash_.clear();
     }
     if (QGuiApplication::clipboard()) {
         QGuiApplication::clipboard()->setText(text, QClipboard::Clipboard);
@@ -412,6 +686,72 @@ void WebClipController::copyToClipboard(const QString& text) {
         nativeClipboard_->set_text(text.toStdString());
     }
     emit showToast("Copied to clipboard", false);
+}
+
+void WebClipController::copyImageToClipboard(int index) {
+    QString dataUrl = clipModel_.getClipImageData(index);
+    if (dataUrl.isEmpty()) return;
+
+    QByteArray bytes;
+    int commaIdx = dataUrl.indexOf(',');
+    if (commaIdx >= 0) {
+        bytes = QByteArray::fromBase64(dataUrl.mid(commaIdx + 1).toLatin1());
+    } else {
+        bytes = QByteArray::fromBase64(dataUrl.toLatin1());
+    }
+
+    if (bytes.isEmpty()) return;
+
+    QString hash = computeImageHash(bytes);
+    {
+        std::lock_guard<std::mutex> guard(syncLock_);
+        lastLocalImgHash_ = hash;
+        lastLocalText_.clear();
+    }
+
+    QImage qimg;
+    qimg.loadFromData(bytes);
+    if (!qimg.isNull()) {
+        if (QGuiApplication::clipboard()) {
+            QGuiApplication::clipboard()->setImage(qimg, QClipboard::Clipboard);
+        }
+        if (nativeClipboard_) {
+            std::vector<uint8_t> stdBytes(bytes.begin(), bytes.end());
+            nativeClipboard_->set_image(stdBytes, "image/png");
+        }
+        emit showToast("Image copied to clipboard", false);
+    }
+}
+
+bool WebClipController::saveImage(int index, const QString& destinationPath) {
+    QString dataUrl = clipModel_.getClipImageData(index);
+    if (dataUrl.isEmpty()) return false;
+
+    QString dest = destinationPath.trimmed();
+    if (dest.startsWith("file://")) {
+        dest = QUrl(dest).toLocalFile();
+    }
+
+    QByteArray bytes;
+    int commaIdx = dataUrl.indexOf(',');
+    if (commaIdx >= 0) {
+        bytes = QByteArray::fromBase64(dataUrl.mid(commaIdx + 1).toLatin1());
+    } else {
+        bytes = QByteArray::fromBase64(dataUrl.toLatin1());
+    }
+
+    if (bytes.isEmpty()) return false;
+
+    QFile file(dest);
+    if (!file.open(QIODevice::WriteOnly)) {
+        emit showToast("Failed to save image file", true);
+        return false;
+    }
+
+    file.write(bytes);
+    file.close();
+    emit showToast("Image saved to " + QFileInfo(dest).fileName(), false);
+    return true;
 }
 
 void WebClipController::saveSettings() {

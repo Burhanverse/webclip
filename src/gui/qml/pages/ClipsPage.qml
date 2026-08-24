@@ -1,12 +1,56 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC
+import QtQuick.Dialogs
 import WebClip
 
 Item {
     id: root
 
     required property var controller
+
+    property string fullPreviewUrl: ""
+    property bool fullPreviewVisible: false
+
+    FileDialog {
+        id: openImageDialog
+        title: "Select Image to Send"
+        fileMode: FileDialog.OpenFile
+        nameFilters: ["Image files (*.png *.jpg *.jpeg *.webp *.bmp *.gif)", "All files (*)"]
+        onAccepted: {
+            if (selectedFile) {
+                controller.pushImage(selectedFile.toString())
+            }
+        }
+    }
+
+    FileDialog {
+        id: saveImageDialog
+        title: "Save Image"
+        fileMode: FileDialog.SaveFile
+        nameFilters: ["PNG Image (*.png)", "JPEG Image (*.jpg)", "All files (*)"]
+        defaultSuffix: "png"
+        property int targetClipIndex: -1
+        onAccepted: {
+            if (selectedFile && targetClipIndex >= 0) {
+                controller.saveImage(targetClipIndex, selectedFile.toString())
+            }
+        }
+    }
+
+    DropArea {
+        anchors.fill: parent
+        onDropped: (drop) => {
+            if (drop.hasUrls && drop.urls.length > 0) {
+                for (var i = 0; i < drop.urls.length; ++i) {
+                    var u = drop.urls[i].toString()
+                    controller.pushImage(u)
+                }
+            } else if (drop.hasText && drop.text.length > 0) {
+                controller.pushClipboard(drop.text)
+            }
+        }
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -110,8 +154,9 @@ Item {
                     implicitHeight: bubbleCard.implicitHeight + 8
 
                     readonly property bool isFromPhone: model.source === "phone"
+                    readonly property bool isImageClip: model.isImage
                     property bool expanded: false
-                    readonly property bool isLong: (model.charCount > 350 || (model.text && model.text.split('\n').length > 5))
+                    readonly property bool isLong: !isImageClip && (model.charCount > 350 || (model.text && model.text.split('\n').length > 5))
 
                     HoverHandler {
                         id: hoverHandler
@@ -120,7 +165,9 @@ Item {
                     // Rounded Chat Bubble Container
                     Rectangle {
                         id: bubbleCard
-                        width: Math.min(listView.width * 0.84, Math.max(210, Math.max(bubbleContent.implicitWidth + 24, metadataRow.implicitWidth + 24)))
+                        width: isImageClip
+                            ? Math.min(listView.width * 0.84, Math.max(260, Math.min(360, imageContainer.implicitWidth + 24)))
+                            : Math.min(listView.width * 0.84, Math.max(210, Math.max(bubbleContent.implicitWidth + 24, metadataRow.implicitWidth + 24)))
                         anchors.left: isFromPhone ? parent.left : undefined
                         anchors.right: !isFromPhone ? parent.right : undefined
                         implicitHeight: bubbleInnerCol.implicitHeight + 20
@@ -149,9 +196,46 @@ Item {
                             anchors.margins: 10
                             spacing: 6
 
+                            // Image Content Area
+                            Item {
+                                id: imageContainer
+                                visible: delegateItem.isImageClip
+                                Layout.fillWidth: true
+                                implicitWidth: imgPreview.implicitWidth
+                                implicitHeight: imgPreview.height
+                                height: visible ? Math.min(260, Math.max(120, imgPreview.paintedHeight > 0 ? imgPreview.paintedHeight : 200)) : 0
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: 12
+                                    color: MD3Theme.isDark ? "#1E1A22" : "#E8E0EC"
+                                    clip: true
+
+                                    Image {
+                                        id: imgPreview
+                                        anchors.fill: parent
+                                        source: delegateItem.isImageClip ? model.imageData : ""
+                                        fillMode: Image.PreserveAspectFit
+                                        mipmap: true
+                                        asynchronous: true
+                                    }
+
+                                    MouseArea {
+                                        anchors.fill: parent
+                                        cursorShape: Qt.PointingHandCursor
+                                        hoverEnabled: true
+                                        onClicked: {
+                                            root.fullPreviewUrl = model.imageData
+                                            root.fullPreviewVisible = true
+                                        }
+                                    }
+                                }
+                            }
+
                             // Text Content Area (clipped to 85px with gradient when collapsed)
                             Item {
                                 id: textClipContainer
+                                visible: !delegateItem.isImageClip
                                 Layout.fillWidth: true
                                 implicitHeight: delegateItem.isLong && !delegateItem.expanded
                                     ? 85
@@ -165,7 +249,7 @@ Item {
                                     anchors.left: parent.left
                                     anchors.right: parent.right
                                     anchors.top: parent.top
-                                    text: model.text
+                                    text: !delegateItem.isImageClip ? model.text : ""
                                     font: MD3Theme.bodyMedium
                                     color: isFromPhone ? MD3Theme.onSurface : MD3Theme.onPrimaryContainer
                                     wrapMode: Text.WrapAnywhere
@@ -226,7 +310,9 @@ Item {
                                 spacing: 6
 
                                 Text {
-                                    text: (isFromPhone ? I18n.tr("chat.source_phone") + " • " : I18n.tr("chat.source_pc") + " • ") + model.timeFormatted
+                                    text: (isFromPhone ? I18n.tr("chat.source_phone") : I18n.tr("chat.source_pc"))
+                                        + " • " + (delegateItem.isImageClip ? model.sizeFormatted + " • " : "")
+                                        + model.timeFormatted
                                     font: MD3Theme.labelSmall
                                     color: isFromPhone ? MD3Theme.onSurfaceVariant : MD3Theme.onPrimaryContainer
                                     opacity: 0.8
@@ -246,7 +332,24 @@ Item {
                                         iconName: "copy"
                                         iconColor: isFromPhone ? MD3Theme.onSurface : MD3Theme.onPrimaryContainer
                                         size: 22
-                                        onClicked: controller.copyToClipboard(model.text)
+                                        onClicked: {
+                                            if (delegateItem.isImageClip) {
+                                                controller.copyImageToClipboard(index)
+                                            } else {
+                                                controller.copyToClipboard(model.text)
+                                            }
+                                        }
+                                    }
+
+                                    MD3IconButton {
+                                        visible: delegateItem.isImageClip
+                                        iconName: "download"
+                                        iconColor: isFromPhone ? MD3Theme.onSurface : MD3Theme.onPrimaryContainer
+                                        size: 22
+                                        onClicked: {
+                                            saveImageDialog.targetClipIndex = index
+                                            saveImageDialog.open()
+                                        }
                                     }
 
                                     MD3IconButton {
@@ -254,7 +357,13 @@ Item {
                                         iconName: "send"
                                         iconColor: isFromPhone ? MD3Theme.onSurface : MD3Theme.onPrimaryContainer
                                         size: 22
-                                        onClicked: controller.pushClipboard(model.text)
+                                        onClicked: {
+                                            if (delegateItem.isImageClip) {
+                                                controller.pushImage(model.imageData)
+                                            } else {
+                                                controller.pushClipboard(model.text)
+                                            }
+                                        }
                                     }
 
                                     MD3IconButton {
@@ -285,6 +394,30 @@ Item {
                 anchors.topMargin: 8
                 anchors.bottomMargin: 8
                 spacing: 10
+
+                // Attach Image Button
+                Rectangle {
+                    id: attachBtn
+                    Layout.preferredWidth: 44
+                    Layout.preferredHeight: 44
+                    radius: 22
+                    color: attachArea.pressed ? MD3Theme.surfaceContainerHighest : (attachArea.containsMouse ? MD3Theme.surfaceContainerHigh : "transparent")
+
+                    MD3Icon {
+                        anchors.centerIn: parent
+                        name: "image"
+                        size: 22
+                        color: MD3Theme.primary
+                    }
+
+                    MouseArea {
+                        id: attachArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: openImageDialog.open()
+                    }
+                }
 
                 // Rounded Input Pill Container
                 Rectangle {
@@ -321,7 +454,13 @@ Item {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: msgInput.paste()
+                            onClicked: {
+                                if (controller.pushCurrentClipboard()) {
+                                    msgInput.text = ""
+                                } else {
+                                    msgInput.paste()
+                                }
+                            }
                         }
                     }
 
@@ -394,6 +533,62 @@ Item {
                         onClicked: sendClip()
                     }
                 }
+            }
+        }
+    }
+
+    // Full-Screen Image Preview Modal
+    Rectangle {
+        id: imageModalOverlay
+        anchors.fill: parent
+        visible: root.fullPreviewVisible
+        color: Qt.rgba(0, 0, 0, 0.85)
+        z: 999
+
+        opacity: visible ? 1.0 : 0.0
+        Behavior on opacity { NumberAnimation { duration: 180 } }
+
+        MouseArea {
+            anchors.fill: parent
+            onClicked: root.fullPreviewVisible = false
+        }
+
+        Item {
+            anchors.centerIn: parent
+            width: Math.min(parent.width - 48, 800)
+            height: Math.min(parent.height - 80, 600)
+
+            Image {
+                anchors.fill: parent
+                source: root.fullPreviewUrl
+                fillMode: Image.PreserveAspectFit
+                mipmap: true
+            }
+        }
+
+        // Close button top right
+        Rectangle {
+            anchors.top: parent.top
+            anchors.right: parent.right
+            anchors.margins: 16
+            width: 40
+            height: 40
+            radius: 20
+            color: closeMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.25) : Qt.rgba(1, 1, 1, 0.15)
+
+            MD3Icon {
+                anchors.centerIn: parent
+                name: "close"
+                size: 22
+                color: "#FFFFFF"
+            }
+
+            MouseArea {
+                id: closeMouse
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.fullPreviewVisible = false
             }
         }
     }

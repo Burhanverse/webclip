@@ -19,12 +19,17 @@ QVariant ClipboardHistoryModel::data(const QModelIndex& index, int role) const {
     const auto& item = items_.at(index.row());
     switch (role) {
         case IdRole: return item.id;
+        case IsImageRole: return item.isImage;
         case TextRole: return item.text;
         case PreviewRole: return item.preview();
+        case ImageDataRole: return item.imageData;
+        case MimeTypeRole: return item.mimeType;
+        case ImageSizeRole: return item.imageSize;
+        case SizeFormattedRole: return item.formattedSize();
         case SourceRole: return item.source;
         case TimestampRole: return item.timestamp;
         case TimeFormattedRole: return item.formattedTime();
-        case CharCountRole: return item.text.length();
+        case CharCountRole: return item.isImage ? item.imageSize : item.text.length();
         default: return QVariant();
     }
 }
@@ -32,8 +37,13 @@ QVariant ClipboardHistoryModel::data(const QModelIndex& index, int role) const {
 QHash<int, QByteArray> ClipboardHistoryModel::roleNames() const {
     QHash<int, QByteArray> roles;
     roles[IdRole] = "id";
+    roles[IsImageRole] = "isImage";
     roles[TextRole] = "text";
     roles[PreviewRole] = "preview";
+    roles[ImageDataRole] = "imageData";
+    roles[MimeTypeRole] = "mimeType";
+    roles[ImageSizeRole] = "imageSize";
+    roles[SizeFormattedRole] = "sizeFormatted";
     roles[SourceRole] = "source";
     roles[TimestampRole] = "timestamp";
     roles[TimeFormattedRole] = "timeFormatted";
@@ -45,7 +55,7 @@ void ClipboardHistoryModel::addClip(const QString& text, const QString& source) 
     if (text.trimmed().isEmpty()) return;
 
     // Check if the most recent clip is identical to avoid duplicates
-    if (!items_.isEmpty() && items_.last().text == text) {
+    if (!items_.isEmpty() && !items_.last().isImage && items_.last().text == text) {
         return;
     }
 
@@ -60,7 +70,37 @@ void ClipboardHistoryModel::addClip(const QString& text, const QString& source) 
     beginInsertRows(QModelIndex(), newIndex, newIndex);
     ClipItem item;
     item.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    item.isImage = false;
     item.text = text;
+    item.source = source;
+    item.timestamp = QDateTime::currentMSecsSinceEpoch();
+    items_.append(item);
+    endInsertRows();
+    emit countChanged();
+}
+
+void ClipboardHistoryModel::addClipImage(const QString& imageData, const QString& mimeType, int size, const QString& source) {
+    if (imageData.isEmpty()) return;
+
+    // Check if duplicate of last image
+    if (!items_.isEmpty() && items_.last().isImage && items_.last().imageData == imageData) {
+        return;
+    }
+
+    if (items_.size() >= 100) {
+        beginRemoveRows(QModelIndex(), 0, 0);
+        items_.removeFirst();
+        endRemoveRows();
+    }
+
+    int newIndex = items_.size();
+    beginInsertRows(QModelIndex(), newIndex, newIndex);
+    ClipItem item;
+    item.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    item.isImage = true;
+    item.imageData = imageData;
+    item.mimeType = mimeType.isEmpty() ? "image/png" : mimeType;
+    item.imageSize = size > 0 ? size : imageData.length();
     item.source = source;
     item.timestamp = QDateTime::currentMSecsSinceEpoch();
     items_.append(item);
@@ -84,9 +124,24 @@ void ClipboardHistoryModel::clear() {
     emit countChanged();
 }
 
+bool ClipboardHistoryModel::isClipImage(int index) const {
+    if (index < 0 || index >= items_.size()) return false;
+    return items_.at(index).isImage;
+}
+
 QString ClipboardHistoryModel::getClipText(int index) const {
     if (index < 0 || index >= items_.size()) return QString();
     return items_.at(index).text;
+}
+
+QString ClipboardHistoryModel::getClipImageData(int index) const {
+    if (index < 0 || index >= items_.size()) return QString();
+    return items_.at(index).imageData;
+}
+
+QString ClipboardHistoryModel::getClipMimeType(int index) const {
+    if (index < 0 || index >= items_.size()) return QString();
+    return items_.at(index).mimeType;
 }
 
 } // namespace webclip

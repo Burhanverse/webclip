@@ -1,5 +1,6 @@
 #include "http_client.hpp"
 #include "../util/json.hpp"
+#include "../util/base64.hpp"
 #include "../version.hpp"
 #include <curl/curl.h>
 #include <iostream>
@@ -20,6 +21,14 @@ size_t write_string_cb(void* ptr, size_t size, size_t nmemb, void* userdata) {
     size_t total = size * nmemb;
     auto* str = static_cast<std::string*>(userdata);
     str->append(static_cast<const char*>(ptr), total);
+    return total;
+}
+
+size_t write_binary_cb(void* ptr, size_t size, size_t nmemb, void* userdata) {
+    size_t total = size * nmemb;
+    auto* vec = static_cast<std::vector<uint8_t>*>(userdata);
+    const uint8_t* byte_ptr = static_cast<const uint8_t*>(ptr);
+    vec->insert(vec->end(), byte_ptr, byte_ptr + total);
     return total;
 }
 
@@ -73,7 +82,7 @@ std::string HttpClient::build_url(const std::string& path, const std::string& ex
     if (!extra_query.empty()) {
         query += "&" + extra_query;
     }
-    url += "?" + query;
+    url += (path.find('?') == std::string::npos ? "?" : "&") + query;
     return url;
 }
 
@@ -117,6 +126,59 @@ HttpResponse HttpClient::get_state() {
     return resp;
 }
 
+HttpResponse HttpClient::get_image(const std::string& path_or_url) {
+    HttpResponse resp;
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        resp.error = "Failed to initialize CURL";
+        return resp;
+    }
+
+    std::string url;
+    if (path_or_url.rfind("http://", 0) == 0 || path_or_url.rfind("https://", 0) == 0) {
+        url = path_or_url;
+    } else {
+        std::string path = path_or_url.empty() ? "/image/latest?source=phone" : path_or_url;
+        url = build_url(path);
+    }
+
+    struct curl_slist* headers = nullptr;
+    headers = curl_slist_append(headers, ("X-Pairing-Code: " + code_).c_str());
+    headers = curl_slist_append(headers, "Accept: image/*, */*");
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT.c_str());
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_binary_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp.binary_body);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 6L);
+
+    if (insecure_ || use_https_) {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, insecure_ ? 0L : 2L);
+    }
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        resp.error = curl_easy_strerror(res);
+    } else {
+        long http_code = 0;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+        resp.status_code = static_cast<int>(http_code);
+
+        char* ct = nullptr;
+        curl_easy_getinfo(curl, CURLINFO_CONTENT_TYPE, &ct);
+        if (ct) {
+            resp.content_type = ct;
+        }
+    }
+
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    return resp;
+}
+
 HttpResponse HttpClient::push_clipboard(const std::string& text) {
     HttpResponse resp;
     CURL* curl = curl_easy_init();
@@ -127,6 +189,7 @@ HttpResponse HttpClient::push_clipboard(const std::string& text) {
 
     std::string url = build_url("/clipboard");
     JsonValue json = JsonValue::object();
+    json.set("type", JsonValue("text"));
     json.set("text", JsonValue(text));
     json.set("clientId", JsonValue(client_id_));
     std::string json_body = json.serialize();
@@ -144,8 +207,66 @@ HttpResponse HttpClient::push_clipboard(const std::string& text) {
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_string_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp.body);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 6L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+
+    if (insecure_ || use_https_) {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, insecure_ ? 0L : 2L);
+    }
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        resp.error = curl_easy_strerror(res);
+    } else {
+        long http_code = 0;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+        resp.status_code = static_cast<int>(http_code);
+    }
+
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    return resp;
+}
+
+HttpResponse HttpClient::push_image(const std::vector<uint8_t>& bytes, const std::string& mime_type) {
+    std::string mime = mime_type.empty() ? "image/png" : mime_type;
+    std::string b64 = base64::encode(bytes);
+    std::string data_url = "data:" + mime + ";base64," + b64;
+    return push_image_data_url(data_url, mime);
+}
+
+HttpResponse HttpClient::push_image_data_url(const std::string& data_url, const std::string& mime_type) {
+    HttpResponse resp;
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        resp.error = "Failed to initialize CURL";
+        return resp;
+    }
+
+    std::string url = build_url("/clipboard");
+    JsonValue json = JsonValue::object();
+    json.set("type", JsonValue("image"));
+    json.set("mimeType", JsonValue(mime_type.empty() ? "image/png" : mime_type));
+    json.set("data", JsonValue(data_url));
+    json.set("clientId", JsonValue(client_id_));
+    std::string json_body = json.serialize();
+
+    struct curl_slist* headers = nullptr;
+    headers = curl_slist_append(headers, "Content-Type: application/json; charset=utf-8");
+    headers = curl_slist_append(headers, ("X-Pairing-Code: " + code_).c_str());
+    headers = curl_slist_append(headers, "Accept: application/json");
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT.c_str());
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_body.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(json_body.length()));
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_string_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp.body);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 20L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 6L);
 
     if (insecure_ || use_https_) {
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);

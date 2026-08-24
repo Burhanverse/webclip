@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <string>
+#include <vector>
 #include <mutex>
 #include <atomic>
 #include <thread>
@@ -43,12 +44,15 @@ private:
     std::mutex state_lock_;
     std::string last_remote_text_;
     std::string last_local_text_;
+    std::string last_remote_img_hash_;
+    std::string last_local_img_hash_;
 
     std::atomic<bool> stop_flag_{false};
     std::unique_ptr<std::thread> sse_thread_;
 
     void handle_sse_event(const SseEvent& event);
     static std::string truncate_preview(const std::string& text, size_t max_len = 60);
+    static std::string compute_hash(const std::vector<uint8_t>& data);
 };
 
 } // namespace webclip

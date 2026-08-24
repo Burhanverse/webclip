@@ -1,12 +1,38 @@
 import QtQuick
 import QtQuick.Layouts
 import QtQuick.Controls as QQC
+import QtQuick.Dialogs
 import WebClip
 
 Item {
     id: root
 
     required property var controller
+
+    FileDialog {
+        id: openImageDialog
+        title: "Select Image to Send"
+        fileMode: FileDialog.OpenFile
+        nameFilters: ["Image files (*.png *.jpg *.jpeg *.webp *.bmp *.gif)", "All files (*)"]
+        onAccepted: {
+            if (selectedFile) {
+                controller.pushImage(selectedFile.toString())
+            }
+        }
+    }
+
+    DropArea {
+        anchors.fill: parent
+        onDropped: (drop) => {
+            if (drop.hasUrls && drop.urls.length > 0) {
+                for (var i = 0; i < drop.urls.length; ++i) {
+                    controller.pushImage(drop.urls[i].toString())
+                }
+            } else if (drop.hasText && drop.text.length > 0) {
+                pushInput.text = drop.text
+            }
+        }
+    }
 
     ColumnLayout {
         anchors.fill: parent
@@ -26,7 +52,7 @@ Item {
             }
 
             Text {
-                text: "• Send text to your phone's Gboard clipboard"
+                text: "• Send text or image to your phone's Gboard clipboard"
                 font: MD3Theme.bodySmall
                 color: MD3Theme.onSurfaceVariant
                 Layout.fillWidth: true
@@ -74,7 +100,7 @@ Item {
                         Text {
                             anchors.fill: parent
                             visible: !pushInput.text && !pushInput.activeFocus
-                            text: "Type or paste text here to send..."
+                            text: "Type or paste text here to send, or attach an image below..."
                             font: pushInput.font
                             color: MD3Theme.onSurfaceVariant
                         }
@@ -120,7 +146,18 @@ Item {
                 text: "Paste Clipboard"
                 variant: "outlined"
                 iconName: "paste"
-                onClicked: pushInput.paste()
+                onClicked: {
+                    if (!controller.pushCurrentClipboard()) {
+                        pushInput.paste()
+                    }
+                }
+            }
+
+            MD3Button {
+                text: "Attach Image"
+                variant: "outlined"
+                iconName: "image"
+                onClicked: openImageDialog.open()
             }
 
             Item { Layout.fillWidth: true }

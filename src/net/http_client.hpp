@@ -1,6 +1,8 @@
 #pragma once
 
 #include <string>
+#include <vector>
+#include <cstdint>
 #include <functional>
 #include <atomic>
 #include "sse_parser.hpp"
@@ -10,6 +12,8 @@ namespace webclip {
 struct HttpResponse {
     int status_code = 0;
     std::string body;
+    std::vector<uint8_t> binary_body;
+    std::string content_type;
     std::string error;
 };
 
@@ -27,9 +31,24 @@ public:
     HttpResponse get_state();
 
     /**
-     * Pushes local clipboard to remote portal via POST /clipboard
+     * Fetches raw binary image data (e.g., from GET /image/latest?source=phone)
+     */
+    HttpResponse get_image(const std::string& path_or_url = "/image/latest?source=phone");
+
+    /**
+     * Pushes local text to remote portal via POST /clipboard
      */
     HttpResponse push_clipboard(const std::string& text);
+
+    /**
+     * Pushes local binary image data to remote portal via POST /clipboard
+     */
+    HttpResponse push_image(const std::vector<uint8_t>& bytes, const std::string& mime_type = "image/png");
+
+    /**
+     * Pushes data URL / base64 image data to remote portal via POST /clipboard
+     */
+    HttpResponse push_image_data_url(const std::string& data_url, const std::string& mime_type = "image/png");
 
     /**
      * Streams SSE events continuously from GET /events.

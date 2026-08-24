@@ -3,6 +3,8 @@
 #include <cstdlib>
 #include <array>
 #include <vector>
+#include <cstdint>
+#include <cstring>
 
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
@@ -70,8 +72,71 @@ public:
         return true;
     }
 
+    bool has_image() override {
+        UINT pngFormat = RegisterClipboardFormatW(L"PNG");
+        return IsClipboardFormatAvailable(pngFormat) || IsClipboardFormatAvailable(CF_DIB) || IsClipboardFormatAvailable(CF_DIBV5);
+    }
+
+    ClipboardImage get_image() override {
+        ClipboardImage img;
+        if (!OpenClipboard(nullptr)) {
+            return img;
+        }
+
+        UINT pngFormat = RegisterClipboardFormatW(L"PNG");
+        if (IsClipboardFormatAvailable(pngFormat)) {
+            HANDLE hData = GetClipboardData(pngFormat);
+            if (hData) {
+                size_t size = GlobalSize(hData);
+                const uint8_t* pData = static_cast<const uint8_t*>(GlobalLock(hData));
+                if (pData && size > 0) {
+                    img.data.assign(pData, pData + size);
+                    img.mime_type = "image/png";
+                    img.valid = true;
+                    GlobalUnlock(hData);
+                }
+            }
+        }
+
+        CloseClipboard();
+        return img;
+    }
+
+    bool set_image(const std::vector<uint8_t>& data, const std::string& mime_type) override {
+        if (data.empty()) return false;
+        if (!OpenClipboard(nullptr)) return false;
+
+        EmptyClipboard();
+        UINT pngFormat = RegisterClipboardFormatW(L"PNG");
+
+        HGLOBAL hMem = GlobalAlloc(GMEM_MOVEABLE, data.size());
+        if (!hMem) {
+            CloseClipboard();
+            return false;
+        }
+
+        void* pMem = GlobalLock(hMem);
+        if (!pMem) {
+            GlobalFree(hMem);
+            CloseClipboard();
+            return false;
+        }
+
+        std::memcpy(pMem, data.data(), data.size());
+        GlobalUnlock(hMem);
+
+        if (SetClipboardData(pngFormat, hMem) == nullptr) {
+            GlobalFree(hMem);
+            CloseClipboard();
+            return false;
+        }
+
+        CloseClipboard();
+        return true;
+    }
+
     std::string get_backend_name() const override {
-        return "Windows Win32 (Unicode)";
+        return "Windows Win32 (Unicode & PNG)";
     }
 };
 
@@ -136,6 +201,53 @@ public:
         }
     }
 
+    bool has_image() override {
+        if (backend_ == Backend::Wayland) {
+            std::string types;
+            if (run_command_read({"wl-paste", "--list-types"}, types)) {
+                return types.find("image/") != std::string::npos;
+            }
+            return false;
+        } else {
+            std::string targets;
+            if (run_command_read({"xclip", "-selection", "clipboard", "-t", "TARGETS", "-o"}, targets)) {
+                return targets.find("image/") != std::string::npos || targets.find("PNG") != std::string::npos;
+            }
+            return false;
+        }
+    }
+
+    ClipboardImage get_image() override {
+        ClipboardImage img;
+        std::vector<uint8_t> bytes;
+        if (backend_ == Backend::Wayland) {
+            if (run_command_read_bytes({"wl-paste", "--type", "image/png"}, bytes) && !bytes.empty()) {
+                img.data = std::move(bytes);
+                img.mime_type = "image/png";
+                img.valid = true;
+                return img;
+            }
+        } else {
+            if (run_command_read_bytes({"xclip", "-selection", "clipboard", "-t", "image/png", "-o"}, bytes) && !bytes.empty()) {
+                img.data = std::move(bytes);
+                img.mime_type = "image/png";
+                img.valid = true;
+                return img;
+            }
+        }
+        return img;
+    }
+
+    bool set_image(const std::vector<uint8_t>& data, const std::string& mime_type) override {
+        if (data.empty()) return false;
+        std::string mime = mime_type.empty() ? "image/png" : mime_type;
+        if (backend_ == Backend::Wayland) {
+            return run_command_write_bytes({"wl-copy", "--type", mime}, data);
+        } else {
+            return run_command_write_bytes({"xclip", "-selection", "clipboard", "-t", mime}, data);
+        }
+    }
+
 private:
     Backend backend_;
 
@@ -152,7 +264,6 @@ private:
         }
 
         if (pid == 0) {
-            // Child
             close(pipefd[0]);
             dup2(pipefd[1], STDOUT_FILENO);
             int devnull = open("/dev/null", O_WRONLY);
@@ -170,13 +281,56 @@ private:
             _exit(127);
         }
 
-        // Parent
         close(pipefd[1]);
         output.clear();
         std::array<char, 4096> buffer;
         ssize_t bytes_read;
         while ((bytes_read = read(pipefd[0], buffer.data(), buffer.size())) > 0) {
             output.append(buffer.data(), bytes_read);
+        }
+        close(pipefd[0]);
+
+        int status = 0;
+        waitpid(pid, &status, 0);
+        return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    }
+
+    static bool run_command_read_bytes(const std::vector<std::string>& args, std::vector<uint8_t>& output) {
+        if (args.empty()) return false;
+        int pipefd[2];
+        if (pipe(pipefd) != 0) return false;
+
+        pid_t pid = fork();
+        if (pid < 0) {
+            close(pipefd[0]);
+            close(pipefd[1]);
+            return false;
+        }
+
+        if (pid == 0) {
+            close(pipefd[0]);
+            dup2(pipefd[1], STDOUT_FILENO);
+            int devnull = open("/dev/null", O_WRONLY);
+            if (devnull >= 0) {
+                dup2(devnull, STDERR_FILENO);
+                close(devnull);
+            }
+            close(pipefd[1]);
+
+            std::vector<char*> c_args;
+            for (const auto& a : args) c_args.push_back(const_cast<char*>(a.c_str()));
+            c_args.push_back(nullptr);
+
+            execvp(c_args[0], c_args.data());
+            _exit(127);
+        }
+
+        close(pipefd[1]);
+        output.clear();
+        std::array<uint8_t, 8192> buffer;
+        ssize_t bytes_read;
+        while ((bytes_read = read(pipefd[0], buffer.data(), buffer.size())) > 0) {
+            output.insert(output.end(), buffer.data(), buffer.data() + bytes_read);
         }
         close(pipefd[0]);
 
@@ -198,7 +352,6 @@ private:
         }
 
         if (pid == 0) {
-            // Child
             close(pipefd[1]);
             dup2(pipefd[0], STDIN_FILENO);
             int devnull = open("/dev/null", O_WRONLY);
@@ -217,7 +370,51 @@ private:
             _exit(127);
         }
 
-        // Parent
+        close(pipefd[0]);
+        size_t total_written = 0;
+        while (total_written < input.size()) {
+            ssize_t written = write(pipefd[1], input.data() + total_written, input.size() - total_written);
+            if (written <= 0) break;
+            total_written += written;
+        }
+        close(pipefd[1]);
+
+        int status = 0;
+        waitpid(pid, &status, 0);
+        return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    }
+
+    static bool run_command_write_bytes(const std::vector<std::string>& args, const std::vector<uint8_t>& input) {
+        if (args.empty()) return false;
+        int pipefd[2];
+        if (pipe(pipefd) != 0) return false;
+
+        pid_t pid = fork();
+        if (pid < 0) {
+            close(pipefd[0]);
+            close(pipefd[1]);
+            return false;
+        }
+
+        if (pid == 0) {
+            close(pipefd[1]);
+            dup2(pipefd[0], STDIN_FILENO);
+            int devnull = open("/dev/null", O_WRONLY);
+            if (devnull >= 0) {
+                dup2(devnull, STDOUT_FILENO);
+                dup2(devnull, STDERR_FILENO);
+                close(devnull);
+            }
+            close(pipefd[0]);
+
+            std::vector<char*> c_args;
+            for (const auto& a : args) c_args.push_back(const_cast<char*>(a.c_str()));
+            c_args.push_back(nullptr);
+
+            execvp(c_args[0], c_args.data());
+            _exit(127);
+        }
+
         close(pipefd[0]);
         size_t total_written = 0;
         while (total_written < input.size()) {
