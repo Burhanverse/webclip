@@ -69,7 +69,7 @@ QQC.Popup {
                     spacing: 12
 
                     Text {
-                        text: "Settings"
+                        text: I18n.tr("settings.title")
                         font: MD3Theme.titleMedium
                         color: MD3Theme.onSurface
                         Layout.fillWidth: true
@@ -162,7 +162,7 @@ QQC.Popup {
                         spacing: 8
 
                         Text {
-                            text: "Connection"
+                            text: I18n.tr("settings.connection.section_title")
                             font: MD3Theme.labelLarge
                             color: MD3Theme.primary
                         }
@@ -189,7 +189,7 @@ QQC.Popup {
 
                                     MD3TextField {
                                         Layout.fillWidth: true
-                                        label: "Phone IP / URL"
+                                        label: I18n.tr("settings.connection.host_label")
                                         placeholderText: "10.36.130.44"
                                         text: root.controller.host
                                         onTextChanged: root.controller.host = text
@@ -197,7 +197,7 @@ QQC.Popup {
 
                                     MD3TextField {
                                         Layout.preferredWidth: 80
-                                        label: "Port"
+                                        label: I18n.tr("settings.connection.port_label")
                                         placeholderText: "8080"
                                         text: root.controller.port.toString()
                                         onTextChanged: {
@@ -213,7 +213,7 @@ QQC.Popup {
 
                                     MD3TextField {
                                         Layout.fillWidth: true
-                                        label: "Pairing Code"
+                                        label: I18n.tr("settings.connection.code_label")
                                         placeholderText: "4-digit code"
                                         text: root.controller.code
                                         onTextChanged: root.controller.code = text
@@ -221,7 +221,9 @@ QQC.Popup {
 
                                     MD3Button {
                                         Layout.preferredHeight: 44
-                                        text: root.controller.connected ? "Disconnect" : (root.controller.connecting ? "Connecting..." : "Connect")
+                                        text: root.controller.connected 
+                                            ? I18n.tr("settings.connection.btn_disconnect") 
+                                            : (root.controller.connecting ? I18n.tr("settings.connection.btn_connecting") : I18n.tr("settings.connection.btn_connect"))
                                         variant: root.controller.connected ? "tonal" : "filled"
                                         iconName: root.controller.connected ? "close" : "sync"
                                         onClicked: root.controller.toggleConnection()
@@ -237,7 +239,7 @@ QQC.Popup {
                         spacing: 8
 
                         Text {
-                            text: "Security & Network"
+                            text: I18n.tr("settings.security.section_title")
                             font: MD3Theme.labelLarge
                             color: MD3Theme.primary
                         }
@@ -260,8 +262,8 @@ QQC.Popup {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 2
-                                    Text { text: "Use HTTPS (Port 8081)"; font: MD3Theme.bodySmall; color: MD3Theme.onSurface }
-                                    Text { text: "Encrypt connection between PC and phone"; font: MD3Theme.labelSmall; color: MD3Theme.onSurfaceVariant }
+                                    Text { text: I18n.tr("settings.security.https_title"); font: MD3Theme.bodySmall; color: MD3Theme.onSurface }
+                                    Text { text: I18n.tr("settings.security.https_subtitle"); font: MD3Theme.labelSmall; color: MD3Theme.onSurfaceVariant }
                                 }
 
                                 MD3Switch {
@@ -290,8 +292,8 @@ QQC.Popup {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 2
-                                    Text { text: "Allow Self-Signed SSL"; font: MD3Theme.bodySmall; color: MD3Theme.onSurface }
-                                    Text { text: "Required for Gboard local certificates"; font: MD3Theme.labelSmall; color: MD3Theme.onSurfaceVariant }
+                                    Text { text: I18n.tr("settings.security.ssl_title"); font: MD3Theme.bodySmall; color: MD3Theme.onSurface }
+                                    Text { text: I18n.tr("settings.security.ssl_subtitle"); font: MD3Theme.labelSmall; color: MD3Theme.onSurfaceVariant }
                                 }
 
                                 MD3Switch {
@@ -309,7 +311,7 @@ QQC.Popup {
                         spacing: 8
 
                         Text {
-                            text: "Sync Behavior"
+                            text: I18n.tr("settings.sync.section_title")
                             font: MD3Theme.labelLarge
                             color: MD3Theme.primary
                         }
@@ -332,8 +334,8 @@ QQC.Popup {
                                 ColumnLayout {
                                     Layout.fillWidth: true
                                     spacing: 2
-                                    Text { text: "Automatic Two-Way Sync"; font: MD3Theme.bodySmall; color: MD3Theme.onSurface }
-                                    Text { text: "Instant sync on PC clipboard copy"; font: MD3Theme.labelSmall; color: MD3Theme.onSurfaceVariant }
+                                    Text { text: I18n.tr("settings.sync.autosync_title"); font: MD3Theme.bodySmall; color: MD3Theme.onSurface }
+                                    Text { text: I18n.tr("settings.sync.autosync_subtitle"); font: MD3Theme.labelSmall; color: MD3Theme.onSurfaceVariant }
                                 }
 
                                 MD3Switch {
@@ -364,7 +366,7 @@ QQC.Popup {
                                 RowLayout {
                                     Layout.fillWidth: true
                                     Text {
-                                        text: "Polling Interval: " + root.controller.pollInterval.toFixed(1) + "s"
+                                        text: I18n.tr("settings.sync.polling_title") + ": " + root.controller.pollInterval.toFixed(1) + "s"
                                         font: MD3Theme.bodySmall
                                         color: MD3Theme.onSurface
                                         Layout.fillWidth: true
@@ -455,7 +457,7 @@ QQC.Popup {
                         spacing: 8
 
                         Text {
-                            text: "Appearance"
+                            text: I18n.tr("settings.appearance.section_title")
                             font: MD3Theme.labelLarge
                             color: MD3Theme.primary
                         }
@@ -476,7 +478,7 @@ QQC.Popup {
                                 spacing: 12
 
                                 Text {
-                                    text: "Theme Mode"
+                                    text: I18n.tr("settings.appearance.theme_mode")
                                     font: MD3Theme.bodySmall
                                     color: MD3Theme.onSurface
                                     Layout.fillWidth: true
@@ -488,9 +490,9 @@ QQC.Popup {
 
                                     Repeater {
                                         model: [
-                                            { label: "System", mode: 0 },
-                                            { label: "Light", mode: 1 },
-                                            { label: "Dark", mode: 2 }
+                                            { label: I18n.tr("settings.appearance.mode_system"), mode: 0 },
+                                            { label: I18n.tr("settings.appearance.mode_light"), mode: 1 },
+                                            { label: I18n.tr("settings.appearance.mode_dark"), mode: 2 }
                                         ]
 
                                         Rectangle {
@@ -536,7 +538,7 @@ QQC.Popup {
                                 spacing: 10
 
                                 Text {
-                                    text: "Accent Color"
+                                    text: I18n.tr("settings.appearance.accent_color")
                                     font: MD3Theme.bodySmall
                                     color: MD3Theme.onSurface
                                 }
@@ -621,7 +623,7 @@ QQC.Popup {
                                             }
 
                                             Text {
-                                                text: "Custom"
+                                                text: I18n.tr("settings.appearance.accent_custom")
                                                 font: MD3Theme.labelSmall
                                                 color: root.controller.accentPreset === "custom" ? MD3Theme.onPrimary : MD3Theme.onSurface
                                             }
@@ -662,7 +664,7 @@ QQC.Popup {
                                 spacing: 12
 
                                 Text {
-                                    text: "Clipboard Engine"
+                                    text: I18n.tr("settings.appearance.clipboard_engine")
                                     font: MD3Theme.bodySmall
                                     color: MD3Theme.onSurface
                                     Layout.fillWidth: true
@@ -675,14 +677,151 @@ QQC.Popup {
                             }
                         }
 
-                        Item { Layout.preferredHeight: 4 }
+                        Item { Layout.preferredHeight: 2 }
 
                         MD3Button {
-                            text: "Clear All History"
+                            text: I18n.tr("settings.appearance.btn_clear_history")
                             variant: "outlined"
                             iconName: "delete"
                             Layout.fillWidth: true
                             onClicked: root.controller.clipModel.clear()
+                        }
+                    }
+
+                    // Section 5: About & Versioning
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+
+                        Text {
+                            text: I18n.tr("settings.about.section_title")
+                            font: MD3Theme.labelLarge
+                            color: MD3Theme.primary
+                        }
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: aboutCol.implicitHeight + 24
+                            radius: 16
+                            color: MD3Theme.isDark ? "#2A2432" : "#FFF0F6"
+                            border.color: MD3Theme.isDark ? "#3A3245" : "#F7DFE8"
+                            border.width: 1
+
+                            ColumnLayout {
+                                id: aboutCol
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.top: parent.top
+                                anchors.margins: 14
+                                spacing: 10
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 12
+
+                                    Rectangle {
+                                        width: 36
+                                        height: 36
+                                        radius: 18
+                                        color: MD3Theme.primaryContainer
+
+                                        MD3Icon {
+                                            anchors.centerIn: parent
+                                            name: "phone"
+                                            size: 18
+                                            color: MD3Theme.onPrimaryContainer
+                                        }
+                                    }
+
+                                    ColumnLayout {
+                                        Layout.fillWidth: true
+                                        spacing: 1
+
+                                        Text {
+                                            text: I18n.tr("settings.about.app_name")
+                                            font: MD3Theme.titleSmall
+                                            color: MD3Theme.onSurface
+                                        }
+
+                                        Text {
+                                            text: I18n.tr("settings.about.app_subtitle")
+                                            font: MD3Theme.labelSmall
+                                            color: MD3Theme.onSurfaceVariant
+                                        }
+                                    }
+
+                                    MD3Badge {
+                                        text: "v" + root.controller.appVersion
+                                        badgeColor: MD3Theme.primary
+                                        textColor: MD3Theme.onPrimary
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 1
+                                    color: MD3Theme.isDark ? "#3A3245" : "#F0D3DE"
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Text {
+                                        text: I18n.tr("settings.about.qt_runtime")
+                                        font: MD3Theme.bodySmall
+                                        color: MD3Theme.onSurface
+                                        Layout.fillWidth: true
+                                    }
+                                    Text {
+                                        text: "Qt " + root.controller.qtVersion
+                                        font: MD3Theme.labelSmall
+                                        color: MD3Theme.onSurfaceVariant
+                                    }
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Text {
+                                        text: I18n.tr("settings.about.engine")
+                                        font: MD3Theme.bodySmall
+                                        color: MD3Theme.onSurface
+                                        Layout.fillWidth: true
+                                    }
+                                    Text {
+                                        text: root.controller.clipboardBackend
+                                        font: MD3Theme.labelSmall
+                                        color: MD3Theme.primary
+                                    }
+                                }
+
+                                RowLayout {
+                                    Layout.fillWidth: true
+                                    Text {
+                                        text: I18n.tr("settings.about.license")
+                                        font: MD3Theme.bodySmall
+                                        color: MD3Theme.onSurface
+                                        Layout.fillWidth: true
+                                    }
+                                    Text {
+                                        text: I18n.tr("settings.about.license_val")
+                                        font: MD3Theme.labelSmall
+                                        color: MD3Theme.onSurfaceVariant
+                                    }
+                                }
+
+                                Rectangle {
+                                    Layout.fillWidth: true
+                                    height: 1
+                                    color: MD3Theme.isDark ? "#3A3245" : "#F0D3DE"
+                                }
+
+                                MD3Button {
+                                    text: I18n.tr("settings.about.btn_github")
+                                    variant: "tonal"
+                                    iconName: "link"
+                                    Layout.fillWidth: true
+                                    onClicked: root.controller.openUrl("https://github.com/burhanverse/webclip")
+                                }
+                            }
                         }
                     }
                 }

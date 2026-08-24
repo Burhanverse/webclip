@@ -1,0 +1,78 @@
+{
+  "app": {
+    "name": "WebClip",
+    "title": "WebClip — Gboard Sync",
+    "header_title": "Gboard Phone Sync",
+    "status_connected": "Connected • Real-time",
+    "status_connecting": "Connecting...",
+    "status_offline": "Offline • Click to connect"
+  },
+  "chat": {
+    "empty_title": "No clips yet",
+    "empty_subtitle": "Type below or copy text on your phone to sync",
+    "message_placeholder": "Message...",
+    "source_phone": "Phone",
+    "source_pc": "PC",
+    "show_full_clip": "Show full clip",
+    "action_copy": "Copy to clipboard",
+    "action_send": "Push to phone",
+    "action_delete": "Delete clip",
+    "action_paste": "Paste from clipboard"
+  },
+  "settings": {
+    "title": "Settings",
+    "connection": {
+      "section_title": "Connection",
+      "host_label": "Phone IP / URL",
+      "host_placeholder": "10.36.130.44",
+      "port_label": "Port",
+      "port_placeholder": "8080",
+      "code_label": "Pairing Code",
+      "code_placeholder": "4-digit code",
+      "btn_connect": "Connect",
+      "btn_connecting": "Connecting...",
+      "btn_disconnect": "Disconnect"
+    },
+    "security": {
+      "section_title": "Security & Network",
+      "https_title": "Use HTTPS (Port 8081)",
+      "https_subtitle": "Encrypt connection between PC and phone",
+      "ssl_title": "Allow Self-Signed SSL",
+      "ssl_subtitle": "Required for Gboard local certificates"
+    },
+    "sync": {
+      "section_title": "Sync Behavior",
+      "autosync_title": "Automatic Two-Way Sync",
+      "autosync_subtitle": "Instant sync on PC clipboard copy",
+      "polling_title": "Polling Interval"
+    },
+    "appearance": {
+      "section_title": "Appearance",
+      "theme_mode": "Theme Mode",
+      "mode_system": "System",
+      "mode_light": "Light",
+      "mode_dark": "Dark",
+      "accent_color": "Accent Color",
+      "accent_custom": "Custom",
+      "clipboard_engine": "Clipboard Engine",
+      "btn_clear_history": "Clear All History"
+    },
+    "about": {
+      "section_title": "About",
+      "app_name": "WebClip Sync",
+      "app_subtitle": "Material You Gboard Clipboard Bridge",
+      "qt_runtime": "Qt Runtime",
+      "engine": "Clipboard Engine",
+      "license": "License",
+      "license_val": "MIT License",
+      "btn_github": "Source Code on GitHub"
+    }
+  },
+  "toast": {
+    "copied": "Copied to clipboard",
+    "history_cleared": "Clipboard history cleared",
+    "clipboard_empty": "Local clipboard is empty",
+    "pushed": "Pushed %1 chars to phone",
+    "push_failed": "Push failed (HTTP %1)"
+  }
+}

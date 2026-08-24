@@ -37,6 +37,8 @@ class WebClipController : public QObject {
     Q_PROPERTY(QString accentPreset READ accentPreset WRITE setAccentPreset NOTIFY accentPresetChanged)
     Q_PROPERTY(QColor customColor READ customColor WRITE setCustomColor NOTIFY customColorChanged)
     Q_PROPERTY(ClipboardHistoryModel* clipModel READ clipModel CONSTANT)
+    Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
+    Q_PROPERTY(QString qtVersion READ qtVersion CONSTANT)
 
 public:
     explicit WebClipController(QObject* parent = nullptr);
@@ -57,6 +59,10 @@ public:
     QString accentPreset() const { return accentPreset_; }
     QColor customColor() const { return customColor_; }
     ClipboardHistoryModel* clipModel() { return &clipModel_; }
+    QString appVersion() const { return QStringLiteral("1.0.0"); }
+    QString qtVersion() const { return QString::fromLatin1(qVersion()); }
+
+    Q_INVOKABLE void openUrl(const QString& urlStr);
 
     void setHost(const QString& host);
     void setPort(int port);

@@ -10,7 +10,7 @@ Window {
     minimumWidth: 380
     minimumHeight: 520
     visible: true
-    title: "WebClip — Gboard Sync"
+    title: I18n.tr("app.title")
     color: MD3Theme.surface
 
     Behavior on color { ColorAnimation { duration: 200 } }
@@ -101,14 +101,16 @@ Window {
                     spacing: 1
 
                     Text {
-                        text: "Gboard Phone Sync"
+                        text: I18n.tr("app.header_title")
                         font: MD3Theme.titleSmall
                         color: MD3Theme.onSurface
                         elide: Text.ElideRight
                     }
 
                     Text {
-                        text: controller.connected ? "Connected • Real-time" : (controller.connecting ? "Connecting..." : "Offline • Click to connect")
+                        text: controller.connected
+                            ? I18n.tr("app.status_connected")
+                            : (controller.connecting ? I18n.tr("app.status_connecting") : I18n.tr("app.status_offline"))
                         font: MD3Theme.labelSmall
                         color: controller.connected ? "#4CAF50" : MD3Theme.onSurfaceVariant
                         elide: Text.ElideRight

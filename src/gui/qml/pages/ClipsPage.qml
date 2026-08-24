@@ -42,14 +42,14 @@ Item {
                 }
 
                 Text {
-                    text: "No clips yet"
+                    text: I18n.tr("chat.empty_title")
                     font: MD3Theme.titleSmall
                     color: MD3Theme.onSurface
                     Layout.alignment: Qt.AlignHCenter
                 }
 
                 Text {
-                    text: "Type below or copy text on your phone to sync"
+                    text: I18n.tr("chat.empty_subtitle")
                     font: MD3Theme.bodySmall
                     color: MD3Theme.onSurfaceVariant
                     Layout.alignment: Qt.AlignHCenter
@@ -208,7 +208,7 @@ Item {
                                     Text {
                                         id: showText
                                         anchors.centerIn: parent
-                                        text: "Show full clip"
+                                        text: I18n.tr("chat.show_full_clip")
                                         font: MD3Theme.labelSmall
                                         color: MD3Theme.primary
                                     }
@@ -231,7 +231,7 @@ Item {
                             spacing: 8
 
                             Text {
-                                text: (isFromPhone ? "Phone • " : "PC • ") + model.timeFormatted
+                                text: (isFromPhone ? I18n.tr("chat.source_phone") + " • " : I18n.tr("chat.source_pc") + " • ") + model.timeFormatted
                                 font: MD3Theme.labelSmall
                                 color: MD3Theme.onSurfaceVariant
                                 Layout.fillWidth: true
@@ -336,7 +336,7 @@ Item {
                         anchors.rightMargin: 8
                         anchors.verticalCenter: parent.verticalCenter
                         visible: !msgInput.text && !msgInput.activeFocus
-                        text: "Message..."
+                        text: I18n.tr("chat.message_placeholder")
                         font: MD3Theme.bodyLarge
                         color: MD3Theme.onSurfaceVariant
                         elide: Text.ElideRight

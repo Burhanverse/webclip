@@ -91,6 +91,7 @@ qt_add_qml_module(webclip
         src/gui/resources/fonts/OpenSans-Regular.ttf
         src/gui/resources/fonts/OpenSans-SemiBold.ttf
         src/gui/resources/fonts/OpenSans-Bold.ttf
+        src/gui/resources/langs/en.json
         src/gui/resources/icons/android.svg
         src/gui/resources/icons/check.svg
         src/gui/resources/icons/clear_all.svg
@@ -125,6 +126,8 @@ qt_add_qml_module(webclip
         src/gui/controllers/webclip_controller.cpp
         src/gui/util/icon_image_provider.hpp
         src/gui/util/icon_image_provider.cpp
+        src/gui/util/i18n.hpp
+        src/gui/util/i18n.cpp
 )
 
 target_link_libraries(webclip PRIVATE

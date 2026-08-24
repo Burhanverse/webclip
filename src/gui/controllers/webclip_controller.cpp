@@ -3,6 +3,8 @@
 #include "../../util/json.hpp"
 #include "../../util/cli.hpp"
 #include <QMetaObject>
+#include <QDesktopServices>
+#include <QUrl>
 
 namespace webclip {
 
@@ -434,6 +436,10 @@ void WebClipController::loadSettings() {
     MD3Theme::instance()->setCustomColor(customColor_);
     MD3Theme::instance()->setThemeMode(themeMode_);
     MD3Theme::instance()->setAccentPreset(accentPreset_);
+}
+
+void WebClipController::openUrl(const QString& urlStr) {
+    QDesktopServices::openUrl(QUrl(urlStr));
 }
 
 } // namespace webclip
