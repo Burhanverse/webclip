@@ -4,52 +4,126 @@ project(webclip VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
 
-# Find Dependencies
+# Find System Dependencies
 find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
+find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Quick Qml QuickControls2 Core5Compat)
 
-set(SOURCES
-    src/main.cpp
-    src/clipboard/clipboard.cpp
-    src/net/http_client.cpp
-    src/net/sse_parser.cpp
-    src/sync/sync_manager.cpp
-)
+if(COMMAND qt_standard_project_setup)
+    qt_standard_project_setup(REQUIRES 6.5)
+endif()
 
-set(HEADERS
+# Common Core Library (Shared between CLI and GUI)
+add_library(webclip_core STATIC
     src/clipboard/clipboard.hpp
+    src/clipboard/clipboard.cpp
     src/net/http_client.hpp
+    src/net/http_client.cpp
     src/net/sse_parser.hpp
+    src/net/sse_parser.cpp
     src/sync/sync_manager.hpp
+    src/sync/sync_manager.cpp
     src/util/json.hpp
     src/util/cli.hpp
 )
 
-add_executable(webclip ${SOURCES} ${HEADERS})
-
-target_include_directories(webclip PRIVATE
+target_include_directories(webclip_core PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CURL_INCLUDE_DIRS}
 )
 
-target_link_libraries(webclip PRIVATE
+target_link_libraries(webclip_core PUBLIC
     Threads::Threads
     ${CURL_LIBRARIES}
 )
 
 if(WIN32)
-    target_link_libraries(webclip PRIVATE
+    target_link_libraries(webclip_core PUBLIC
         ws2_32
         user32
     )
 endif()
 
-# Compiler warnings and optimization flags
+# CLI Executable
+add_executable(webclip-cli src/main.cpp)
+target_link_libraries(webclip-cli PRIVATE webclip_core)
+
+# Qt 6 QML GUI Executable
+add_executable(webclip src/gui/main_gui.cpp)
+
+target_include_directories(webclip PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/models
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/controllers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/theme
+)
+
+qt_add_qml_module(webclip
+    URI WebClip
+    VERSION 1.0
+    RESOURCE_PREFIX "/qt/qml"
+    NO_RESOURCE_TARGET_PATH
+    QML_FILES
+        src/gui/qml/Main.qml
+        src/gui/qml/components/MD3Icon.qml
+        src/gui/qml/components/MD3Button.qml
+        src/gui/qml/components/MD3IconButton.qml
+        src/gui/qml/components/MD3Card.qml
+        src/gui/qml/components/MD3Badge.qml
+        src/gui/qml/components/MD3TextField.qml
+        src/gui/qml/components/MD3Switch.qml
+        src/gui/qml/pages/ClipsPage.qml
+        src/gui/qml/pages/PushPage.qml
+        src/gui/qml/pages/SettingsPage.qml
+    RESOURCES
+        src/gui/resources/icons/copy.svg
+        src/gui/resources/icons/paste.svg
+        src/gui/resources/icons/send.svg
+        src/gui/resources/icons/delete.svg
+        src/gui/resources/icons/phone.svg
+        src/gui/resources/icons/laptop.svg
+        src/gui/resources/icons/settings.svg
+        src/gui/resources/icons/sun.svg
+        src/gui/resources/icons/moon.svg
+        src/gui/resources/icons/sync.svg
+        src/gui/resources/icons/check.svg
+        src/gui/resources/icons/close.svg
+        src/gui/resources/icons/palette.svg
+        src/gui/resources/icons/clips.svg
+        src/gui/resources/icons/clear_all.svg
+    SOURCES
+        src/gui/theme/md3_theme.hpp
+        src/gui/theme/md3_theme.cpp
+        src/gui/models/clipboard_history_model.hpp
+        src/gui/models/clipboard_history_model.cpp
+        src/gui/controllers/webclip_controller.hpp
+        src/gui/controllers/webclip_controller.cpp
+)
+
+target_link_libraries(webclip PRIVATE
+    webclip_core
+    Qt6::Core
+    Qt6::Gui
+    Qt6::Quick
+    Qt6::Qml
+    Qt6::QuickControls2
+    Qt6::Core5Compat
+)
+
+# Compiler optimization and warning options
 if(MSVC)
+    target_compile_options(webclip_core PRIVATE /W4 /O2 /permissive-)
+    target_compile_options(webclip-cli PRIVATE /W4 /O2 /permissive-)
     target_compile_options(webclip PRIVATE /W4 /O2 /permissive-)
 else()
+    target_compile_options(webclip_core PRIVATE -Wall -Wextra -Wpedantic -O2)
+    target_compile_options(webclip-cli PRIVATE -Wall -Wextra -Wpedantic -O2)
     target_compile_options(webclip PRIVATE -Wall -Wextra -Wpedantic -O2)
 endif()
 
-install(TARGETS webclip RUNTIME DESTINATION bin)
+install(TARGETS webclip webclip-cli RUNTIME DESTINATION bin)

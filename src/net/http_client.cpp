@@ -9,6 +9,8 @@ namespace webclip {
 
 namespace {
 
+const char* CLIENT_USER_AGENT = "WebClip/1.0.0 (Linux; x86_64; Qt6)";
+
 size_t write_string_cb(void* ptr, size_t size, size_t nmemb, void* userdata) {
     size_t total = size * nmemb;
     auto* str = static_cast<std::string*>(userdata);
@@ -84,6 +86,7 @@ HttpResponse HttpClient::get_state() {
     headers = curl_slist_append(headers, "Accept: application/json");
 
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_string_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp.body);
@@ -129,6 +132,7 @@ HttpResponse HttpClient::push_clipboard(const std::string& text) {
     headers = curl_slist_append(headers, "Accept: application/json");
 
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT);
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_body.c_str());
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(json_body.length()));
@@ -182,16 +186,16 @@ void HttpClient::stream_events(
         StreamContext ctx{&parser, &stop_flag};
 
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT);
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, stream_write_cb);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &ctx);
-        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
         curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_cb);
-        curl_easy_setopt(curl, CURLOPT_XFERINFODATA, const_cast<std::atomic<bool>*>(&stop_flag));
-        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+        curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &stop_flag);
+        curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
-        curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 30L);
-        curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 10L);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 0L); // Infinite stream
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 6L);
 
         if (insecure_ || use_https_) {
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);
@@ -199,33 +203,24 @@ void HttpClient::stream_events(
         }
 
         if (on_status) {
-            on_status("SSE listener connected to " + url);
+            on_status("Connecting to SSE stream...");
         }
 
         CURLcode res = curl_easy_perform(curl);
-        if (stop_flag.load()) {
-            curl_slist_free_all(headers);
-            curl_easy_cleanup(curl);
-            break;
-        }
-
-        if (res != CURLE_OK) {
-            if (on_status) {
-                on_status("SSE connection dropped (" + std::string(curl_easy_strerror(res)) + "); reconnecting in 2s...");
-            }
-        } else {
-            long http_code = 0;
-            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-            if (http_code != 200 && on_status) {
-                on_status("SSE server closed connection (HTTP " + std::to_string(http_code) + "); reconnecting in 2s...");
-            }
-        }
 
         curl_slist_free_all(headers);
         curl_easy_cleanup(curl);
 
-        for (int i = 0; i < 20 && !stop_flag.load(); ++i) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        if (stop_flag.load()) {
+            break;
+        }
+
+        if (res != CURLE_OK) {
+            std::string err = curl_easy_strerror(res);
+            if (on_status) {
+                on_status("SSE connection dropped (" + err + "); reconnecting...");
+            }
+            std::this_thread::sleep_for(std::chrono::seconds(2));
         }
     }
 }

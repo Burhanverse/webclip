@@ -1,0 +1,99 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [ main, master, dev ]
+  pull_request:
+    branches: [ main, master, dev ]
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    name: Build Linux (Ubuntu)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            cmake \
+            ninja-build \
+            libcurl4-openssl-dev \
+            qt6-base-dev \
+            qt6-declarative-dev \
+            qt6-tools-dev \
+            qml6-module-qtquick \
+            qml6-module-qtquick-controls \
+            qml6-module-qtquick-layouts \
+            qml6-module-qtquick-templates \
+            qml6-module-qtquick-window \
+            wl-clipboard \
+            xclip
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build WebClip & WebClip-CLI
+        run: |
+          cmake --build build --parallel
+
+      - name: Sanity check CLI binary
+        run: |
+          ./build/webclip-cli --help
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: webclip-linux-x86_64
+          path: |
+            build/webclip
+            build/webclip-cli
+
+  build-windows:
+    name: Build Windows (MSVC)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.0'
+          host: 'windows'
+          target: 'desktop'
+          arch: 'win64_msvc2022_64'
+          modules: 'qtdeclarative'
+
+      - name: Install libcurl via vcpkg
+        run: |
+          vcpkg install curl:x64-windows
+
+      - name: Configure CMake
+        run: |
+          cmake -B build `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+
+      - name: Build WebClip
+        run: |
+          cmake --build build --config Release --parallel
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: webclip-windows-x64
+          path: |
+            build/Release/webclip.exe
+            build/Release/webclip-cli.exe
