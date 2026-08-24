@@ -18,8 +18,8 @@ Item {
         radius: 12
         color: MD3Theme.surfaceContainerHighest
 
-        border.color: input.activeFocus ? MD3Theme.primary : MD3Theme.outlineVariant
-        border.width: input.activeFocus ? 1.5 : 1
+        border.color: input.activeFocus ? MD3Theme.primary : "transparent"
+        border.width: input.activeFocus ? 1.5 : 0
         Behavior on border.color { ColorAnimation { duration: 150 } }
 
         Column {

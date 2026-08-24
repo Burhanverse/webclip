@@ -21,8 +21,6 @@ QQC.Popup {
         id: bgRect
         radius: 28
         color: MD3Theme.surfaceContainer
-        border.color: MD3Theme.outlineVariant
-        border.width: 1
 
         Behavior on color { ColorAnimation { duration: 150 } }
     }
@@ -86,14 +84,6 @@ QQC.Popup {
                             onClicked: root.close()
                         }
                     }
-                }
-
-                Rectangle {
-                    anchors.left: parent.left
-                    anchors.right: parent.right
-                    anchors.bottom: parent.bottom
-                    height: 1
-                    color: MD3Theme.outlineVariant
                 }
             }
 
@@ -161,8 +151,6 @@ QQC.Popup {
                             implicitHeight: connCol.implicitHeight + 24
                             radius: 16
                             color: MD3Theme.surfaceContainerLow
-                            border.color: MD3Theme.outlineVariant
-                            border.width: 1
 
                             ColumnLayout {
                                 id: connCol
@@ -239,8 +227,6 @@ QQC.Popup {
                             implicitHeight: 56
                             radius: 16
                             color: MD3Theme.surfaceContainerLow
-                            border.color: MD3Theme.outlineVariant
-                            border.width: 1
 
                             RowLayout {
                                 anchors.fill: parent
@@ -269,8 +255,6 @@ QQC.Popup {
                             implicitHeight: 56
                             radius: 16
                             color: MD3Theme.surfaceContainerLow
-                            border.color: MD3Theme.outlineVariant
-                            border.width: 1
 
                             RowLayout {
                                 anchors.fill: parent
@@ -311,8 +295,6 @@ QQC.Popup {
                             implicitHeight: 56
                             radius: 16
                             color: MD3Theme.surfaceContainerLow
-                            border.color: MD3Theme.outlineVariant
-                            border.width: 1
 
                             RowLayout {
                                 anchors.fill: parent
@@ -341,8 +323,6 @@ QQC.Popup {
                             implicitHeight: 68
                             radius: 16
                             color: MD3Theme.surfaceContainerLow
-                            border.color: MD3Theme.outlineVariant
-                            border.width: 1
 
                             ColumnLayout {
                                 anchors.fill: parent
@@ -457,8 +437,6 @@ QQC.Popup {
                             implicitHeight: 56
                             radius: 16
                             color: MD3Theme.surfaceContainerLow
-                            border.color: MD3Theme.outlineVariant
-                            border.width: 1
 
                             RowLayout {
                                 anchors.fill: parent
@@ -515,8 +493,6 @@ QQC.Popup {
                             implicitHeight: accentCol.implicitHeight + 24
                             radius: 16
                             color: MD3Theme.surfaceContainerLow
-                            border.color: MD3Theme.outlineVariant
-                            border.width: 1
 
                             ColumnLayout {
                                 id: accentCol
@@ -551,9 +527,7 @@ QQC.Popup {
                                             width: pillRow.implicitWidth + 14
                                             height: 26
                                             radius: 13
-                                            color: root.controller.accentPreset === modelData.name ? MD3Theme.primary : "transparent"
-                                            border.color: root.controller.accentPreset === modelData.name ? "transparent" : MD3Theme.outlineVariant
-                                            border.width: 1
+                                            color: root.controller.accentPreset === modelData.name ? MD3Theme.primary : MD3Theme.surfaceContainerHigh
 
                                             Behavior on color { ColorAnimation { duration: 150 } }
 
@@ -567,8 +541,6 @@ QQC.Popup {
                                                     height: 9
                                                     radius: 4.5
                                                     color: modelData.color
-                                                    border.color: root.controller.accentPreset === modelData.name ? MD3Theme.onPrimary : "transparent"
-                                                    border.width: 1
                                                 }
 
                                                 Text {
@@ -591,9 +563,7 @@ QQC.Popup {
                                         width: customPillRow.implicitWidth + 14
                                         height: 26
                                         radius: 13
-                                        color: root.controller.accentPreset === "custom" ? MD3Theme.primary : "transparent"
-                                        border.color: root.controller.accentPreset === "custom" ? "transparent" : MD3Theme.outlineVariant
-                                        border.width: 1
+                                        color: root.controller.accentPreset === "custom" ? MD3Theme.primary : MD3Theme.surfaceContainerHigh
 
                                         Behavior on color { ColorAnimation { duration: 150 } }
 
@@ -607,8 +577,6 @@ QQC.Popup {
                                                 height: 9
                                                 radius: 4.5
                                                 color: root.controller.customColor
-                                                border.color: root.controller.accentPreset === "custom" ? MD3Theme.onPrimary : MD3Theme.outlineVariant
-                                                border.width: 1
                                             }
 
                                             Text {
@@ -633,35 +601,6 @@ QQC.Popup {
                                             }
                                         }
                                     }
-                                }
-                            }
-                        }
-
-                        // Engine Badge Row Card
-                        Rectangle {
-                            Layout.fillWidth: true
-                            implicitHeight: 52
-                            radius: 16
-                            color: MD3Theme.surfaceContainerLow
-                            border.color: MD3Theme.outlineVariant
-                            border.width: 1
-
-                            RowLayout {
-                                anchors.fill: parent
-                                anchors.leftMargin: 16
-                                anchors.rightMargin: 16
-                                spacing: 12
-
-                                Text {
-                                    text: I18n.tr("settings.appearance.clipboard_engine")
-                                    font: MD3Theme.bodySmall
-                                    color: MD3Theme.onSurface
-                                    Layout.fillWidth: true
-                                }
-                                MD3Badge {
-                                    text: root.controller.clipboardBackend
-                                    badgeColor: MD3Theme.surfaceContainerHigh
-                                    textColor: MD3Theme.onSurface
                                 }
                             }
                         }
@@ -693,8 +632,6 @@ QQC.Popup {
                             implicitHeight: aboutCol.implicitHeight + 24
                             radius: 16
                             color: MD3Theme.surfaceContainerLow
-                            border.color: MD3Theme.outlineVariant
-                            border.width: 1
 
                             ColumnLayout {
                                 id: aboutCol
@@ -745,12 +682,6 @@ QQC.Popup {
                                     }
                                 }
 
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    height: 1
-                                    color: MD3Theme.outlineVariant
-                                }
-
                                 RowLayout {
                                     Layout.fillWidth: true
                                     Text {
@@ -794,12 +725,6 @@ QQC.Popup {
                                         font: MD3Theme.labelSmall
                                         color: MD3Theme.onSurfaceVariant
                                     }
-                                }
-
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    height: 1
-                                    color: MD3Theme.outlineVariant
                                 }
 
                                 MD3Button {

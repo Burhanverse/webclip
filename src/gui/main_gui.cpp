@@ -6,8 +6,20 @@
 #include <QLoggingCategory>
 #include "util/icon_image_provider.hpp"
 
+#if defined(__SANITIZE_ADDRESS__) || (defined(__has_feature) && __has_feature(address_sanitizer))
+extern "C" const char* __lsan_default_suppressions() {
+    return "leak:libfontconfig\n"
+           "leak:libexpat\n"
+           "leak:libGL\n"
+           "leak:libwayland\n"
+           "leak:QFontDatabase\n"
+           "leak:QFontconfigDatabase\n";
+}
+#endif
+
 int main(int argc, char* argv[]) {
-    QLoggingCategory::setFilterRules(QStringLiteral("qt.text.font.db.warning=false\nqt.text.font.db.debug=false"));
+    qputenv("QT_LOGGING_RULES", "qt.text.font.db*=false;qt.gui.fontdatabase*=false");
+    QLoggingCategory::setFilterRules(QStringLiteral("qt.text.font.db*=false\nqt.gui.fontdatabase*=false"));
 
     QGuiApplication app(argc, argv);
 
