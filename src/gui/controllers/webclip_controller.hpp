@@ -138,11 +138,14 @@ private:
     std::unique_ptr<std::thread> sseThread_;
     std::mutex syncLock_;
     std::string clientId_;
+    std::atomic<bool> suppressNextLocalChange_{false};
     QString lastRemoteText_;
     QString lastLocalText_;
     int64_t lastTextTimeMs_ = 0;
     QString lastRemoteImgHash_;
     QString lastLocalImgHash_;
+    QString lastRemotePixelFp_;
+    QString lastLocalPixelFp_;
     int64_t lastImgTimeMs_ = 0;
 
     void setConnected(bool c);
@@ -152,10 +155,11 @@ private:
     void stopSseListener();
     void sanitizeHostInput();
     static QString computeImageHash(const QByteArray& data);
-    bool shouldSuppressText(const QString& text, int64_t nowMs, int64_t windowMs = 2500);
+    static QString computeQImageFingerprint(const QImage& img);
+    bool shouldSuppressText(const QString& text, int64_t nowMs, int64_t windowMs = 3000);
     void markTextApplied(const QString& text, int64_t nowMs);
-    bool shouldSuppressImage(const QString& hash, int64_t nowMs, int64_t windowMs = 2500);
-    void markImageApplied(const QString& hash, int64_t nowMs);
+    bool shouldSuppressImage(const QString& hash, const QString& pixelFp, int64_t nowMs, int64_t windowMs = 3000);
+    void markImageApplied(const QString& hash, const QString& pixelFp, int64_t nowMs);
 };
 
 } // namespace webclip
