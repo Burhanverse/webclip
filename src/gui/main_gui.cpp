@@ -13,6 +13,7 @@
 #include "util/cli.hpp"
 #include "sync/sync_manager.hpp"
 #include "clipboard/clipboard.hpp"
+#include "version.hpp"
 
 #if defined(__SANITIZE_ADDRESS__) || (defined(__has_feature) && __has_feature(address_sanitizer))
 extern "C" const char* __lsan_default_suppressions() {
@@ -35,7 +36,7 @@ int main(int argc, char* argv[]) {
             return 0;
         }
         if (arg == "--version" || arg == "-v") {
-            std::cout << "WebClip Sync version 1.0.0" << std::endl;
+            std::cout << webclip::APP_DISPLAY_NAME << " version " << webclip::VERSION_STRING << std::endl;
             return 0;
         }
         if (arg == "--headless" || arg == "--cli" || arg == "--host" || arg == "-c" || arg == "--code") {
@@ -73,10 +74,11 @@ int main(int argc, char* argv[]) {
     app.setFont(defaultFont);
 
     app.setWindowIcon(QIcon(QStringLiteral(":/qt/qml/src/gui/resources/icons/clips.svg")));
-    app.setOrganizationName("Burhanverse");
-    app.setOrganizationDomain("burhanverse.dev");
-    app.setApplicationName("WebClip");
-    app.setApplicationDisplayName("WebClip");
+    app.setOrganizationName(QString::fromUtf8(webclip::APP_ORGANIZATION.data(), webclip::APP_ORGANIZATION.size()));
+    app.setOrganizationDomain(QString::fromUtf8(webclip::APP_DOMAIN.data(), webclip::APP_DOMAIN.size()));
+    app.setApplicationName(QString::fromUtf8(webclip::APP_NAME.data(), webclip::APP_NAME.size()));
+    app.setApplicationDisplayName(QString::fromUtf8(webclip::APP_DISPLAY_NAME.data(), webclip::APP_DISPLAY_NAME.size()));
+    app.setApplicationVersion(QString::fromUtf8(webclip::VERSION_STRING.data(), webclip::VERSION_STRING.size()));
 
     QQuickStyle::setStyle("Basic");
 

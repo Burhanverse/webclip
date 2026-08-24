@@ -15,6 +15,7 @@
 #include "../models/clipboard_history_model.hpp"
 #include "../../clipboard/clipboard.hpp"
 #include "../../net/http_client.hpp"
+#include "../../version.hpp"
 
 namespace webclip {
 
@@ -59,7 +60,7 @@ public:
     QString accentPreset() const { return accentPreset_; }
     QColor customColor() const { return customColor_; }
     ClipboardHistoryModel* clipModel() { return &clipModel_; }
-    QString appVersion() const { return QStringLiteral("1.0.0"); }
+    QString appVersion() const { return QString::fromUtf8(VERSION_STRING.data(), VERSION_STRING.size()); }
     QString qtVersion() const { return QString::fromLatin1(qVersion()); }
 
     Q_INVOKABLE void openUrl(const QString& urlStr);

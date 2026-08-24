@@ -1,5 +1,6 @@
 #include "http_client.hpp"
 #include "../util/json.hpp"
+#include "../version.hpp"
 #include <curl/curl.h>
 #include <iostream>
 #include <thread>
@@ -9,7 +10,11 @@ namespace webclip {
 
 namespace {
 
-const char* CLIENT_USER_AGENT = "WebClip/1.0.0 (Linux; x86_64; Qt6)";
+#if defined(_WIN32)
+const std::string CLIENT_USER_AGENT = std::string(APP_NAME) + "/" + std::string(VERSION_STRING) + " (Windows; x86_64)";
+#else
+const std::string CLIENT_USER_AGENT = std::string(APP_NAME) + "/" + std::string(VERSION_STRING) + " (Linux; x86_64)";
+#endif
 
 size_t write_string_cb(void* ptr, size_t size, size_t nmemb, void* userdata) {
     size_t total = size * nmemb;
@@ -86,7 +91,7 @@ HttpResponse HttpClient::get_state() {
     headers = curl_slist_append(headers, "Accept: application/json");
 
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT.c_str());
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_string_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp.body);
@@ -132,7 +137,7 @@ HttpResponse HttpClient::push_clipboard(const std::string& text) {
     headers = curl_slist_append(headers, "Accept: application/json");
 
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT);
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT.c_str());
     curl_easy_setopt(curl, CURLOPT_POST, 1L);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_body.c_str());
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(json_body.length()));
@@ -186,7 +191,7 @@ void HttpClient::stream_events(
         StreamContext ctx{&parser, &stop_flag};
 
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT);
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT.c_str());
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, stream_write_cb);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &ctx);

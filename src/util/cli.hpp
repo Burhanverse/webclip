@@ -8,6 +8,7 @@
 #include <iomanip>
 #include <algorithm>
 #include "../sync/sync_manager.hpp"
+#include "../version.hpp"
 
 namespace webclip {
 
@@ -93,7 +94,7 @@ inline bool parse_cli_args(int argc, char* argv[], SyncConfig& config) {
             print_usage(argv[0]);
             std::exit(0);
         } else if (arg == "--version" || arg == "-v") {
-            std::cout << "version 1.0.0" << std::endl;
+            std::cout << APP_DISPLAY_NAME << " version " << VERSION_STRING << std::endl;
             std::exit(0);
         } else if (arg == "--host" && i + 1 < argc) {
             config.host = argv[++i];
