@@ -10,11 +10,39 @@
 #include <QBuffer>
 #include <QFile>
 #include <QFileInfo>
+#include <QStandardPaths>
+#include <QDir>
+#include <QUuid>
 #include <QMimeDatabase>
 #include <QMimeData>
 #include <QRandomGenerator>
 
+#ifdef __linux__
+#include <malloc.h>
+static inline void trimHeapMemory() {
+    malloc_trim(0);
+}
+#else
+static inline void trimHeapMemory() {}
+#endif
+
 namespace webclip {
+
+static QString saveImageBytesToCache(const QByteArray& bytes, const QString& mimeType) {
+    if (bytes.isEmpty()) return QString();
+    QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/clips";
+    QDir().mkpath(cacheDir);
+    QString clipId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    QString ext = mimeType.contains("jpeg") ? ".jpg" : (mimeType.contains("webp") ? ".webp" : ".png");
+    QString filePath = cacheDir + "/" + clipId + ext;
+    QFile file(filePath);
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(bytes);
+        file.close();
+        return QUrl::fromLocalFile(filePath).toString();
+    }
+    return QString();
+}
 
 std::string WebClipController::generateClipId() {
     uint64_t ms = static_cast<uint64_t>(QDateTime::currentMSecsSinceEpoch());
@@ -75,10 +103,12 @@ QString WebClipController::computeQImageFingerprint(const QImage& img) {
 
 bool WebClipController::shouldSuppressText(const QString& text, int64_t nowMs, int64_t windowMs) {
     std::lock_guard<std::mutex> guard(syncLock_);
-    if (text == lastLocalText_ && (nowMs - lastTextTimeMs_) < windowMs) {
+    QString trimmed = text.trimmed();
+    if (trimmed.isEmpty()) return true;
+    if (trimmed == lastLocalText_.trimmed() || trimmed == lastRemoteText_.trimmed()) {
         return true;
     }
-    if (text == lastRemoteText_ && (nowMs - lastTextTimeMs_) < windowMs) {
+    if ((nowMs - lastTextTimeMs_) < windowMs) {
         return true;
     }
     return false;
@@ -89,21 +119,18 @@ void WebClipController::markTextApplied(const QString& text, int64_t nowMs) {
     lastLocalText_ = text;
     lastRemoteText_ = text;
     lastTextTimeMs_ = nowMs;
-    lastLocalImgHash_.clear();
-    lastRemoteImgHash_.clear();
-    lastLocalPixelFp_.clear();
-    lastRemotePixelFp_.clear();
 }
 
 bool WebClipController::shouldSuppressImage(const QString& hash, const QString& pixelFp, int64_t nowMs, int64_t windowMs) {
     std::lock_guard<std::mutex> guard(syncLock_);
     if (!hash.isEmpty()) {
-        if (hash == lastLocalImgHash_ && (nowMs - lastImgTimeMs_) < windowMs) return true;
-        if (hash == lastRemoteImgHash_ && (nowMs - lastImgTimeMs_) < windowMs) return true;
+        if (hash == lastLocalImgHash_ || hash == lastRemoteImgHash_) return true;
     }
     if (!pixelFp.isEmpty()) {
-        if (pixelFp == lastLocalPixelFp_ && (nowMs - lastImgTimeMs_) < windowMs) return true;
-        if (pixelFp == lastRemotePixelFp_ && (nowMs - lastImgTimeMs_) < windowMs) return true;
+        if (pixelFp == lastLocalPixelFp_ || pixelFp == lastRemotePixelFp_) return true;
+    }
+    if ((nowMs - lastImgTimeMs_) < windowMs) {
+        return true;
     }
     return false;
 }
@@ -115,8 +142,6 @@ void WebClipController::markImageApplied(const QString& hash, const QString& pix
     lastLocalPixelFp_ = pixelFp;
     lastRemotePixelFp_ = pixelFp;
     lastImgTimeMs_ = nowMs;
-    lastLocalText_.clear();
-    lastRemoteText_.clear();
 }
 
 WebClipController::WebClipController(QObject* parent)
@@ -460,13 +485,12 @@ void WebClipController::startSseListener() {
                         std::string inlineData = data.get_string("data");
 
                         if (!inlineData.empty()) {
-                            QString qData = QString::fromStdString(inlineData);
                             QByteArray bytes;
-                            int commaIdx = qData.indexOf(',');
-                            if (commaIdx >= 0) {
-                                bytes = QByteArray::fromBase64(qData.mid(commaIdx + 1).toLatin1());
+                            size_t commaIdx = inlineData.find(',');
+                            if (commaIdx != std::string::npos) {
+                                bytes = QByteArray::fromBase64(QByteArray::fromRawData(inlineData.data() + commaIdx + 1, static_cast<int>(inlineData.size() - commaIdx - 1)));
                             } else {
-                                bytes = QByteArray::fromBase64(qData.toLatin1());
+                                bytes = QByteArray::fromBase64(QByteArray::fromRawData(inlineData.data(), static_cast<int>(inlineData.size())));
                             }
 
                             QImage qimg;
@@ -475,7 +499,10 @@ void WebClipController::startSseListener() {
                             QString hash = computeImageHash(bytes);
                             markImageApplied(hash, pixelFp, nowMs);
 
-                            QMetaObject::invokeMethod(this, [this, qData, bytes, mimeType, source, qimg]() {
+                            QString fileUrl = saveImageBytesToCache(bytes, QString::fromStdString(mimeType));
+                            int byteSize = bytes.size();
+
+                            QMetaObject::invokeMethod(this, [this, fileUrl, bytes, mimeType, source, qimg, byteSize]() {
                                 if (!qimg.isNull()) {
                                     suppressNextLocalChange_.store(true);
                                     if (QGuiApplication::clipboard()) {
@@ -486,11 +513,9 @@ void WebClipController::startSseListener() {
                                     }
                                 }
 
-                                QString dataUrl = qData.startsWith("data:")
-                                    ? qData
-                                    : ("data:" + QString::fromStdString(mimeType) + ";base64," + qData);
-                                clipModel_.addClipImage(dataUrl, QString::fromStdString(mimeType), bytes.size(), QString::fromStdString(source.empty() ? "phone" : source));
+                                clipModel_.addClipImage(fileUrl, QString::fromStdString(mimeType), byteSize, QString::fromStdString(source.empty() ? "phone" : source));
                                 emit clipReceived("[Image]", QString::fromStdString(source.empty() ? "phone" : source));
+                                trimHeapMemory();
                             });
                         } else {
                             std::string imageUrl = data.get_string("imageUrl");
@@ -505,9 +530,10 @@ void WebClipController::startSseListener() {
                                 QString hash = computeImageHash(bytes);
                                 markImageApplied(hash, pixelFp, nowMs);
 
-                                QString dataUrl = "data:" + QString::fromStdString(mimeType) + ";base64," + QString::fromLatin1(bytes.toBase64());
+                                QString fileUrl = saveImageBytesToCache(bytes, QString::fromStdString(mimeType));
+                                int byteSize = bytes.size();
 
-                                QMetaObject::invokeMethod(this, [this, dataUrl, bytes, mimeType, source, qimg]() {
+                                QMetaObject::invokeMethod(this, [this, fileUrl, bytes, mimeType, source, qimg, byteSize]() {
                                     if (!qimg.isNull()) {
                                         suppressNextLocalChange_.store(true);
                                         if (QGuiApplication::clipboard()) {
@@ -518,8 +544,9 @@ void WebClipController::startSseListener() {
                                         }
                                     }
 
-                                    clipModel_.addClipImage(dataUrl, QString::fromStdString(mimeType), bytes.size(), QString::fromStdString(source.empty() ? "phone" : source));
+                                    clipModel_.addClipImage(fileUrl, QString::fromStdString(mimeType), byteSize, QString::fromStdString(source.empty() ? "phone" : source));
                                     emit clipReceived("[Image]", QString::fromStdString(source.empty() ? "phone" : source));
+                                    trimHeapMemory();
                                 });
                             }).detach();
                         }
@@ -540,6 +567,7 @@ void WebClipController::startSseListener() {
 
                         clipModel_.addClip(text, QString::fromStdString(source.empty() ? "phone" : source));
                         emit clipReceived(text, QString::fromStdString(source.empty() ? "phone" : source));
+                        trimHeapMemory();
                     });
                 }
             },
@@ -607,17 +635,14 @@ void WebClipController::onClipboardDataChanged() {
                     QString hash = computeImageHash(ba);
                     QString pixelFp = computeQImageFingerprint(img);
 
+                    if (shouldSuppressImage(hash, pixelFp, nowMs, 2000)) {
+                        return;
+                    }
+
                     {
                         std::lock_guard<std::mutex> guard(syncLock_);
-                        if (!pixelFp.isEmpty() && (pixelFp == lastLocalPixelFp_ || pixelFp == lastRemotePixelFp_)) {
-                            return;
-                        }
-                        if (!hash.isEmpty() && (hash == lastLocalImgHash_ || hash == lastRemoteImgHash_)) {
-                            return;
-                        }
                         lastLocalImgHash_ = hash;
                         lastLocalPixelFp_ = pixelFp;
-                        lastLocalText_.clear();
                         lastImgTimeMs_ = nowMs;
                     }
 
@@ -638,17 +663,14 @@ void WebClipController::onClipboardDataChanged() {
             QString hash = computeImageHash(ba);
             QString pixelFp = computeQImageFingerprint(img);
 
+            if (shouldSuppressImage(hash, pixelFp, nowMs, 2000)) {
+                return;
+            }
+
             {
                 std::lock_guard<std::mutex> guard(syncLock_);
-                if (!pixelFp.isEmpty() && (pixelFp == lastLocalPixelFp_ || pixelFp == lastRemotePixelFp_)) {
-                    return;
-                }
-                if (!hash.isEmpty() && (hash == lastLocalImgHash_ || hash == lastRemoteImgHash_)) {
-                    return;
-                }
                 lastLocalImgHash_ = hash;
                 lastLocalPixelFp_ = pixelFp;
-                lastLocalText_.clear();
                 lastImgTimeMs_ = nowMs;
             }
 
@@ -684,17 +706,14 @@ void WebClipController::onClipboardDataChanged() {
             QString hash = computeImageHash(rawBytes);
             QString pixelFp = computeQImageFingerprint(img);
 
+            if (shouldSuppressImage(hash, pixelFp, nowMs, 2000)) {
+                return;
+            }
+
             {
                 std::lock_guard<std::mutex> guard(syncLock_);
-                if (!pixelFp.isEmpty() && (pixelFp == lastLocalPixelFp_ || pixelFp == lastRemotePixelFp_)) {
-                    return;
-                }
-                if (!hash.isEmpty() && (hash == lastLocalImgHash_ || hash == lastRemoteImgHash_)) {
-                    return;
-                }
                 lastLocalImgHash_ = hash;
                 lastLocalPixelFp_ = pixelFp;
-                lastLocalText_.clear();
                 lastImgTimeMs_ = nowMs;
             }
 
@@ -703,14 +722,13 @@ void WebClipController::onClipboardDataChanged() {
         }
     }
 
+    if (shouldSuppressText(current, nowMs, 2000)) {
+        return;
+    }
+
     {
         std::lock_guard<std::mutex> guard(syncLock_);
-        if (current == lastLocalText_ || current == lastRemoteText_) {
-            return; // Unchanged! Do NOT push!
-        }
         lastLocalText_ = current;
-        lastLocalImgHash_.clear();
-        lastLocalPixelFp_.clear();
         lastTextTimeMs_ = nowMs;
     }
 
@@ -745,6 +763,7 @@ bool WebClipController::pushClipboard(const QString& text, const QString& clipId
             } else {
                 emit self->showToast("Push failed (HTTP " + QString::number(resp.status_code) + ")", true);
             }
+            trimHeapMemory();
         });
     }).detach();
 
@@ -820,25 +839,23 @@ bool WebClipController::pushImageBytes(const QByteArray& bytes, const QString& m
     auto client = httpClient_;
     std::string mime = mimeType.isEmpty() ? "image/png" : mimeType.toStdString();
     std::vector<uint8_t> vec(bytes.begin(), bytes.end());
-    QString hash = computeImageHash(bytes);
-    QImage qimg;
-    qimg.loadFromData(bytes);
-    QString pixelFp = computeQImageFingerprint(qimg);
-    QString dataUrl = "data:" + QString::fromStdString(mime) + ";base64," + QString::fromLatin1(bytes.toBase64());
+    QString fileUrl = saveImageBytesToCache(bytes, QString::fromStdString(mime));
+    int byteSize = bytes.size();
 
     QPointer<WebClipController> self(this);
-    std::thread([self, client, vec, mime, hash, pixelFp, dataUrl, bytes, cId]() {
+    std::thread([self, client, vec, mime, fileUrl, byteSize, cId]() {
         if (!client) return;
         HttpResponse resp = client->push_image(vec, mime, cId);
         if (!self) return;
-        QMetaObject::invokeMethod(self.data(), [self, hash, pixelFp, dataUrl, bytes, mime, resp]() {
+        QMetaObject::invokeMethod(self.data(), [self, fileUrl, byteSize, mime, resp]() {
             if (!self) return;
             if (resp.status_code == 200) {
-                self->clipModel_.addClipImage(dataUrl, QString::fromStdString(mime), bytes.size(), "local");
-                emit self->showToast("Pushed image (" + QString::number(bytes.size() / 1024) + " KB) to phone", false);
+                self->clipModel_.addClipImage(fileUrl, QString::fromStdString(mime), byteSize, "local");
+                emit self->showToast("Pushed image (" + QString::number(byteSize / 1024) + " KB) to phone", false);
             } else {
                 emit self->showToast("Push image failed (HTTP " + QString::number(resp.status_code) + ")", true);
             }
+            trimHeapMemory();
         });
     }).detach();
 
@@ -881,17 +898,12 @@ bool WebClipController::pushCurrentClipboard() {
                     QString hash = computeImageHash(ba);
                     QString pixelFp = computeQImageFingerprint(img);
 
+                    if (shouldSuppressImage(hash, pixelFp, nowMs, 2000)) return false;
+
                     {
                         std::lock_guard<std::mutex> guard(syncLock_);
-                        if (!pixelFp.isEmpty() && (pixelFp == lastLocalPixelFp_ || pixelFp == lastRemotePixelFp_)) {
-                            return false;
-                        }
-                        if (!hash.isEmpty() && (hash == lastLocalImgHash_ || hash == lastRemoteImgHash_)) {
-                            return false;
-                        }
                         lastLocalImgHash_ = hash;
                         lastLocalPixelFp_ = pixelFp;
-                        lastLocalText_.clear();
                         lastImgTimeMs_ = nowMs;
                     }
 
@@ -911,17 +923,12 @@ bool WebClipController::pushCurrentClipboard() {
             QString hash = computeImageHash(ba);
             QString pixelFp = computeQImageFingerprint(img);
 
+            if (shouldSuppressImage(hash, pixelFp, nowMs, 2000)) return false;
+
             {
                 std::lock_guard<std::mutex> guard(syncLock_);
-                if (!pixelFp.isEmpty() && (pixelFp == lastLocalPixelFp_ || pixelFp == lastRemotePixelFp_)) {
-                    return false;
-                }
-                if (!hash.isEmpty() && (hash == lastLocalImgHash_ || hash == lastRemoteImgHash_)) {
-                    return false;
-                }
                 lastLocalImgHash_ = hash;
                 lastLocalPixelFp_ = pixelFp;
-                lastLocalText_.clear();
                 lastImgTimeMs_ = nowMs;
             }
 
@@ -954,31 +961,25 @@ bool WebClipController::pushCurrentClipboard() {
             img.loadFromData(rawBytes);
             QString hash = computeImageHash(rawBytes);
             QString pixelFp = computeQImageFingerprint(img);
+
+            if (shouldSuppressImage(hash, pixelFp, nowMs, 2000)) return false;
+
             {
                 std::lock_guard<std::mutex> guard(syncLock_);
-                if (!pixelFp.isEmpty() && (pixelFp == lastLocalPixelFp_ || pixelFp == lastRemotePixelFp_)) {
-                    return false;
-                }
-                if (!hash.isEmpty() && (hash == lastLocalImgHash_ || hash == lastRemoteImgHash_)) {
-                    return false;
-                }
                 lastLocalImgHash_ = hash;
                 lastLocalPixelFp_ = pixelFp;
-                lastLocalText_.clear();
                 lastImgTimeMs_ = nowMs;
             }
+
             return pushImageBytes(rawBytes, mime);
         }
     }
 
+    if (shouldSuppressText(current, nowMs, 2000)) return false;
+
     {
         std::lock_guard<std::mutex> guard(syncLock_);
-        if (current == lastLocalText_ || current == lastRemoteText_) {
-            return false;
-        }
         lastLocalText_ = current;
-        lastLocalImgHash_.clear();
-        lastLocalPixelFp_.clear();
         lastTextTimeMs_ = nowMs;
     }
     return pushClipboard(current);
@@ -1005,11 +1006,20 @@ void WebClipController::copyImageToClipboard(int index) {
     if (dataUrl.isEmpty()) return;
 
     QByteArray bytes;
-    int commaIdx = dataUrl.indexOf(',');
-    if (commaIdx >= 0) {
-        bytes = QByteArray::fromBase64(dataUrl.mid(commaIdx + 1).toLatin1());
+    if (dataUrl.startsWith("file://") || dataUrl.startsWith("/")) {
+        QString localPath = dataUrl.startsWith("file://") ? QUrl(dataUrl).toLocalFile() : dataUrl;
+        QFile f(localPath);
+        if (f.open(QIODevice::ReadOnly)) {
+            bytes = f.readAll();
+            f.close();
+        }
     } else {
-        bytes = QByteArray::fromBase64(dataUrl.toLatin1());
+        int commaIdx = dataUrl.indexOf(',');
+        if (commaIdx >= 0) {
+            bytes = QByteArray::fromBase64(dataUrl.mid(commaIdx + 1).toLatin1());
+        } else {
+            bytes = QByteArray::fromBase64(dataUrl.toLatin1());
+        }
     }
 
     if (bytes.isEmpty()) return;
@@ -1044,6 +1054,17 @@ bool WebClipController::saveImage(int index, const QString& destinationPath) {
     QString dest = destinationPath.trimmed();
     if (dest.startsWith("file://")) {
         dest = QUrl(dest).toLocalFile();
+    }
+
+    if (dataUrl.startsWith("file://") || dataUrl.startsWith("/")) {
+        QString localPath = dataUrl.startsWith("file://") ? QUrl(dataUrl).toLocalFile() : dataUrl;
+        if (QFile::exists(dest)) {
+            QFile::remove(dest);
+        }
+        if (QFile::copy(localPath, dest)) {
+            emit showToast("Image saved to " + QFileInfo(dest).fileName(), false);
+            return true;
+        }
     }
 
     QByteArray bytes;

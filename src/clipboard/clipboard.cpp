@@ -221,14 +221,16 @@ public:
         ClipboardImage img;
         std::vector<uint8_t> bytes;
         if (backend_ == Backend::Wayland) {
-            if (run_command_read_bytes({"wl-paste", "--type", "image/png"}, bytes) && !bytes.empty()) {
+            std::vector<std::string> args = {"wl-paste", "--type", "image/png"};
+            if (run_command_read_bytes(args, bytes) && !bytes.empty()) {
                 img.data = std::move(bytes);
                 img.mime_type = "image/png";
                 img.valid = true;
                 return img;
             }
         } else {
-            if (run_command_read_bytes({"xclip", "-selection", "clipboard", "-t", "image/png", "-o"}, bytes) && !bytes.empty()) {
+            std::vector<std::string> args = {"xclip", "-selection", "clipboard", "-t", "image/png", "-o"};
+            if (run_command_read_bytes(args, bytes) && !bytes.empty()) {
                 img.data = std::move(bytes);
                 img.mime_type = "image/png";
                 img.valid = true;

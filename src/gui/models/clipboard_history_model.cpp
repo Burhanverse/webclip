@@ -1,5 +1,10 @@
 #include "clipboard_history_model.hpp"
 #include <QUuid>
+#include <QStandardPaths>
+#include <QDir>
+#include <QFile>
+#include <QUrl>
+#include <QByteArray>
 
 namespace webclip {
 
@@ -93,14 +98,39 @@ void ClipboardHistoryModel::addClipImage(const QString& imageData, const QString
         endRemoveRows();
     }
 
+    QString finalImageUrl = imageData;
+    int imgSize = size > 0 ? size : imageData.length();
+
+    // If it is a base64 data URL, persist to disk cache so we don't hold megabytes of base64 in RAM
+    if (imageData.startsWith("data:")) {
+        int commaIdx = imageData.indexOf(',');
+        if (commaIdx >= 0) {
+            QByteArray bytes = QByteArray::fromBase64(imageData.mid(commaIdx + 1).toLatin1());
+            if (!bytes.isEmpty()) {
+                imgSize = bytes.size();
+                QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/clips";
+                QDir().mkpath(cacheDir);
+                QString clipId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+                QString ext = mimeType.contains("jpeg") ? ".jpg" : (mimeType.contains("webp") ? ".webp" : ".png");
+                QString filePath = cacheDir + "/" + clipId + ext;
+                QFile file(filePath);
+                if (file.open(QIODevice::WriteOnly)) {
+                    file.write(bytes);
+                    file.close();
+                    finalImageUrl = QUrl::fromLocalFile(filePath).toString();
+                }
+            }
+        }
+    }
+
     int newIndex = items_.size();
     beginInsertRows(QModelIndex(), newIndex, newIndex);
     ClipItem item;
     item.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     item.isImage = true;
-    item.imageData = imageData;
+    item.imageData = finalImageUrl;
     item.mimeType = mimeType.isEmpty() ? "image/png" : mimeType;
-    item.imageSize = size > 0 ? size : imageData.length();
+    item.imageSize = imgSize;
     item.source = source;
     item.timestamp = QDateTime::currentMSecsSinceEpoch();
     items_.append(item);

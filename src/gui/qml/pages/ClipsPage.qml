@@ -257,7 +257,8 @@ Item {
                                     anchors.margins: 4
                                     source: delegateItem.isImageClip ? model.imageData : ""
                                     fillMode: Image.PreserveAspectFit
-                                    mipmap: true
+                                    sourceSize.width: 480
+                                    sourceSize.height: 480
                                     asynchronous: true
                                 }
 
