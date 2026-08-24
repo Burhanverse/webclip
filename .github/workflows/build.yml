@@ -53,11 +53,19 @@ jobs:
         run: |
           ./build/webclip --help
 
+      - name: Package Linux Binary and Tarball
+        run: |
+          cp build/webclip webclip-linux-x86_64
+          chmod +x webclip-linux-x86_64
+          tar -czf webclip-linux-x86_64.tar.gz webclip-linux-x86_64
+
       - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v6
         with:
           name: webclip-linux-x86_64
-          path: build/webclip
+          path: |
+            webclip-linux-x86_64
+            webclip-linux-x86_64.tar.gz
 
   build-windows:
     name: Build Windows
@@ -92,31 +100,102 @@ jobs:
         run: |
           cmake --build build --config Release --parallel
 
+      - name: Package Windows Bundle with windeployqt
+        shell: pwsh
+        run: |
+          # Create deployment directory
+          New-Item -ItemType Directory -Force -Path "deploy"
+          Copy-Item "build/Release/webclip.exe" -Destination "deploy/"
+
+          # Copy libcurl and dependencies from vcpkg
+          if (Test-Path "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin") {
+              Copy-Item "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/*.dll" -Destination "deploy/" -ErrorAction SilentlyContinue
+          }
+          if (Test-Path "build/vcpkg_installed/x64-windows/bin") {
+              Copy-Item "build/vcpkg_installed/x64-windows/bin/*.dll" -Destination "deploy/" -ErrorAction SilentlyContinue
+          }
+
+          # Run windeployqt to bundle Qt6 dependencies, plugins, and QML modules
+          windeployqt `
+            deploy/webclip.exe `
+            --qmldir src/gui/qml `
+            --no-translations `
+            --no-system-d3d-compiler `
+            --no-opengl-sw `
+            --compiler-runtime `
+            --verbose 1
+
+          # Verify dependencies with dumpbin
+          Write-Host "=== Validating Executable Imports ==="
+          dumpbin /dependents deploy/webclip.exe
+
+          # Create compressed zip package
+          Compress-Archive -Path "deploy/*" -DestinationPath "webclip-windows-x64.zip" -Force
+
+      - name: Verify Clean Execution in Isolated Environment
+        shell: pwsh
+        run: |
+          # Isolate PATH from Qt and build tools to verify deploy directory self-sufficiency
+          $cleanPath = "C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\"
+          $proc = Start-Process -FilePath "deploy/webclip.exe" -ArgumentList "--help" -Environment @{ PATH = $cleanPath } -PassThru -Wait -NoNewWindow
+          if ($proc.ExitCode -ne 0) {
+              Write-Error "Clean environment sanity check failed! Exit code: $($proc.ExitCode)"
+              exit 1
+          }
+          Write-Host "Sanity check passed: webclip.exe successfully executed in isolated environment."
+
+      - name: Build Inno Setup Installer
+        shell: pwsh
+        run: |
+          if (-not (Get-Command "iscc.exe" -ErrorAction SilentlyContinue)) {
+              choco install innosetup --no-progress -y
+              $env:PATH += ";C:\Program Files (x86)\Inno Setup 6"
+          }
+          iscc.exe /DMyAppVersion="1.0.0" /DReleasePath="deploy" /DOutputDir="." setup.iss
+
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v6
         with:
           name: webclip-windows-x64
-          path: build/Release/webclip.exe
+          path: |
+            webclip-windows-x64.zip
+            webclip-setup-x64.exe
+
+  release:
+    name: Publish Release
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v6
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-dist
+          find artifacts -type f -exec cp {} release-dist/ \;
+          ls -la release-dist/
 
       - name: Prepare release notes
-        if: startsWith(github.ref, 'refs/tags/')
-        shell: pwsh
         run: |
-          if (Test-Path "patches-bundle.json") {
-              $bundle = Get-Content -LiteralPath "patches-bundle.json" -Raw | ConvertFrom-Json
-              $notes = [string]$bundle.description
-          }
-          if ([string]::IsNullOrWhiteSpace($notes)) {
-              $notes = "Public mirror release for $env:GITHUB_REF_NAME."
-          }
-          Set-Content -LiteralPath "release-notes.md" -Value $notes -Encoding utf8
+          if [ -f "patches-bundle.json" ]; then
+            NOTES=$(jq -r '.description // empty' patches-bundle.json 2>/dev/null || true)
+          fi
+          if [ -z "$NOTES" ]; then
+            NOTES="Release $GITHUB_REF_NAME"
+          fi
+          echo "$NOTES" > release-notes.md
 
       - name: Publish GitHub release
-        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           body_path: release-notes.md
           prerelease: ${{ contains(github.ref_name, '-dev.') }}
-          files: |
-            build/Release/webclip.exe
+          files: release-dist/*
