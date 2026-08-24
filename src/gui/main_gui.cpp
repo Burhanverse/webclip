@@ -15,12 +15,20 @@
 #include "clipboard/clipboard.hpp"
 #include "version.hpp"
 
-#if defined(__SANITIZE_ADDRESS__) || (defined(__has_feature) && __has_feature(address_sanitizer))
-extern "C" const char* __lsan_default_suppressions() {
+#if defined(__SANITIZE_ADDRESS__) || (defined(__has_feature) && __has_feature(address_sanitizer)) || defined(__GNUC__)
+extern "C" __attribute__((visibility("default"))) const char* __lsan_default_suppressions() {
     return "leak:libfontconfig\n"
            "leak:libexpat\n"
            "leak:libGL\n"
            "leak:libwayland\n"
+           "leak:libQt6WaylandClient\n"
+           "leak:QtWaylandClient\n"
+           "leak:libxkbcommon\n"
+           "leak:xkb_\n"
+           "leak:libffi\n"
+           "leak:libEGL\n"
+           "leak:libvulkan\n"
+           "leak:libdbus\n"
            "leak:QFontDatabase\n"
            "leak:QFontconfigDatabase\n";
 }
