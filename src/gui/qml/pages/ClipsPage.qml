@@ -113,6 +113,8 @@ Item {
                 clip: true
                 spacing: 10
                 model: controller.clipModel
+                reuseItems: true
+                cacheBuffer: 100
 
                 pixelAligned: true
                 flickDeceleration: 3000

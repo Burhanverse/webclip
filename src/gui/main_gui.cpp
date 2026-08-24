@@ -12,8 +12,10 @@
 #include "controllers/webclip_controller.hpp"
 #include "util/cli.hpp"
 #include "sync/sync_manager.hpp"
-#include "clipboard/clipboard.hpp"
 #include "version.hpp"
+#ifdef __linux__
+#include <malloc.h>
+#endif
 
 #if defined(__SANITIZE_ADDRESS__) || (defined(__has_feature) && __has_feature(address_sanitizer)) || defined(__GNUC__)
 extern "C" __attribute__((visibility("default"))) const char* __lsan_default_suppressions() {
@@ -135,6 +137,12 @@ int main(int argc, char* argv[]) {
     qputenv("QT_LOGGING_RULES", "qt.text.font.db*=false;qt.gui.fontdatabase*=false");
     QLoggingCategory::setFilterRules(QStringLiteral("qt.text.font.db*=false\nqt.gui.fontdatabase*=false"));
 
+#ifdef __linux__
+    mallopt(M_ARENA_MAX, 2);
+    mallopt(M_TRIM_THRESHOLD, 64 * 1024);
+    mallopt(M_MMAP_THRESHOLD, 64 * 1024);
+#endif
+
     QApplication app(argc, argv);
     app.setQuitOnLastWindowClosed(false);
 
@@ -171,12 +179,22 @@ int main(int argc, char* argv[]) {
     QObject::connect(
         &engine,
         &QQmlApplicationEngine::objectCreated,
-        [&trayManager](QObject* obj, const QUrl&) {
+        [&trayManager, &engine](QObject* obj, const QUrl&) {
             auto* window = qobject_cast<QQuickWindow*>(obj);
             if (window) {
                 auto* controller = window->findChild<webclip::WebClipController*>(QStringLiteral("webClipController"));
                 trayManager = std::make_unique<webclip::TrayIconManager>(controller);
                 trayManager->setMainWindow(window);
+
+                QObject::connect(window, &QQuickWindow::visibleChanged, [window, &engine]() {
+                    if (!window->isVisible()) {
+                        window->releaseResources();
+                        engine.collectGarbage();
+#ifdef __linux__
+                        malloc_trim(0);
+#endif
+                    }
+                });
             }
         }
     );
