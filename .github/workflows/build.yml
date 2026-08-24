@@ -31,6 +31,7 @@ jobs:
             qt6-base-dev \
             qt6-declarative-dev \
             qt6-tools-dev \
+            libqt6svg6-dev \
             qml6-module-qtquick \
             qml6-module-qtquick-controls \
             qml6-module-qtquick-layouts \
@@ -66,10 +67,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
       - name: Setup MSVC environment
-        uses: ilammy/msvc-dev-cmd@v1
+        uses: Eden-CI/msvc-dev-cmd@master
 
       - name: Install Qt 6
         uses: jurplel/install-qt-action@v4.3.1
@@ -78,7 +79,6 @@ jobs:
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2022_64'
-          modules: 'qtsvg qtshadertools'
 
       - name: Install libcurl via vcpkg
         run: |
