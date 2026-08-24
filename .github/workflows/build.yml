@@ -53,19 +53,40 @@ jobs:
         run: |
           ./build/webclip --help
 
-      - name: Package Linux Binary and Tarball
+      - name: Build Linux AppImage
+        run: |
+          export APPIMAGE_EXTRACT_AND_RUN=1
+
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
+          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
+
+          export QML_SOURCES_PATHS=src/gui/qml
+          export EXTRA_QT_PLUGINS="svg;imageformats"
+
+          ./linuxdeploy-x86_64.AppImage \
+            --appdir AppDir \
+            -e build/webclip \
+            -d packaging/webclip.desktop \
+            -i src/gui/resources/icons/webclip.svg \
+            --plugin qt \
+            --output appimage
+
+          # Standardize AppImage artifact name
+          mv WebClip*.AppImage webclip-linux-x86_64.AppImage || true
+
+      - name: Package Linux Binary
         run: |
           cp build/webclip webclip-linux-x86_64
           chmod +x webclip-linux-x86_64
-          tar -czf webclip-linux-x86_64.tar.gz webclip-linux-x86_64
 
       - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v6
         with:
           name: webclip-linux-x86_64
           path: |
+            webclip-linux-x86_64.AppImage
             webclip-linux-x86_64
-            webclip-linux-x86_64.tar.gz
 
   build-windows:
     name: Build Windows
@@ -129,8 +150,10 @@ jobs:
           Write-Host "=== Validating Executable Imports ==="
           dumpbin /dependents deploy/webclip.exe
 
-          # Create compressed zip package
-          Compress-Archive -Path "deploy/*" -DestinationPath "webclip-windows-x64.zip" -Force
+          # Create clean portable directory and package into zip
+          New-Item -ItemType Directory -Force -Path "portable/webclip"
+          Copy-Item -Recurse "deploy/*" -Destination "portable/webclip/"
+          Compress-Archive -Path "portable/webclip" -DestinationPath "webclip-windows-x64-portable.zip" -Force
 
       - name: Verify Clean Execution in Isolated Environment
         shell: pwsh
@@ -151,14 +174,14 @@ jobs:
               choco install innosetup --no-progress -y
               $env:PATH += ";C:\Program Files (x86)\Inno Setup 6"
           }
-          iscc.exe /DMyAppVersion="1.0.0" /DReleasePath="deploy" /DOutputDir="." setup.iss
+          iscc.exe /DMyAppVersion="1.0.0" /DReleasePath="deploy" /DOutputDir="." /DSetupIconPath="src\gui\resources\icons\webclip.ico" packaging/setup.iss
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v6
         with:
           name: webclip-windows-x64
           path: |
-            webclip-windows-x64.zip
+            webclip-windows-x64-portable.zip
             webclip-setup-x64.exe
 
   release:

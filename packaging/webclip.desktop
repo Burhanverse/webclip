@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=WebClip Sync
+GenericName=Clipboard Sync
+Comment=Real-Time Gboard Clipboard Sync
+Exec=webclip
+Icon=webclip
+Categories=Utility;Network;
+Terminal=false
+StartupNotify=true
+StartupWMClass=webclip
