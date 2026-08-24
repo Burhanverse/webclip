@@ -123,7 +123,7 @@ private:
 
     ClipboardHistoryModel clipModel_;
     std::unique_ptr<IClipboard> nativeClipboard_;
-    std::unique_ptr<HttpClient> httpClient_;
+    std::shared_ptr<HttpClient> httpClient_;
 
     QTimer* pollTimer_ = nullptr;
     std::atomic<bool> sseStopFlag_{false};

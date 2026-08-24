@@ -5,6 +5,7 @@
 #include <QMetaObject>
 #include <QDesktopServices>
 #include <QUrl>
+#include <QPointer>
 
 namespace webclip {
 
@@ -193,7 +194,7 @@ void WebClipController::connectToPortal() {
     setStatusMessage("Connecting to " + host_ + ":" + QString::number(port_) + "...");
 
     std::string clientId = generate_random_client_id();
-    httpClient_ = std::make_unique<HttpClient>(
+    auto client = std::make_shared<HttpClient>(
         host_.toStdString(),
         port_,
         code_.toStdString(),
@@ -201,48 +202,53 @@ void WebClipController::connectToPortal() {
         insecure_,
         clientId
     );
+    httpClient_ = client;
 
-    std::thread([this]() {
-        HttpResponse stateResp = httpClient_->get_state();
-        QMetaObject::invokeMethod(this, [this, stateResp]() {
+    QPointer<WebClipController> self(this);
+    int activePort = port_;
+    std::thread([self, client, activePort]() {
+        HttpResponse stateResp = client->get_state();
+        if (!self) return;
+        QMetaObject::invokeMethod(self.data(), [self, stateResp, activePort]() {
+            if (!self) return;
             if (stateResp.status_code == 200) {
                 JsonValue stateJson = JsonValue::parse(stateResp.body);
                 QString remoteText = QString::fromStdString(stateJson.get_string("text"));
 
                 {
-                    std::lock_guard<std::mutex> guard(syncLock_);
-                    lastRemoteText_ = remoteText;
+                    std::lock_guard<std::mutex> guard(self->syncLock_);
+                    self->lastRemoteText_ = remoteText;
                 }
 
                 if (!remoteText.isEmpty()) {
                     if (QGuiApplication::clipboard()) {
                         QGuiApplication::clipboard()->setText(remoteText, QClipboard::Clipboard);
                     }
-                    if (nativeClipboard_) {
-                        nativeClipboard_->set_text(remoteText.toStdString());
+                    if (self->nativeClipboard_) {
+                        self->nativeClipboard_->set_text(remoteText.toStdString());
                     }
-                    lastLocalText_ = remoteText;
-                    clipModel_.addClip(remoteText, "phone");
+                    self->lastLocalText_ = remoteText;
+                    self->clipModel_.addClip(remoteText, "phone");
                 }
 
-                setConnecting(false);
-                setConnected(true);
-                setStatusMessage("Connected (" + QString::number(port_) + ")");
-                emit showToast("Connected to Gboard Web Clipboard", false);
+                self->setConnecting(false);
+                self->setConnected(true);
+                self->setStatusMessage("Connected (" + QString::number(activePort) + ")");
+                emit self->showToast("Connected to Gboard Web Clipboard", false);
 
-                if (autoSync_) {
-                    pollTimer_->start(static_cast<int>(pollInterval_ * 1000));
+                if (self->autoSync_) {
+                    self->pollTimer_->start(static_cast<int>(self->pollInterval_ * 1000));
                 }
 
-                startSseListener();
+                self->startSseListener();
             } else {
-                setConnecting(false);
-                setConnected(false);
+                self->setConnecting(false);
+                self->setConnected(false);
                 QString err = stateResp.status_code == 401
                     ? "Invalid pairing code"
                     : (stateResp.error.empty() ? ("HTTP " + QString::number(stateResp.status_code)) : QString::fromStdString(stateResp.error));
-                setStatusMessage("Connection failed: " + err);
-                emit showToast("Failed to connect: " + err, true);
+                self->setStatusMessage("Connection failed: " + err);
+                emit self->showToast("Failed to connect: " + err, true);
             }
         });
     }).detach();
@@ -353,20 +359,25 @@ bool WebClipController::pushClipboard(const QString& text) {
         return false;
     }
 
+    auto client = httpClient_;
     std::string textStd = text.toStdString();
-    std::thread([this, text, textStd]() {
-        HttpResponse resp = httpClient_->push_clipboard(textStd);
-        QMetaObject::invokeMethod(this, [this, text, resp]() {
+    QPointer<WebClipController> self(this);
+    std::thread([self, client, text, textStd]() {
+        if (!client) return;
+        HttpResponse resp = client->push_clipboard(textStd);
+        if (!self) return;
+        QMetaObject::invokeMethod(self.data(), [self, text, resp]() {
+            if (!self) return;
             if (resp.status_code == 200) {
                 {
-                    std::lock_guard<std::mutex> guard(syncLock_);
-                    lastLocalText_ = text;
-                    lastRemoteText_ = text;
+                    std::lock_guard<std::mutex> guard(self->syncLock_);
+                    self->lastLocalText_ = text;
+                    self->lastRemoteText_ = text;
                 }
-                clipModel_.addClip(text, "local");
-                emit showToast("Pushed " + QString::number(text.length()) + " chars to phone", false);
+                self->clipModel_.addClip(text, "local");
+                emit self->showToast("Pushed " + QString::number(text.length()) + " chars to phone", false);
             } else {
-                emit showToast("Push failed (HTTP " + QString::number(resp.status_code) + ")", true);
+                emit self->showToast("Push failed (HTTP " + QString::number(resp.status_code) + ")", true);
             }
         });
     }).detach();

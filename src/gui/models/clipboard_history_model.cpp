@@ -49,6 +49,13 @@ void ClipboardHistoryModel::addClip(const QString& text, const QString& source) 
         return;
     }
 
+    // Limit maximum history in memory to 100 items
+    if (items_.size() >= 100) {
+        beginRemoveRows(QModelIndex(), 0, 0);
+        items_.removeFirst();
+        endRemoveRows();
+    }
+
     int newIndex = items_.size();
     beginInsertRows(QModelIndex(), newIndex, newIndex);
     ClipItem item;
@@ -57,11 +64,6 @@ void ClipboardHistoryModel::addClip(const QString& text, const QString& source) 
     item.source = source;
     item.timestamp = QDateTime::currentMSecsSinceEpoch();
     items_.append(item);
-
-    // Limit maximum history in memory to 100 items
-    if (items_.size() > 100) {
-        items_.removeFirst();
-    }
     endInsertRows();
     emit countChanged();
 }
