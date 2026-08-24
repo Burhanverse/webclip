@@ -21,19 +21,26 @@ This document provides instructions for compiling WebClip from source and creati
 sudo apt-get update && sudo apt-get install -y \
   build-essential cmake ninja-build libcurl4-openssl-dev \
   qt6-base-dev qt6-declarative-dev qt6-tools-dev libqt6svg6-dev \
+  qt6-wayland libqt6waylandclient6 \
   qml6-module-qtquick qml6-module-qtquick-controls \
+  qml6-module-qtquick-layouts qml6-module-qtquick-templates \
+  qml6-module-qtquick-window qml6-module-qtquick-shapes \
+  qml6-module-qtquick-dialogs qml6-module-qtqml-workerscript \
+  qml6-module-qtqml-models qml6-module-qt-labs-platform \
+  qml6-module-qt-labs-settings qt6-image-formats-plugins \
   wl-clipboard xclip
 ```
 
 **Arch Linux:**
 ```bash
-sudo pacman -S base-devel cmake ninja curl qt6-base qt6-declarative qt6-svg qt6-tools wl-clipboard xclip
+sudo pacman -S base-devel cmake ninja curl qt6-base qt6-declarative qt6-wayland qt6-svg qt6-tools qt6-imageformats wl-clipboard xclip
 ```
 
 **Fedora:**
 ```bash
 sudo dnf install gcc-c++ cmake ninja-build libcurl-devel \
-  qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel qt6-qttools-devel \
+  qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtwayland-devel \
+  qt6-qtsvg-devel qt6-qttools-devel qt6-qtimageformats \
   wl-clipboard xclip
 ```
 
@@ -52,28 +59,10 @@ The output binary is placed at `build/webclip`.
 
 ### 3. Build Portable AppImage
 
-WebClip can be packaged into a self-contained AppImage using `linuxdeploy` and `linuxdeploy-plugin-qt`:
+WebClip can be packaged into a self-contained AppImage with Wayland and QML dependencies bundled:
 
 ```bash
-export APPIMAGE_EXTRACT_AND_RUN=1
-
-# Download linuxdeploy tools
-wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-chmod +x linuxdeploy-*.AppImage
-
-# Set QML scanning path
-export QML_SOURCES_PATHS=src/gui/qml
-export EXTRA_QT_PLUGINS="svg;imageformats"
-
-# Package AppImage
-./linuxdeploy-x86_64.AppImage \
-  --appdir AppDir \
-  -e build/webclip \
-  -d packaging/webclip.desktop \
-  -i src/gui/resources/icons/webclip.svg \
-  --plugin qt \
-  --output appimage
+./packaging/build_appimage.sh
 ```
 
 This generates `webclip-linux-x86_64.AppImage`.

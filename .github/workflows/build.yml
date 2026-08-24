@@ -32,11 +32,20 @@ jobs:
             qt6-declarative-dev \
             qt6-tools-dev \
             libqt6svg6-dev \
+            qt6-wayland \
+            libqt6waylandclient6 \
             qml6-module-qtquick \
             qml6-module-qtquick-controls \
             qml6-module-qtquick-layouts \
             qml6-module-qtquick-templates \
             qml6-module-qtquick-window \
+            qml6-module-qtquick-shapes \
+            qml6-module-qtquick-dialogs \
+            qml6-module-qtqml-workerscript \
+            qml6-module-qtqml-models \
+            qml6-module-qt-labs-platform \
+            qml6-module-qt-labs-settings \
+            qt6-image-formats-plugins \
             wl-clipboard \
             xclip
 
@@ -55,25 +64,8 @@ jobs:
 
       - name: Build Linux AppImage
         run: |
-          export APPIMAGE_EXTRACT_AND_RUN=1
-
-          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage
-          chmod +x linuxdeploy-x86_64.AppImage linuxdeploy-plugin-qt-x86_64.AppImage
-
-          export QML_SOURCES_PATHS=src/gui/qml
-          export EXTRA_QT_PLUGINS="svg;imageformats"
-
-          ./linuxdeploy-x86_64.AppImage \
-            --appdir AppDir \
-            -e build/webclip \
-            -d packaging/webclip.desktop \
-            -i src/gui/resources/icons/webclip.svg \
-            --plugin qt \
-            --output appimage
-
-          # Standardize AppImage artifact name
-          mv WebClip*.AppImage webclip-linux-x86_64.AppImage || true
+          chmod +x packaging/build_appimage.sh
+          ./packaging/build_appimage.sh
 
       - name: Package Linux Binary
         run: |
