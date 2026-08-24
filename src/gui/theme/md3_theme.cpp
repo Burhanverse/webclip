@@ -1,6 +1,7 @@
 #include "md3_theme.hpp"
 #include <QGuiApplication>
 #include <QStyleHints>
+#include <QPalette>
 #include <cmath>
 
 namespace webclip {
@@ -12,6 +13,7 @@ MD3Theme* MD3Theme::instance() {
 
 MD3Theme::MD3Theme(QObject* parent)
     : QObject(parent) {
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     if (QGuiApplication::styleHints()) {
         connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, [this]() {
             if (themeMode_ == 0) {
@@ -20,6 +22,7 @@ MD3Theme::MD3Theme(QObject* parent)
             }
         });
     }
+#endif
 }
 
 void MD3Theme::setThemeMode(int mode) {
@@ -56,9 +59,16 @@ void MD3Theme::setCustomColor(const QColor& color) {
 bool MD3Theme::isDark() const {
     if (themeMode_ == 1) return false;
     if (themeMode_ == 2) return true;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     if (QGuiApplication::styleHints()) {
         return QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
     }
+#else
+    // Fallback for Qt < 6.5 (e.g. Qt 6.4 on Ubuntu runners)
+    if (QGuiApplication::palette().color(QPalette::Window).value() < 128) {
+        return true;
+    }
+#endif
     return false;
 }
 
