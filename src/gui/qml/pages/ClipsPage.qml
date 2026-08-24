@@ -269,8 +269,7 @@ Item {
                                     anchors.right: parent.right
                                     anchors.top: parent.top
                                     text: !delegateItem.isImageClip ? model.text : ""
-                                    font.family: "Open Sans"
-                                    font.pixelSize: 14.5
+                                    font: MD3Theme.bodyMedium
                                     color: isFromPhone
                                         ? (MD3Theme.isDark ? "#FFFFFF" : "#1A1D24")
                                         : (MD3Theme.isPitchBlack ? MD3Theme.onPrimaryContainer : "#1E1535")
