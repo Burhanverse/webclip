@@ -11,7 +11,7 @@ set(CMAKE_AUTOUIC ON)
 # Find System Dependencies
 find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
-find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Quick Qml QuickControls2 Svg)
+find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Quick Qml QuickControls2 Svg Widgets)
 
 if(COMMAND qt_policy)
     qt_policy(SET QTP0004 OLD)
@@ -128,6 +128,8 @@ qt_add_qml_module(webclip
         src/gui/util/icon_image_provider.cpp
         src/gui/util/i18n.hpp
         src/gui/util/i18n.cpp
+        src/gui/util/tray_icon_manager.hpp
+        src/gui/util/tray_icon_manager.cpp
 )
 
 target_link_libraries(webclip PRIVATE
@@ -138,6 +140,7 @@ target_link_libraries(webclip PRIVATE
     Qt6::Qml
     Qt6::QuickControls2
     Qt6::Svg
+    Qt6::Widgets
 )
 
 # Compiler optimization and warning options

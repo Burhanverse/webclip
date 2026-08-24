@@ -453,4 +453,8 @@ void WebClipController::openUrl(const QString& urlStr) {
     QDesktopServices::openUrl(QUrl(urlStr));
 }
 
+void WebClipController::notifyMinimizedToTray() {
+    emit minimizedToTray();
+}
+
 } // namespace webclip

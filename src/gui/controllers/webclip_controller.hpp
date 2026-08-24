@@ -84,6 +84,7 @@ public:
     Q_INVOKABLE void copyToClipboard(const QString& text);
     Q_INVOKABLE void saveSettings();
     Q_INVOKABLE void loadSettings();
+    Q_INVOKABLE void notifyMinimizedToTray();
 
 signals:
     void connectedChanged();
@@ -101,6 +102,7 @@ signals:
     void customColorChanged();
     void clipReceived(const QString& text, const QString& source);
     void showToast(const QString& message, bool isError);
+    void minimizedToTray();
 
 private slots:
     void onPollTimer();

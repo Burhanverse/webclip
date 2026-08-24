@@ -13,10 +13,17 @@ Window {
     title: I18n.tr("app.title")
     color: MD3Theme.surface
 
+    onClosing: (close) => {
+        close.accepted = false;
+        window.hide();
+        controller.notifyMinimizedToTray();
+    }
+
     Behavior on color { ColorAnimation { duration: 200 } }
 
     WebClipController {
         id: controller
+        objectName: "webClipController"
 
         Component.onCompleted: {
             MD3Theme.customColor = controller.customColor
