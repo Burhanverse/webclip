@@ -17,10 +17,20 @@
 #include <QMimeData>
 #include <QRandomGenerator>
 
-#ifdef __linux__
+#if defined(__linux__)
 #include <malloc.h>
 static inline void trimHeapMemory() {
     malloc_trim(0);
+}
+#elif defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <psapi.h>
+#include <malloc.h>
+static inline void trimHeapMemory() {
+    _heapmin();
+    HeapCompact(GetProcessHeap(), 0);
+    SetProcessWorkingSetSize(GetCurrentProcess(), static_cast<SIZE_T>(-1), static_cast<SIZE_T>(-1));
 }
 #else
 static inline void trimHeapMemory() {}

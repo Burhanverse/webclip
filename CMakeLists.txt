@@ -49,6 +49,7 @@ if(WIN32)
     target_link_libraries(webclip_core PUBLIC
         ws2_32
         user32
+        psapi
     )
 endif()
 
@@ -156,11 +157,12 @@ target_link_libraries(webclip PRIVATE
 
 # Compiler optimization and warning options
 if(MSVC)
-    target_compile_options(webclip_core PRIVATE /W4 /O2 /permissive-)
-    target_compile_options(webclip PRIVATE /W4 /O2 /permissive-)
+    target_compile_options(webclip_core PRIVATE /W4 /O2 /Oi /Ot /Oy /Gy /GF /permissive-)
+    target_compile_options(webclip PRIVATE /W4 /O2 /Oi /Ot /Oy /Gy /GF /permissive-)
+    target_link_options(webclip PRIVATE /OPT:REF /OPT:ICF)
 else()
-    target_compile_options(webclip_core PRIVATE -Wall -Wextra -Wpedantic -O2)
-    target_compile_options(webclip PRIVATE -Wall -Wextra -Wpedantic -O2)
+    target_compile_options(webclip_core PRIVATE -Wall -Wextra -Wpedantic -O3)
+    target_compile_options(webclip PRIVATE -Wall -Wextra -Wpedantic -O3)
 endif()
 
 install(TARGETS webclip RUNTIME DESTINATION bin)

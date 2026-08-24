@@ -141,6 +141,9 @@ int main(int argc, char* argv[]) {
     mallopt(M_ARENA_MAX, 2);
     mallopt(M_TRIM_THRESHOLD, 64 * 1024);
     mallopt(M_MMAP_THRESHOLD, 64 * 1024);
+#elif defined(_WIN32)
+    ULONG lfhFlag = 2;
+    HeapSetInformation(GetProcessHeap(), HeapCompatibilityInformation, &lfhFlag, sizeof(lfhFlag));
 #endif
 
     QApplication app(argc, argv);
@@ -190,8 +193,12 @@ int main(int argc, char* argv[]) {
                     if (!window->isVisible()) {
                         window->releaseResources();
                         engine.collectGarbage();
-#ifdef __linux__
+#if defined(__linux__)
                         malloc_trim(0);
+#elif defined(_WIN32)
+                        _heapmin();
+                        HeapCompact(GetProcessHeap(), 0);
+                        SetProcessWorkingSetSize(GetCurrentProcess(), static_cast<SIZE_T>(-1), static_cast<SIZE_T>(-1));
 #endif
                     }
                 });
