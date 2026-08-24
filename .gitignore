@@ -1,0 +1,10 @@
+build/
+bin/
+.cache/
+compile_commands.json
+*.o
+*.exe
+webclip_sync
+.DS_Store
+.vscode/
+.idea/
