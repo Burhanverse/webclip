@@ -3,18 +3,22 @@ name: Build & Test
 on:
   push:
     branches: [ main, master, dev ]
+    tags: [ 'v*', '*' ]
   pull_request:
     branches: [ main, master, dev ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-linux:
-    name: Build Linux (Ubuntu)
-    runs-on: ubuntu-24.04
+    name: Build Linux
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install dependencies
         run: |
@@ -49,7 +53,7 @@ jobs:
           ./build/webclip-cli --help
 
       - name: Upload Linux Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: webclip-linux-x86_64
           path: |
@@ -57,24 +61,24 @@ jobs:
             build/webclip-cli
 
   build-windows:
-    name: Build Windows (MSVC)
+    name: Build Windows
     runs-on: windows-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup MSVC environment
         uses: ilammy/msvc-dev-cmd@v1
 
       - name: Install Qt 6
-        uses: jurplel/install-qt-action@v4
+        uses: jurplel/install-qt-action@v4.3.1
         with:
           version: '6.8.0'
           host: 'windows'
           target: 'desktop'
           arch: 'win64_msvc2022_64'
-          modules: 'qtdeclarative'
+          modules: 'qtsvg qtshadertools'
 
       - name: Install libcurl via vcpkg
         run: |
@@ -91,9 +95,33 @@ jobs:
           cmake --build build --config Release --parallel
 
       - name: Upload Windows Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: webclip-windows-x64
           path: |
+            build/Release/webclip.exe
+            build/Release/webclip-cli.exe
+
+      - name: Prepare release notes
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          if (Test-Path "patches-bundle.json") {
+              $bundle = Get-Content -LiteralPath "patches-bundle.json" -Raw | ConvertFrom-Json
+              $notes = [string]$bundle.description
+          }
+          if ([string]::IsNullOrWhiteSpace($notes)) {
+              $notes = "Public mirror release for $env:GITHUB_REF_NAME."
+          }
+          Set-Content -LiteralPath "release-notes.md" -Value $notes -Encoding utf8
+
+      - name: Publish GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          body_path: release-notes.md
+          prerelease: ${{ contains(github.ref_name, '-dev.') }}
+          files: |
             build/Release/webclip.exe
             build/Release/webclip-cli.exe

@@ -11,7 +11,7 @@ set(CMAKE_AUTOUIC ON)
 # Find System Dependencies
 find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
-find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Quick Qml QuickControls2 Core5Compat Svg)
+find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Quick Qml QuickControls2 Svg)
 
 if(COMMAND qt_policy)
     qt_policy(SET QTP0004 OLD)
@@ -137,7 +137,6 @@ target_link_libraries(webclip PRIVATE
     Qt6::Quick
     Qt6::Qml
     Qt6::QuickControls2
-    Qt6::Core5Compat
     Qt6::Svg
 )
 
