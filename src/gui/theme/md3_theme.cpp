@@ -217,74 +217,52 @@ QColor MD3Theme::outlineVariant() const {
 }
 
 // Typography
-QFont MD3Theme::headlineSmall() const {
-    QFont f;
-    f.setPixelSize(24);
-    f.setWeight(QFont::Normal);
+QFont MD3Theme::createFont(int pixelSize, QFont::Weight weight) const {
+    QFont f = QGuiApplication::font();
+    f.setStyleHint(QFont::SansSerif);
+    f.setPixelSize(pixelSize);
+    f.setWeight(weight);
     return f;
+}
+
+QFont MD3Theme::headlineSmall() const {
+    return createFont(24, QFont::Normal);
 }
 
 QFont MD3Theme::titleLarge() const {
-    QFont f;
-    f.setPixelSize(22);
-    f.setWeight(QFont::Normal);
-    return f;
+    return createFont(22, QFont::Normal);
 }
 
 QFont MD3Theme::titleMedium() const {
-    QFont f;
-    f.setPixelSize(16);
-    f.setWeight(QFont::Medium);
-    return f;
+    return createFont(16, QFont::Medium);
 }
 
 QFont MD3Theme::titleSmall() const {
-    QFont f;
-    f.setPixelSize(14);
-    f.setWeight(QFont::Medium);
-    return f;
+    return createFont(14, QFont::Medium);
 }
 
 QFont MD3Theme::bodyLarge() const {
-    QFont f;
-    f.setPixelSize(16);
-    f.setWeight(QFont::Normal);
-    return f;
+    return createFont(16, QFont::Normal);
 }
 
 QFont MD3Theme::bodyMedium() const {
-    QFont f;
-    f.setPixelSize(14);
-    f.setWeight(QFont::Normal);
-    return f;
+    return createFont(14, QFont::Normal);
 }
 
 QFont MD3Theme::bodySmall() const {
-    QFont f;
-    f.setPixelSize(12);
-    f.setWeight(QFont::Normal);
-    return f;
+    return createFont(12, QFont::Normal);
 }
 
 QFont MD3Theme::labelLarge() const {
-    QFont f;
-    f.setPixelSize(14);
-    f.setWeight(QFont::Medium);
-    return f;
+    return createFont(14, QFont::Medium);
 }
 
 QFont MD3Theme::labelMedium() const {
-    QFont f;
-    f.setPixelSize(12);
-    f.setWeight(QFont::Medium);
-    return f;
+    return createFont(12, QFont::Medium);
 }
 
 QFont MD3Theme::labelSmall() const {
-    QFont f;
-    f.setPixelSize(11);
-    f.setWeight(QFont::Medium);
-    return f;
+    return createFont(11, QFont::Medium);
 }
 
 } // namespace webclip

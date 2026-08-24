@@ -1,5 +1,6 @@
 import QtQuick
 import QtQuick.Layouts
+import QtQuick.Controls as QQC
 import WebClip
 
 Item {
@@ -9,21 +10,27 @@ Item {
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 16
-        spacing: 16
+        anchors.margins: 10
+        spacing: 8
 
-        ColumnLayout {
-            spacing: 4
+        // Header Row
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 8
+
             Text {
                 text: "Push to Phone"
-                font: MD3Theme.headlineSmall
+                font: MD3Theme.titleSmall
+                font.weight: Font.SemiBold
                 color: MD3Theme.onSurface
             }
 
             Text {
-                text: "Send text directly to your phone's Gboard clipboard."
-                font: MD3Theme.bodyMedium
+                text: "• Send text to your phone's Gboard clipboard"
+                font: MD3Theme.bodySmall
                 color: MD3Theme.onSurfaceVariant
+                Layout.fillWidth: true
+                elide: Text.ElideRight
             }
         }
 
@@ -35,8 +42,8 @@ Item {
 
             ColumnLayout {
                 anchors.fill: parent
-                anchors.margins: 16
-                spacing: 12
+                anchors.margins: 10
+                spacing: 8
 
                 Flickable {
                     id: flickable
@@ -46,10 +53,18 @@ Item {
                     contentHeight: pushInput.implicitHeight
                     clip: true
 
+                    MD3SmoothScroll {
+                        target: flickable
+                    }
+
+                    QQC.ScrollBar.vertical: QQC.ScrollBar {
+                        policy: QQC.ScrollBar.AsNeeded
+                    }
+
                     TextEdit {
                         id: pushInput
                         width: flickable.width
-                        font: MD3Theme.bodyLarge
+                        font: MD3Theme.bodyMedium
                         color: MD3Theme.onSurface
                         wrapMode: Text.WrapAnywhere
                         selectByMouse: true
@@ -69,19 +84,28 @@ Item {
                 // Stats & Clear Row
                 RowLayout {
                     Layout.fillWidth: true
+                    spacing: 8
 
                     Text {
-                        text: pushInput.text.length + " characters • " + (pushInput.text.trim() === "" ? 0 : pushInput.text.trim().split(/\s+/).length) + " words"
-                        font: MD3Theme.bodySmall
+                        text: pushInput.text.length + " chars • " + (pushInput.text.trim() === "" ? 0 : pushInput.text.trim().split(/\s+/).length) + " words"
+                        font: MD3Theme.labelSmall
                         color: MD3Theme.onSurfaceVariant
                         Layout.fillWidth: true
                     }
 
-                    MD3Button {
+                    Text {
                         text: "Clear"
-                        variant: "text"
-                        enabled: pushInput.text.length > 0
-                        onClicked: pushInput.text = ""
+                        font: MD3Theme.labelSmall
+                        font.weight: Font.Medium
+                        color: pushInput.text.length > 0 ? MD3Theme.primary : MD3Theme.outline
+                        visible: pushInput.text.length > 0
+
+                        MouseArea {
+                            anchors.fill: parent
+                            anchors.margins: -4
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: pushInput.text = ""
+                        }
                     }
                 }
             }
@@ -90,7 +114,7 @@ Item {
         // Bottom Actions
         RowLayout {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: 8
 
             MD3Button {
                 text: "Paste Clipboard"

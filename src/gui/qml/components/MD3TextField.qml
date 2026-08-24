@@ -9,26 +9,26 @@ Item {
     property alias text: input.text
     property alias echoMode: input.echoMode
 
-    implicitWidth: 280
-    implicitHeight: 56
+    implicitWidth: 220
+    implicitHeight: root.label !== "" ? 44 : 36
 
     Rectangle {
         id: bg
         anchors.fill: parent
-        radius: MD3Theme.cornerXS
+        radius: 12
         color: MD3Theme.surfaceContainerHighest
 
         border.color: input.activeFocus ? MD3Theme.primary : MD3Theme.outlineVariant
-        border.width: input.activeFocus ? 2 : 1
+        border.width: input.activeFocus ? 1.5 : 1
         Behavior on border.color { ColorAnimation { duration: 150 } }
 
         Column {
             anchors.fill: parent
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
-            anchors.topMargin: root.label !== "" ? 8 : 16
-            anchors.bottomMargin: 8
-            spacing: 2
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            anchors.topMargin: root.label !== "" ? 4 : 8
+            anchors.bottomMargin: 4
+            spacing: 1
 
             Text {
                 visible: root.label !== ""
@@ -40,7 +40,7 @@ Item {
             TextInput {
                 id: input
                 width: parent.width
-                font: MD3Theme.bodyLarge
+                font: MD3Theme.bodyMedium
                 color: MD3Theme.onSurface
                 selectByMouse: true
                 selectionColor: MD3Theme.primaryContainer

@@ -13,6 +13,10 @@ find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
 find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Quick Qml QuickControls2 Core5Compat Svg)
 
+if(COMMAND qt_policy)
+    qt_policy(SET QTP0004 OLD)
+endif()
+
 if(COMMAND qt_standard_project_setup)
     qt_standard_project_setup(REQUIRES 6.5)
 endif()
@@ -80,9 +84,9 @@ qt_add_qml_module(webclip
         src/gui/qml/components/MD3Switch.qml
         src/gui/qml/components/MD3ColorPicker.qml
         src/gui/qml/components/MD3ColorPickerDialog.qml
+        src/gui/qml/components/MD3SettingsDialog.qml
+        src/gui/qml/components/MD3SmoothScroll.qml
         src/gui/qml/pages/ClipsPage.qml
-        src/gui/qml/pages/PushPage.qml
-        src/gui/qml/pages/SettingsPage.qml
     RESOURCES
         src/gui/resources/icons/android.svg
         src/gui/resources/icons/check.svg

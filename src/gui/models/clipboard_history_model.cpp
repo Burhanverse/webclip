@@ -45,21 +45,22 @@ void ClipboardHistoryModel::addClip(const QString& text, const QString& source) 
     if (text.trimmed().isEmpty()) return;
 
     // Check if the most recent clip is identical to avoid duplicates
-    if (!items_.isEmpty() && items_.first().text == text) {
+    if (!items_.isEmpty() && items_.last().text == text) {
         return;
     }
 
-    beginInsertRows(QModelIndex(), 0, 0);
+    int newIndex = items_.size();
+    beginInsertRows(QModelIndex(), newIndex, newIndex);
     ClipItem item;
     item.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
     item.text = text;
     item.source = source;
     item.timestamp = QDateTime::currentMSecsSinceEpoch();
-    items_.prepend(item);
+    items_.append(item);
 
     // Limit maximum history in memory to 100 items
     if (items_.size() > 100) {
-        items_.removeLast();
+        items_.removeFirst();
     }
     endInsertRows();
     emit countChanged();

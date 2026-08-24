@@ -5,10 +5,10 @@ import WebClip
 
 Window {
     id: window
-    width: 680
-    height: 780
-    minimumWidth: 440
-    minimumHeight: 560
+    width: 480
+    height: 720
+    minimumWidth: 380
+    minimumHeight: 520
     visible: true
     title: "WebClip — Gboard Sync"
     color: MD3Theme.surface
@@ -45,157 +45,134 @@ Window {
         anchors.fill: parent
         spacing: 0
 
-        // MD3 Top App Bar
+        // Modern Phone-style Header App Bar
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 64
-            color: MD3Theme.surfaceContainer
-            Behavior on color { ColorAnimation { duration: 200 } }
+            Layout.preferredHeight: 58
+            color: MD3Theme.surface
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 20
-                anchors.rightMargin: 16
+                anchors.leftMargin: 16
+                anchors.rightMargin: 12
                 spacing: 12
 
-                Text {
-                    text: "WebClip"
-                    font: MD3Theme.headlineSmall
-                    color: MD3Theme.onSurface
-                    Layout.fillWidth: true
-                }
+                // Avatar / Phone Icon with Online Status Ring
+                Item {
+                    width: 38
+                    height: 38
 
-                // Sleek, minimal status badge (no duplicate disconnect button)
-                Rectangle {
-                    radius: 14
-                    color: controller.connected ? MD3Theme.colorWithAlpha(MD3Theme.primaryContainer, 0.6) : MD3Theme.surfaceContainerHigh
-                    implicitHeight: 28
-                    implicitWidth: statusRow.implicitWidth + 20
+                    Rectangle {
+                        anchors.fill: parent
+                        radius: 19
+                        color: MD3Theme.primaryContainer
 
-                    Behavior on color { ColorAnimation { duration: 200 } }
-
-                    RowLayout {
-                        id: statusRow
-                        anchors.centerIn: parent
-                        spacing: 6
-
-                        Rectangle {
-                            width: 8
-                            height: 8
-                            radius: 4
-                            color: controller.connected ? "#4CAF50" : (controller.connecting ? "#FF9800" : "#F44336")
-                        }
-
-                        Text {
-                            text: controller.connected ? "Connected" : (controller.connecting ? "Connecting..." : "Offline")
-                            font: MD3Theme.labelSmall
-                            color: controller.connected ? MD3Theme.onPrimaryContainer : MD3Theme.onSurfaceVariant
-                        }
-                    }
-                }
-
-                // Theme switch icon button
-                MD3IconButton {
-                    iconName: MD3Theme.isDark ? "sun" : "moon"
-                    iconColor: MD3Theme.onSurfaceVariant
-                    onClicked: {
-                        var nextMode = MD3Theme.isDark ? 1 : 2
-                        controller.themeMode = nextMode
-                    }
-                }
-            }
-        }
-
-        // Main Page Content Area with Smooth Transitions
-        Item {
-            id: contentContainer
-            Layout.fillWidth: true
-            Layout.fillHeight: true
-            clip: true
-
-            StackLayout {
-                id: stackLayout
-                anchors.fill: parent
-                currentIndex: navBar.currentIndex
-
-                ClipsPage {
-                    controller: controller
-                }
-
-                PushPage {
-                    controller: controller
-                }
-
-                SettingsPage {
-                    controller: controller
-                }
-            }
-        }
-
-        // MD3 Navigation Bar
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 80
-            color: MD3Theme.surfaceContainer
-            Behavior on color { ColorAnimation { duration: 200 } }
-
-            RowLayout {
-                id: navBar
-                property int currentIndex: 0
-                anchors.fill: parent
-                spacing: 0
-
-                Repeater {
-                    model: [
-                        { name: "Live Clips", iconName: "clips" },
-                        { name: "Push Text", iconName: "send" },
-                        { name: "Settings", iconName: "settings" }
-                    ]
-
-                    Item {
-                        Layout.fillWidth: true
-                        Layout.fillHeight: parent.height
-
-                        readonly property bool isSelected: navBar.currentIndex === index
-
-                        ColumnLayout {
+                        MD3Icon {
                             anchors.centerIn: parent
-                            spacing: 4
-
-                            Rectangle {
-                                Layout.alignment: Qt.AlignHCenter
-                                width: 64
-                                height: 32
-                                radius: 16
-                                color: isSelected ? MD3Theme.secondaryContainer : "transparent"
-                                Behavior on color { ColorAnimation { duration: 180 } }
-
-                                MD3Icon {
-                                    anchors.centerIn: parent
-                                    name: modelData.iconName
-                                    color: isSelected ? MD3Theme.onSecondaryContainer : MD3Theme.onSurfaceVariant
-                                    size: 20
-                                }
-                            }
-
-                            Text {
-                                text: modelData.name
-                                font: isSelected ? MD3Theme.labelMedium : MD3Theme.labelSmall
-                                color: isSelected ? MD3Theme.onSurface : MD3Theme.onSurfaceVariant
-                                Layout.alignment: Qt.AlignHCenter
-                                Behavior on color { ColorAnimation { duration: 180 } }
-                            }
+                            name: "phone"
+                            color: MD3Theme.onPrimaryContainer
+                            size: 20
                         }
+                    }
+
+                    // Online green dot / orange / red
+                    Rectangle {
+                        width: 10
+                        height: 10
+                        radius: 5
+                        anchors.right: parent.right
+                        anchors.bottom: parent.bottom
+                        color: controller.connected ? "#4CAF50" : (controller.connecting ? "#FF9800" : "#F44336")
+                        border.color: MD3Theme.surface
+                        border.width: 1.5
+
+                        SequentialAnimation on opacity {
+                            running: controller.connecting
+                            loops: Animation.Infinite
+                            NumberAnimation { from: 1.0; to: 0.3; duration: 500 }
+                            NumberAnimation { from: 0.3; to: 1.0; duration: 500 }
+                        }
+                    }
+                }
+
+                // Title & Subtitle (Chat Contact Header style)
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 1
+
+                    Text {
+                        text: "Gboard Phone Sync"
+                        font: MD3Theme.titleSmall
+                        color: MD3Theme.onSurface
+                        elide: Text.ElideRight
+                    }
+
+                    Text {
+                        text: controller.connected ? "Connected • Real-time" : (controller.connecting ? "Connecting..." : "Offline • Click to connect")
+                        font: MD3Theme.labelSmall
+                        color: controller.connected ? "#4CAF50" : MD3Theme.onSurfaceVariant
+                        elide: Text.ElideRight
 
                         MouseArea {
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: navBar.currentIndex = index
+                            onClicked: controller.toggleConnection()
                         }
                     }
                 }
+
+                // Right Action Icons Grouped Neatly
+                Row {
+                    spacing: 4
+                    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+
+                    MD3IconButton {
+                        iconName: controller.connected ? "sync" : "link_off"
+                        iconColor: controller.connected ? MD3Theme.primary : MD3Theme.onSurfaceVariant
+                        size: 34
+                        onClicked: controller.toggleConnection()
+                    }
+
+                    MD3IconButton {
+                        iconName: MD3Theme.isDark ? "sun" : "moon"
+                        iconColor: MD3Theme.onSurfaceVariant
+                        size: 34
+                        onClicked: {
+                            var nextMode = MD3Theme.isDark ? 1 : 2
+                            controller.themeMode = nextMode
+                        }
+                    }
+
+                    MD3IconButton {
+                        iconName: "settings"
+                        iconColor: MD3Theme.onSurfaceVariant
+                        size: 34
+                        onClicked: settingsDialog.open()
+                    }
+                }
+            }
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: 1
+                color: MD3Theme.outlineVariant
             }
         }
+
+        // Main Chat Clips Feed
+        ClipsPage {
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            controller: controller
+        }
+    }
+
+    // Modern Settings Popup Dialog
+    MD3SettingsDialog {
+        id: settingsDialog
+        controller: controller
     }
 
     // Floating MD3 Toast Notification
@@ -206,27 +183,28 @@ Window {
 
         anchors.horizontalCenter: parent.horizontalCenter
         anchors.bottom: parent.bottom
-        anchors.bottomMargin: 90
-        height: 48
+        anchors.bottomMargin: 76
+        height: 38
         width: Math.min(window.width - 32, toastText.implicitWidth + 32)
-        radius: MD3Theme.cornerXS
+        radius: 19
         color: isError ? MD3Theme.errorContainer : MD3Theme.surfaceContainerHighest
         opacity: 0
         visible: opacity > 0
+        z: 99
 
-        Behavior on opacity { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+        Behavior on opacity { NumberAnimation { duration: 200; easing.type: Easing.OutCubic } }
 
         Text {
             id: toastText
             anchors.centerIn: parent
-            font: MD3Theme.bodyMedium
+            font: MD3Theme.bodySmall
             color: toast.isError ? MD3Theme.onErrorContainer : MD3Theme.onSurface
             elide: Text.ElideRight
         }
 
         Timer {
             id: toastTimer
-            interval: 3000
+            interval: 2200
             onTriggered: toast.opacity = 0
         }
 

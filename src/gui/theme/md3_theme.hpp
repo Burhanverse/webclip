@@ -166,6 +166,7 @@ private:
     QColor customColor_ = QColor("#6750A4");
 
     QColor activeSeedColor() const;
+    QFont createFont(int pixelSize, QFont::Weight weight) const;
 };
 
 } // namespace webclip
