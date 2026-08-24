@@ -65,7 +65,7 @@
       "qt_runtime": "Qt Runtime",
       "engine": "Clipboard Engine",
       "license": "License",
-      "license_val": "MIT License",
+      "license_val": "GNU GPLv3",
       "btn_github": "Source Code on GitHub"
     }
   },

@@ -401,6 +401,7 @@ Item {
 
                                 // Timestamp
                                 Text {
+                                    Layout.alignment: Qt.AlignVCenter
                                     text: model.timeFormatted
                                     font: MD3Theme.labelSmall
                                     color: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
@@ -411,9 +412,9 @@ Item {
 
                                 // Interactive Inline Actions Container
                                 Rectangle {
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    height: 24
-                                    width: actionIconsRow.implicitWidth + 8
+                                    Layout.alignment: Qt.AlignVCenter
+                                    Layout.preferredHeight: 24
+                                    Layout.preferredWidth: actionIconsRow.implicitWidth + 8
                                     radius: 12
                                     color: isFromPhone
                                         ? (MD3Theme.isDark ? Qt.rgba(1, 1, 1, 0.09) : Qt.rgba(0, 0, 0, 0.06))

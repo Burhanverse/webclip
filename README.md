@@ -1,47 +1,43 @@
-# WebClip (`webclip`)
+# WebClip
 
-A modern, standalone C++ & Qt 6 application for two-way automatic clipboard synchronization with **Gboard Web Clipboard** (from Gboard Patches).
-
-Designed and styled following **Material Design 3 (MD3)** with dynamic light/dark theming, token-based styling, smooth state feedback layers, and full cross-platform support.
+WebClip is a lightweight, standalone C++ and Qt 6 application for bidirectional clipboard synchronization with **Gboard Web Clipboard** (from [Shotgun Patches](https://github.com/Burhanverse/shotgun-patches)).
 
 ---
 
 ## Features
 
-- **Material Design 3 (MD3) GUI**:
-  - Full MD3 color token system with primary/secondary/tertiary container tiers and surface container levels.
-  - Interactive state layers (hover, pressed, focus ripple/tint).
-  - Dynamic Light, Dark, and System theme switching.
-  - Real-time live clipboard history feed with origin badges (`📱 Phone`, `💻 Local`, `✏️ Manual`).
-  - Text Composer page for instant push to phone.
-  - Comprehensive Settings page with persistent configuration (`QSettings`).
-- **Bidirectional Real-Time Sync**:
-  - Real-time phone-to-computer sync via Server-Sent Events (SSE).
-  - Background local clipboard watcher for automatic synchronization.
-  - Intelligent echo & loop suppression.
-  - Resilient auto-reconnect on network/Wi-Fi drops.
-- **Cross-Platform**:
-  - **Linux**: Supports both **Wayland** (`wl-clipboard` / `wl-copy` / `wl-paste`) and **X11** (`xclip` / `xsel`).
-  - **Microsoft Windows**: Native Win32 Unicode clipboard API (`OpenClipboard`, `GetClipboardData`, `SetClipboardData`).
-- **Dual Form Factor**:
-  - `webclip`: Rich Qt 6 Quick / QML GUI application.
-  - `webclip-cli`: Lightweight standalone headless CLI daemon for servers or minimal setups.
+- **Bidirectional Clipboard Sync**:
+  - Real-time phone-to-PC synchronization via Server-Sent Events (SSE).
+  - Background OS clipboard monitor for automatic PC-to-phone synchronization.
+  - Multi-tier deduplication (FNV-1a hashing, perceptual pixel fingerprinting, and monotonic clip IDs) to prevent echo loops.
+- **Text and Image Support**:
+  - Text synchronization with automatic URL linkification and clickable links.
+  - Image clipboard synchronization supporting PNG, JPEG, and WebP formats.
+  - Drag-and-drop image sharing and image lightbox preview with save and copy actions.
+- **Material Design 3 Interface**:
+  - Dynamic light and dark mode with customizable accent colors.
+  - Conversation-style clip history feed with inline actions (Copy, Open Link, Save Image, Delete).
+  - System tray integration with background sync.
+- **Cross-Platform Support**:
+  - **Linux**: Wayland (`wl-clipboard`) and X11 (`xclip` / `xsel`).
+  - **Windows**: Native Win32 Unicode and DIB/PNG clipboard APIs with working set memory compaction.
+- **Headless CLI Daemon**:
+  - The same binary can run without a graphical environment on servers or minimal setups.
 
 ---
 
 ## Build Instructions
 
-For full build prerequisites, Linux AppImage packaging, and Windows MSVC / Inno Setup installer steps, see **[docs/build.md](docs/build.md)**.
+For prerequisites and packaging details, see [docs/build.md](docs/build.md).
 
-### Quick Start (Linux)
+### Linux
 
 ```bash
-# Configure and build with Ninja
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ```
 
-### Quick Start (Windows MSVC + vcpkg)
+### Windows (MSVC + vcpkg)
 
 ```powershell
 vcpkg install curl:x64-windows
@@ -53,49 +49,39 @@ cmake --build build --config Release --parallel
 
 ## Usage
 
-### Desktop GUI (Default)
-
-Launch `webclip` directly or install to `~/.local/bin`:
+### GUI Mode (Default)
 
 ```bash
-install -Dm755 build/webclip ~/.local/bin/webclip
 webclip
 ```
 
-- **Close to Tray**: Closing the window keeps WebClip running in the system tray and syncing clips in the background.
-- **Connection**: Enter your phone's LAN IP / URL (e.g. `192.168.1.100` or `https://192.168.1.100:8081`) and pairing code, then click **Connect**.
+1. Enter your phone's local IP address or URL and pairing code.
+2. Click **Connect**.
+3. Minimizing or closing the window keeps WebClip running in the system tray.
 
-### Headless CLI Daemon
-
-The same `webclip` binary runs headless in the terminal when connection flags or `--headless` are supplied:
+### CLI Mode
 
 ```bash
-webclip --host 192.168.1.100 --code 1234 [options]
+webclip --host <phone-ip> --code <pairing-code> [options]
 ```
 
-#### CLI Options
+#### Options
 
-| Flag | Description | Default |
+| Option | Description | Default |
 |---|---|---|
 | `-h, --help` | Show usage options | — |
-| `-v, --version` | Show version info | — |
-| `--host <ip/url>` | Phone's LAN IP or URL (**required for CLI**) | — |
-| `-p, --port <port>` | Web Clipboard HTTP/HTTPS port | `8080` (HTTP) / `8081` (HTTPS) |
-| `-c, --code <code>` | 4-digit pairing code shown in Gboard | `""` |
-| `--https` | Use HTTPS endpoint (typically port 8081) | `false` |
-| `-k, --insecure` | Allow self-signed certificates when using HTTPS | `false` |
-| `-i, --poll-interval <sec>` | Local clipboard watcher interval in seconds | `1.0` |
+| `-v, --version` | Show version information | — |
+| `--host <ip/url>` | Phone IP address or URL | — |
+| `-p, --port <port>` | Port number | `8080` (HTTP) / `8081` (HTTPS) |
+| `-c, --code <code>` | Pairing code | `""` |
+| `--https` | Use HTTPS endpoint | `false` |
+| `-k, --insecure` | Allow self-signed certificates | `false` |
+| `-i, --poll-interval <sec>` | Polling interval in seconds | `1.0` |
 | `--client-id <id>` | Custom client identifier | Auto-generated |
-| `--headless` | Explicitly run as headless daemon | `false` |
-
----
-
-## Continuous Integration
-
-A GitHub Actions workflow is provided in `.github/workflows/build.yml` providing automated compilation and release packaging across Linux (Ubuntu) and Windows (MSVC).
+| `--headless` | Run in headless daemon mode | `false` |
 
 ---
 
 ## License
 
-MIT License.
+This project is licensed under the [GNU General Public License v3.0](LICENSE) (GPL-3.0).

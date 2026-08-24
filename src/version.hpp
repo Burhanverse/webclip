@@ -5,10 +5,10 @@
 namespace webclip {
 
 inline constexpr int VERSION_MAJOR = 1;
-inline constexpr int VERSION_MINOR = 1;
+inline constexpr int VERSION_MINOR = 2;
 inline constexpr int VERSION_PATCH = 0;
 
-inline constexpr std::string_view VERSION_STRING = "1.1.0";
+inline constexpr std::string_view VERSION_STRING = "1.2.0";
 inline constexpr std::string_view APP_NAME = "WebClip";
 inline constexpr std::string_view APP_DISPLAY_NAME = "WebClip Sync";
 inline constexpr std::string_view APP_ORGANIZATION = "Burhanverse";
