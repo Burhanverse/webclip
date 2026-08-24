@@ -91,59 +91,59 @@ QColor MD3Theme::activeSeedColor() const {
 QColor MD3Theme::primary() const {
     QColor seed = activeSeedColor();
     if (isDark()) {
-        return QColor::fromHslF(seed.hslHueF(), qBound(0.45, seed.hslSaturationF(), 0.90), 0.76);
+        return QColor::fromHslF(seed.hslHueF(), qBound(0.45f, seed.hslSaturationF(), 0.90f), 0.76f);
     } else {
-        return QColor::fromHslF(seed.hslHueF(), qBound(0.55, seed.hslSaturationF(), 0.95), 0.44);
+        return QColor::fromHslF(seed.hslHueF(), qBound(0.55f, seed.hslSaturationF(), 0.95f), 0.44f);
     }
 }
 
 QColor MD3Theme::onPrimary() const {
     QColor seed = activeSeedColor();
-    return isDark() ? QColor::fromHslF(seed.hslHueF(), 0.7, 0.2) : QColor("#FFFFFF");
+    return isDark() ? QColor::fromHslF(seed.hslHueF(), 0.70f, 0.20f) : QColor("#FFFFFF");
 }
 
 QColor MD3Theme::primaryContainer() const {
     QColor seed = activeSeedColor();
     if (isDark()) {
-        return QColor::fromHslF(seed.hslHueF(), 0.50, 0.28);
+        return QColor::fromHslF(seed.hslHueF(), 0.50f, 0.28f);
     } else {
-        return QColor::fromHslF(seed.hslHueF(), 0.70, 0.90);
+        return QColor::fromHslF(seed.hslHueF(), 0.70f, 0.90f);
     }
 }
 
 QColor MD3Theme::onPrimaryContainer() const {
     QColor seed = activeSeedColor();
     if (isDark()) {
-        return QColor::fromHslF(seed.hslHueF(), 0.65, 0.92);
+        return QColor::fromHslF(seed.hslHueF(), 0.65f, 0.92f);
     } else {
-        return QColor::fromHslF(seed.hslHueF(), 0.80, 0.18);
+        return QColor::fromHslF(seed.hslHueF(), 0.80f, 0.18f);
     }
 }
 
 QColor MD3Theme::secondary() const {
     QColor seed = activeSeedColor();
-    return isDark() ? QColor::fromHslF(seed.hslHueF(), 0.20, 0.78) : QColor::fromHslF(seed.hslHueF(), 0.25, 0.40);
+    return isDark() ? QColor::fromHslF(seed.hslHueF(), 0.20f, 0.78f) : QColor::fromHslF(seed.hslHueF(), 0.25f, 0.40f);
 }
 
 QColor MD3Theme::onSecondary() const {
     QColor seed = activeSeedColor();
-    return isDark() ? QColor::fromHslF(seed.hslHueF(), 0.2, 0.22) : QColor("#FFFFFF");
+    return isDark() ? QColor::fromHslF(seed.hslHueF(), 0.20f, 0.22f) : QColor("#FFFFFF");
 }
 
 QColor MD3Theme::secondaryContainer() const {
     QColor seed = activeSeedColor();
-    return isDark() ? QColor::fromHslF(seed.hslHueF(), 0.20, 0.28) : QColor::fromHslF(seed.hslHueF(), 0.25, 0.90);
+    return isDark() ? QColor::fromHslF(seed.hslHueF(), 0.20f, 0.28f) : QColor::fromHslF(seed.hslHueF(), 0.25f, 0.90f);
 }
 
 QColor MD3Theme::onSecondaryContainer() const {
     QColor seed = activeSeedColor();
-    return isDark() ? QColor::fromHslF(seed.hslHueF(), 0.20, 0.92) : QColor::fromHslF(seed.hslHueF(), 0.30, 0.15);
+    return isDark() ? QColor::fromHslF(seed.hslHueF(), 0.20f, 0.92f) : QColor::fromHslF(seed.hslHueF(), 0.30f, 0.15f);
 }
 
 QColor MD3Theme::tertiary() const {
     QColor seed = activeSeedColor();
-    qreal h = std::fmod(seed.hslHueF() + 0.15, 1.0);
-    return isDark() ? QColor::fromHslF(h, 0.45, 0.8) : QColor::fromHslF(h, 0.4, 0.4);
+    float h = std::fmod(seed.hslHueF() + 0.15f, 1.0f);
+    return isDark() ? QColor::fromHslF(h, 0.45f, 0.80f) : QColor::fromHslF(h, 0.40f, 0.40f);
 }
 
 QColor MD3Theme::onTertiary() const {
@@ -152,14 +152,14 @@ QColor MD3Theme::onTertiary() const {
 
 QColor MD3Theme::tertiaryContainer() const {
     QColor seed = activeSeedColor();
-    qreal h = std::fmod(seed.hslHueF() + 0.15, 1.0);
-    return isDark() ? QColor::fromHslF(h, 0.35, 0.28) : QColor::fromHslF(h, 0.5, 0.92);
+    float h = std::fmod(seed.hslHueF() + 0.15f, 1.0f);
+    return isDark() ? QColor::fromHslF(h, 0.35f, 0.28f) : QColor::fromHslF(h, 0.50f, 0.92f);
 }
 
 QColor MD3Theme::onTertiaryContainer() const {
     QColor seed = activeSeedColor();
-    qreal h = std::fmod(seed.hslHueF() + 0.15, 1.0);
-    return isDark() ? QColor::fromHslF(h, 0.5, 0.92) : QColor::fromHslF(h, 0.6, 0.18);
+    float h = std::fmod(seed.hslHueF() + 0.15f, 1.0f);
+    return isDark() ? QColor::fromHslF(h, 0.50f, 0.92f) : QColor::fromHslF(h, 0.60f, 0.18f);
 }
 
 QColor MD3Theme::error() const {
@@ -180,86 +180,86 @@ QColor MD3Theme::onErrorContainer() const {
 
 QColor MD3Theme::surface() const {
     QColor seed = activeSeedColor();
-    qreal h = seed.hslHueF();
-    qreal s = qBound(0.03, seed.hslSaturationF() * 0.16, 0.10);
-    return isDark() ? QColor::fromHslF(h, s, 0.08) : QColor::fromHslF(h, s * 0.6, 0.98);
+    float h = seed.hslHueF();
+    float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
+    return isDark() ? QColor::fromHslF(h, s, 0.08f) : QColor::fromHslF(h, s * 0.6f, 0.98f);
 }
 
 QColor MD3Theme::surfaceDim() const {
     QColor seed = activeSeedColor();
-    qreal h = seed.hslHueF();
-    qreal s = qBound(0.03, seed.hslSaturationF() * 0.16, 0.10);
-    return isDark() ? QColor::fromHslF(h, s, 0.07) : QColor::fromHslF(h, s, 0.87);
+    float h = seed.hslHueF();
+    float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
+    return isDark() ? QColor::fromHslF(h, s, 0.07f) : QColor::fromHslF(h, s, 0.87f);
 }
 
 QColor MD3Theme::surfaceBright() const {
     QColor seed = activeSeedColor();
-    qreal h = seed.hslHueF();
-    qreal s = qBound(0.03, seed.hslSaturationF() * 0.16, 0.10);
-    return isDark() ? QColor::fromHslF(h, s, 0.22) : QColor::fromHslF(h, s * 0.4, 0.99);
+    float h = seed.hslHueF();
+    float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
+    return isDark() ? QColor::fromHslF(h, s, 0.22f) : QColor::fromHslF(h, s * 0.4f, 0.99f);
 }
 
 QColor MD3Theme::surfaceContainerLowest() const {
     QColor seed = activeSeedColor();
-    qreal h = seed.hslHueF();
-    qreal s = qBound(0.03, seed.hslSaturationF() * 0.16, 0.10);
-    return isDark() ? QColor::fromHslF(h, s, 0.05) : QColor("#FFFFFF");
+    float h = seed.hslHueF();
+    float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
+    return isDark() ? QColor::fromHslF(h, s, 0.05f) : QColor("#FFFFFF");
 }
 
 QColor MD3Theme::surfaceContainerLow() const {
     QColor seed = activeSeedColor();
-    qreal h = seed.hslHueF();
-    qreal s = qBound(0.03, seed.hslSaturationF() * 0.16, 0.10);
-    return isDark() ? QColor::fromHslF(h, s, 0.11) : QColor::fromHslF(h, s, 0.95);
+    float h = seed.hslHueF();
+    float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
+    return isDark() ? QColor::fromHslF(h, s, 0.11f) : QColor::fromHslF(h, s, 0.95f);
 }
 
 QColor MD3Theme::surfaceContainer() const {
     QColor seed = activeSeedColor();
-    qreal h = seed.hslHueF();
-    qreal s = qBound(0.03, seed.hslSaturationF() * 0.16, 0.10);
-    return isDark() ? QColor::fromHslF(h, s, 0.14) : QColor::fromHslF(h, s, 0.92);
+    float h = seed.hslHueF();
+    float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
+    return isDark() ? QColor::fromHslF(h, s, 0.14f) : QColor::fromHslF(h, s, 0.92f);
 }
 
 QColor MD3Theme::surfaceContainerHigh() const {
     QColor seed = activeSeedColor();
-    qreal h = seed.hslHueF();
-    qreal s = qBound(0.03, seed.hslSaturationF() * 0.16, 0.10);
-    return isDark() ? QColor::fromHslF(h, s, 0.18) : QColor::fromHslF(h, s, 0.89);
+    float h = seed.hslHueF();
+    float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
+    return isDark() ? QColor::fromHslF(h, s, 0.18f) : QColor::fromHslF(h, s, 0.89f);
 }
 
 QColor MD3Theme::surfaceContainerHighest() const {
     QColor seed = activeSeedColor();
-    qreal h = seed.hslHueF();
-    qreal s = qBound(0.03, seed.hslSaturationF() * 0.16, 0.10);
-    return isDark() ? QColor::fromHslF(h, s, 0.22) : QColor::fromHslF(h, s, 0.85);
+    float h = seed.hslHueF();
+    float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
+    return isDark() ? QColor::fromHslF(h, s, 0.22f) : QColor::fromHslF(h, s, 0.85f);
 }
 
 QColor MD3Theme::onSurface() const {
     QColor seed = activeSeedColor();
-    qreal h = seed.hslHueF();
-    qreal s = qBound(0.02, seed.hslSaturationF() * 0.08, 0.05);
-    return isDark() ? QColor::fromHslF(h, s, 0.92) : QColor::fromHslF(h, s, 0.12);
+    float h = seed.hslHueF();
+    float s = qBound(0.02f, seed.hslSaturationF() * 0.08f, 0.05f);
+    return isDark() ? QColor::fromHslF(h, s, 0.92f) : QColor::fromHslF(h, s, 0.12f);
 }
 
 QColor MD3Theme::onSurfaceVariant() const {
     QColor seed = activeSeedColor();
-    qreal h = seed.hslHueF();
-    qreal s = qBound(0.03, seed.hslSaturationF() * 0.15, 0.10);
-    return isDark() ? QColor::fromHslF(h, s, 0.76) : QColor::fromHslF(h, s, 0.32);
+    float h = seed.hslHueF();
+    float s = qBound(0.03f, seed.hslSaturationF() * 0.15f, 0.10f);
+    return isDark() ? QColor::fromHslF(h, s, 0.76f) : QColor::fromHslF(h, s, 0.32f);
 }
 
 QColor MD3Theme::outline() const {
     QColor seed = activeSeedColor();
-    qreal h = seed.hslHueF();
-    qreal s = qBound(0.03, seed.hslSaturationF() * 0.15, 0.10);
-    return isDark() ? QColor::fromHslF(h, s, 0.55) : QColor::fromHslF(h, s, 0.50);
+    float h = seed.hslHueF();
+    float s = qBound(0.03f, seed.hslSaturationF() * 0.15f, 0.10f);
+    return isDark() ? QColor::fromHslF(h, s, 0.55f) : QColor::fromHslF(h, s, 0.50f);
 }
 
 QColor MD3Theme::outlineVariant() const {
     QColor seed = activeSeedColor();
-    qreal h = seed.hslHueF();
-    qreal s = qBound(0.03, seed.hslSaturationF() * 0.15, 0.10);
-    return isDark() ? QColor::fromHslF(h, s, 0.25) : QColor::fromHslF(h, s, 0.82);
+    float h = seed.hslHueF();
+    float s = qBound(0.03f, seed.hslSaturationF() * 0.15f, 0.10f);
+    return isDark() ? QColor::fromHslF(h, s, 0.25f) : QColor::fromHslF(h, s, 0.82f);
 }
 
 // Typography
