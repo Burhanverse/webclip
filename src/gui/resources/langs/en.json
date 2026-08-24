@@ -24,7 +24,7 @@
     "connection": {
       "section_title": "Connection",
       "host_label": "Phone IP / URL",
-      "host_placeholder": "10.36.130.44",
+      "host_placeholder": "192.168.1.100",
       "port_label": "Port",
       "port_placeholder": "8080",
       "code_label": "Pairing Code",

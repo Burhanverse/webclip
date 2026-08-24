@@ -26,10 +26,11 @@ extern "C" const char* __lsan_default_suppressions() {
 #endif
 
 int main(int argc, char* argv[]) {
-    // Optional standalone headless CLI invocation
+    // Check for CLI invocation (--help, --version, or connection flags)
+    bool has_cli_args = false;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
-        if (arg == "--help" || arg == "-?") {
+        if (arg == "--help" || arg == "-h" || arg == "-?") {
             webclip::print_usage(argv[0]);
             return 0;
         }
@@ -37,20 +38,24 @@ int main(int argc, char* argv[]) {
             std::cout << "WebClip Sync version 1.0.0" << std::endl;
             return 0;
         }
-        if (arg == "--headless" || arg == "--cli") {
-            webclip::SyncConfig config;
-            if (!webclip::parse_cli_args(argc, argv, config)) {
-                return 1;
-            }
-            auto clipboard = webclip::create_clipboard();
-            if (!clipboard) {
-                std::cerr << "Failed to initialize clipboard subsystem." << std::endl;
-                return 1;
-            }
-            auto sync_manager = std::make_unique<webclip::SyncManager>(config, std::move(clipboard));
-            sync_manager->run();
-            return 0;
+        if (arg == "--headless" || arg == "--cli" || arg == "--host" || arg == "-c" || arg == "--code") {
+            has_cli_args = true;
         }
+    }
+
+    if (has_cli_args) {
+        webclip::SyncConfig config;
+        if (!webclip::parse_cli_args(argc, argv, config)) {
+            return 1;
+        }
+        auto clipboard = webclip::create_clipboard();
+        if (!clipboard) {
+            std::cerr << "Failed to initialize clipboard subsystem." << std::endl;
+            return 1;
+        }
+        auto sync_manager = std::make_unique<webclip::SyncManager>(config, std::move(clipboard));
+        sync_manager->run();
+        return 0;
     }
 
     qputenv("QT_LOGGING_RULES", "qt.text.font.db*=false;qt.gui.fontdatabase*=false");

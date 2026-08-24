@@ -47,14 +47,13 @@ make -j$(nproc)
 ```
 
 The resulting binaries:
-- `build/webclip`: Material Design 3 GUI application
-- `build/webclip-cli`: Headless CLI daemon
+- `build/webclip` (or `webclip.exe` on Windows): Unified standalone application (GUI with system tray & headless CLI daemon)
 
 ---
 
 ## Usage
 
-### GUI Application
+### Desktop GUI (Default)
 
 Launch `webclip` directly or install to `~/.local/bin`:
 
@@ -63,35 +62,37 @@ install -Dm755 build/webclip ~/.local/bin/webclip
 webclip
 ```
 
-In the GUI:
-1. Enter your phone's LAN IP / URL (e.g. `10.36.130.44` or `https://10.36.130.44:8081`) and pairing code.
-2. Click **Connect**.
-3. Any text copied on your phone will stream directly into the feed and sync to your local clipboard, and vice versa.
+- **Close to Tray**: Closing the window keeps WebClip running in the system tray and syncing clips in the background.
+- **Connection**: Enter your phone's LAN IP / URL (e.g. `192.168.1.100` or `https://192.168.1.100:8081`) and pairing code, then click **Connect**.
 
-### CLI Application
+### Headless CLI Daemon
+
+The same `webclip` binary runs headless in the terminal when connection flags or `--headless` are supplied:
 
 ```bash
-./build/webclip-cli --host 10.36.130.44 --code 5425 [options]
+webclip --host 192.168.1.100 --code 1234 [options]
 ```
 
 #### CLI Options
 
 | Flag | Description | Default |
 |---|---|---|
-| `-h, --host <ip/url>` | Phone's LAN IP or URL (**required**) | — |
+| `-h, --help` | Show usage options | — |
+| `-v, --version` | Show version info | — |
+| `--host <ip/url>` | Phone's LAN IP or URL (**required for CLI**) | — |
 | `-p, --port <port>` | Web Clipboard HTTP/HTTPS port | `8080` (HTTP) / `8081` (HTTPS) |
 | `-c, --code <code>` | 4-digit pairing code shown in Gboard | `""` |
 | `--https` | Use HTTPS endpoint (typically port 8081) | `false` |
 | `-k, --insecure` | Allow self-signed certificates when using HTTPS | `false` |
 | `-i, --poll-interval <sec>` | Local clipboard watcher interval in seconds | `1.0` |
 | `--client-id <id>` | Custom client identifier | Auto-generated |
-| `--help` | Show usage options | — |
+| `--headless` | Explicitly run as headless daemon | `false` |
 
 ---
 
 ## Continuous Integration
 
-A GitHub Actions workflow is provided in `.github/workflows/build.yml` testing automated compilation of both the GUI and CLI across Linux (Ubuntu) and Windows (MSVC).
+A GitHub Actions workflow is provided in `.github/workflows/build.yml` providing automated compilation and release packaging across Linux (Ubuntu) and Windows (MSVC).
 
 ---
 

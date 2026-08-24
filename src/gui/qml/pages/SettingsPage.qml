@@ -77,7 +77,7 @@ Flickable {
                     MD3TextField {
                         Layout.fillWidth: true
                         label: "Phone IP / Host"
-                        placeholderText: "10.36.130.44"
+                        placeholderText: "192.168.1.100"
                         text: controller.host
                         onTextChanged: controller.host = text
                     }

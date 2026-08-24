@@ -52,11 +52,7 @@ if(WIN32)
     )
 endif()
 
-# CLI Executable
-add_executable(webclip-cli src/main.cpp)
-target_link_libraries(webclip-cli PRIVATE webclip_core)
-
-# Qt 6 QML GUI Executable
+# Unified Standalone WebClip Executable (GUI + Headless CLI Daemon)
 add_executable(webclip src/gui/main_gui.cpp)
 
 target_include_directories(webclip PRIVATE
@@ -146,12 +142,10 @@ target_link_libraries(webclip PRIVATE
 # Compiler optimization and warning options
 if(MSVC)
     target_compile_options(webclip_core PRIVATE /W4 /O2 /permissive-)
-    target_compile_options(webclip-cli PRIVATE /W4 /O2 /permissive-)
     target_compile_options(webclip PRIVATE /W4 /O2 /permissive-)
 else()
     target_compile_options(webclip_core PRIVATE -Wall -Wextra -Wpedantic -O2)
-    target_compile_options(webclip-cli PRIVATE -Wall -Wextra -Wpedantic -O2)
     target_compile_options(webclip PRIVATE -Wall -Wextra -Wpedantic -O2)
 endif()
 
-install(TARGETS webclip webclip-cli RUNTIME DESTINATION bin)
+install(TARGETS webclip RUNTIME DESTINATION bin)

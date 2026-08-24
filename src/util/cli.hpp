@@ -29,18 +29,19 @@ inline std::string generate_random_client_id() {
 inline void print_usage(const char* prog_name) {
     std::cout << "Usage: " << prog_name << " [options]\n\n"
               << "Options:\n"
-              << "  -h, --host <ip/url>        Phone's LAN IP or URL (e.g. 10.36.130.44, https://10.36.130.44:8081)\n"
+              << "  -h, --help                 Show this help message\n"
+              << "  -v, --version              Show version information\n"
+              << "      --host <ip/url>        Phone's LAN IP or URL (e.g. 192.168.1.100, https://192.168.1.100:8081)\n"
               << "  -p, --port <number>        Portal port (default: 8080 for HTTP, 8081 for HTTPS)\n"
-              << "  -c, --code <pairing_code>  Pairing code (e.g. 5425)\n"
+              << "  -c, --code <pairing_code>  Pairing code (e.g. 1234)\n"
               << "      --https                Use HTTPS\n"
               << "  -k, --insecure             Skip SSL certificate verification (default for local HTTPS)\n"
               << "  -i, --poll-interval <sec>  Local clipboard polling interval in seconds (default: 1.0)\n"
-              << "      --client-id <id>       Custom client identifier (default: auto-generated)\n"
-              << "      --help                 Show this help message\n\n"
+              << "      --client-id <id>       Custom client identifier (default: auto-generated)\n\n"
               << "Examples:\n"
-              << "  " << prog_name << " --host 10.36.130.44 --code 5425\n"
-              << "  " << prog_name << " --host https://10.36.130.44:8081 --code 5425\n"
-              << "  " << prog_name << " --host 10.36.130.44 --port 8081 --https --code 5425\n";
+              << "  " << prog_name << " --host 192.168.1.100 --code 1234\n"
+              << "  " << prog_name << " --host https://192.168.1.100:8081 --code 1234\n"
+              << "  " << prog_name << " --host 192.168.1.100 --port 8081 --https --code 1234\n";
 }
 
 inline void sanitize_host_and_port(SyncConfig& config, bool port_explicitly_set) {
@@ -88,10 +89,13 @@ inline bool parse_cli_args(int argc, char* argv[], SyncConfig& config) {
     bool port_set = false;
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
-        if (arg == "--help" || arg == "-?") {
+        if (arg == "--help" || arg == "-h" || arg == "-?") {
             print_usage(argv[0]);
-            return false;
-        } else if ((arg == "--host" || arg == "-h") && i + 1 < argc) {
+            std::exit(0);
+        } else if (arg == "--version" || arg == "-v") {
+            std::cout << "version 1.0.0" << std::endl;
+            std::exit(0);
+        } else if (arg == "--host" && i + 1 < argc) {
             config.host = argv[++i];
         } else if ((arg == "--port" || arg == "-p") && i + 1 < argc) {
             config.port = std::stoi(argv[++i]);

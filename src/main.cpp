@@ -19,6 +19,18 @@ void signal_handler(int sig) {
 } // namespace
 
 int main(int argc, char* argv[]) {
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--help" || arg == "-?" || arg == "-h") {
+            webclip::print_usage(argv[0]);
+            return 0;
+        }
+        if (arg == "--version" || arg == "-v") {
+            std::cout << "webclip-cli version 1.0.0" << std::endl;
+            return 0;
+        }
+    }
+
     webclip::SyncConfig config;
     if (!webclip::parse_cli_args(argc, argv, config)) {
         return 1;

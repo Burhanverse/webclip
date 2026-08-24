@@ -167,7 +167,7 @@ QQC.Popup {
                                     MD3TextField {
                                         Layout.fillWidth: true
                                         label: I18n.tr("settings.connection.host_label")
-                                        placeholderText: "10.36.130.44"
+                                        placeholderText: "192.168.1.100"
                                         text: root.controller.host
                                         onTextChanged: root.controller.host = text
                                     }
