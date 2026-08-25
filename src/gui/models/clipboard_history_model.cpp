@@ -146,6 +146,16 @@ void ClipboardHistoryModel::removeClip(int index) {
     emit countChanged();
 }
 
+void ClipboardHistoryModel::removeClipById(const QString& clipId) {
+    if (clipId.isEmpty()) return;
+    for (int i = 0; i < items_.size(); ++i) {
+        if (items_.at(i).id == clipId) {
+            removeClip(i);
+            return;
+        }
+    }
+}
+
 void ClipboardHistoryModel::clear() {
     if (items_.isEmpty()) return;
     beginResetModel();

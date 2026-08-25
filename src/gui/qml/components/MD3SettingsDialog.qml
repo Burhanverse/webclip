@@ -609,6 +609,36 @@ QQC.Popup {
                             }
                         }
 
+                        // Thanos Snap Delete Effect Switch Card
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: 56
+                            radius: 12
+                            color: MD3Theme.surfaceContainer
+                            border.color: MD3Theme.outlineVariant
+                            border.width: 1
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.leftMargin: 14
+                                anchors.rightMargin: 14
+                                spacing: 12
+
+                                ColumnLayout {
+                                    Layout.fillWidth: true
+                                    spacing: 2
+                                    Text { text: I18n.tr("settings.appearance.thanos_snap_title"); font: MD3Theme.bodySmall; color: MD3Theme.onSurface }
+                                    Text { text: I18n.tr("settings.appearance.thanos_snap_subtitle"); font: MD3Theme.labelSmall; color: MD3Theme.onSurfaceVariant }
+                                }
+
+                                MD3Switch {
+                                    Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
+                                    checked: root.controller.thanosSnapEnabled
+                                    onToggled: root.controller.thanosSnapEnabled = checked
+                                }
+                            }
+                        }
+
                         Item { Layout.preferredHeight: 2 }
 
                         MD3Button {

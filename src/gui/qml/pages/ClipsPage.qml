@@ -9,6 +9,7 @@ Item {
     id: root
 
     required property var controller
+    property var thanosEffect: null
 
     property string fullPreviewUrl: ""
     property bool fullPreviewVisible: false
@@ -483,7 +484,20 @@ Item {
                                             iconColor: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
                                             size: 20
                                             iconSize: 13
-                                            onClicked: controller.clipModel.removeClip(index)
+                                            onClicked: {
+                                                var clipId = model.id
+                                                if (controller.thanosSnapEnabled && root.thanosEffect && bubbleCard) {
+                                                    var pos = bubbleCard.mapToItem(root.thanosEffect, 0, 0)
+                                                    var w = bubbleCard.width
+                                                    var h = bubbleCard.height
+                                                    bubbleCard.grabToImage(function(result) {
+                                                        root.thanosEffect.snapImage(result.image, Qt.rect(pos.x, pos.y, w, h))
+                                                        controller.clipModel.removeClipById(clipId)
+                                                    })
+                                                } else {
+                                                    controller.clipModel.removeClipById(clipId)
+                                                }
+                                            }
                                         }
                                     }
                                 }

@@ -70,6 +70,7 @@ public:
     Q_INVOKABLE void addClip(const QString& text, const QString& source);
     Q_INVOKABLE void addClipImage(const QString& imageData, const QString& mimeType, int size, const QString& source);
     Q_INVOKABLE void removeClip(int index);
+    Q_INVOKABLE void removeClipById(const QString& clipId);
     Q_INVOKABLE void clear();
     Q_INVOKABLE bool isClipImage(int index) const;
     Q_INVOKABLE QString getClipText(int index) const;

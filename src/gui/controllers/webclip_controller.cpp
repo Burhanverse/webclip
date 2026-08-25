@@ -249,6 +249,13 @@ void WebClipController::setAutoSync(bool autoSync) {
     }
 }
 
+void WebClipController::setThanosSnapEnabled(bool enabled) {
+    if (thanosSnapEnabled_ != enabled) {
+        thanosSnapEnabled_ = enabled;
+        emit thanosSnapEnabledChanged();
+    }
+}
+
 void WebClipController::setPollInterval(double interval) {
     if (interval < 0.2) interval = 0.2;
     if (interval > 10.0) interval = 10.0;
@@ -1107,6 +1114,7 @@ void WebClipController::saveSettings() {
     s.setValue("useHttps", useHttps_);
     s.setValue("insecure", insecure_);
     s.setValue("autoSync", autoSync_);
+    s.setValue("thanosSnapEnabled", thanosSnapEnabled_);
     s.setValue("pollInterval", pollInterval_);
     s.setValue("themeMode", themeMode_);
     s.setValue("accentPreset", accentPreset_);
@@ -1121,6 +1129,7 @@ void WebClipController::loadSettings() {
     useHttps_ = s.value("useHttps", false).toBool();
     insecure_ = s.value("insecure", true).toBool();
     autoSync_ = s.value("autoSync", true).toBool();
+    thanosSnapEnabled_ = s.value("thanosSnapEnabled", true).toBool();
     pollInterval_ = s.value("pollInterval", 1.0).toDouble();
     themeMode_ = s.value("themeMode", 0).toInt();
     accentPreset_ = s.value("accentPreset", "purple").toString();

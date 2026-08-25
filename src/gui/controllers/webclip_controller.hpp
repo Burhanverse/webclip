@@ -40,6 +40,7 @@ class WebClipController : public QObject {
     Q_PROPERTY(int themeMode READ themeMode WRITE setThemeMode NOTIFY themeModeChanged)
     Q_PROPERTY(QString accentPreset READ accentPreset WRITE setAccentPreset NOTIFY accentPresetChanged)
     Q_PROPERTY(QColor customColor READ customColor WRITE setCustomColor NOTIFY customColorChanged)
+    Q_PROPERTY(bool thanosSnapEnabled READ thanosSnapEnabled WRITE setThanosSnapEnabled NOTIFY thanosSnapEnabledChanged)
     Q_PROPERTY(ClipboardHistoryModel* clipModel READ clipModel CONSTANT)
     Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
     Q_PROPERTY(QString qtVersion READ qtVersion CONSTANT)
@@ -62,6 +63,7 @@ public:
     int themeMode() const { return themeMode_; }
     QString accentPreset() const { return accentPreset_; }
     QColor customColor() const { return customColor_; }
+    bool thanosSnapEnabled() const { return thanosSnapEnabled_; }
     ClipboardHistoryModel* clipModel() { return &clipModel_; }
     QString appVersion() const { return QString::fromUtf8(VERSION_STRING.data(), VERSION_STRING.size()); }
     QString qtVersion() const { return QString::fromLatin1(qVersion()); }
@@ -75,6 +77,7 @@ public:
     void setInsecure(bool insecure);
     void setAutoSync(bool autoSync);
     void setPollInterval(double interval);
+    Q_INVOKABLE void setThanosSnapEnabled(bool enabled);
     Q_INVOKABLE void setThemeMode(int mode);
     Q_INVOKABLE void setAccentPreset(const QString& preset);
     Q_INVOKABLE void setCustomColor(const QColor& color);
@@ -108,6 +111,7 @@ signals:
     void themeModeChanged();
     void accentPresetChanged();
     void customColorChanged();
+    void thanosSnapEnabledChanged();
     void clipReceived(const QString& text, const QString& source);
     void showToast(const QString& message, bool isError);
     void minimizedToTray();
@@ -125,6 +129,7 @@ private:
     bool useHttps_ = false;
     bool insecure_ = true;
     bool autoSync_ = true;
+    bool thanosSnapEnabled_ = true;
     double pollInterval_ = 1.0;
     int themeMode_ = 0; // 0: System, 1: Light, 2: Dark
     QString accentPreset_ = "purple";

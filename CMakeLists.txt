@@ -71,6 +71,7 @@ target_include_directories(webclip PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/models
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/controllers
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/effects
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/theme
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/util
 )
@@ -136,6 +137,8 @@ qt_add_qml_module(webclip
         src/gui/models/clipboard_history_model.cpp
         src/gui/controllers/webclip_controller.hpp
         src/gui/controllers/webclip_controller.cpp
+        src/gui/effects/thanos_effect_item.hpp
+        src/gui/effects/thanos_effect_item.cpp
         src/gui/util/icon_image_provider.hpp
         src/gui/util/icon_image_provider.cpp
         src/gui/util/i18n.hpp
