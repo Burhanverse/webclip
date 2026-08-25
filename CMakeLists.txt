@@ -97,6 +97,7 @@ qt_add_qml_module(webclip
         src/gui/resources/fonts/GoogleSansMediumItalic.ttf
         src/gui/resources/fonts/Vazirmatn-UI-NL-Regular.ttf
         src/gui/resources/fonts/Vazirmatn-UI-NL-SemiBold.ttf
+        src/gui/resources/fonts/Twemoji.ttf
         src/gui/resources/langs/en.json
         src/gui/resources/icons/webclip.svg
         src/gui/resources/icons/webclip.ico

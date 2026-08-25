@@ -41,7 +41,8 @@ void initFonts() {
         QStringLiteral(":/qt/qml/src/gui/resources/fonts/GoogleSansItalic.ttf"),
         QStringLiteral(":/qt/qml/src/gui/resources/fonts/GoogleSansMediumItalic.ttf"),
         QStringLiteral(":/qt/qml/src/gui/resources/fonts/Vazirmatn-UI-NL-Regular.ttf"),
-        QStringLiteral(":/qt/qml/src/gui/resources/fonts/Vazirmatn-UI-NL-SemiBold.ttf")
+        QStringLiteral(":/qt/qml/src/gui/resources/fonts/Vazirmatn-UI-NL-SemiBold.ttf"),
+        QStringLiteral(":/qt/qml/src/gui/resources/fonts/Twemoji.ttf")
     };
 
     for (const auto& path : fontFiles) {
@@ -87,7 +88,7 @@ QFont createFont(int pixelSize, QFont::Weight weight, bool italic, bool monospac
 
     QString primaryFamily = italic ? QStringLiteral("Google Sans") : QStringLiteral("Google Sans Flex");
     QFont f(primaryFamily);
-    f.setFamilies({ primaryFamily, QStringLiteral("Vazirmatn UI NL") });
+    f.setFamilies({ primaryFamily, QStringLiteral("Vazirmatn UI NL"), QStringLiteral("Twemoji") });
     f.setStyleHint(QFont::SansSerif);
     f.setPixelSize(pixelSize);
     f.setWeight(weight);
