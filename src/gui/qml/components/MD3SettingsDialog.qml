@@ -613,15 +613,13 @@ QQC.Popup {
                         Rectangle {
                             Layout.fillWidth: true
                             implicitHeight: 56
-                            radius: 12
-                            color: MD3Theme.surfaceContainer
-                            border.color: MD3Theme.outlineVariant
-                            border.width: 1
+                            radius: 16
+                            color: MD3Theme.surfaceContainerLow
 
                             RowLayout {
                                 anchors.fill: parent
-                                anchors.leftMargin: 14
-                                anchors.rightMargin: 14
+                                anchors.leftMargin: 16
+                                anchors.rightMargin: 16
                                 spacing: 12
 
                                 ColumnLayout {

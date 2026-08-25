@@ -56,7 +56,7 @@
       "accent_color": "Accent Color",
       "accent_custom": "Custom",
       "thanos_snap_title": "Thanos Snap Delete Effect",
-      "thanos_snap_subtitle": "Cinematic particle disintegration animation when deleting clips",
+      "thanos_snap_subtitle": "Particle disintegration animation",
       "clipboard_engine": "Clipboard Engine",
       "btn_clear_history": "Clear All History"
     },
