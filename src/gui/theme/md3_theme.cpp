@@ -81,6 +81,8 @@ QColor MD3Theme::activeSeedColor() const {
     if (accentPreset_ == "orange") return QColor("#FF9800");
     if (accentPreset_ == "red") return QColor("#F44336");
     if (accentPreset_ == "pink") return QColor("#E91E63");
+    // Direct user picks: honor the exact color they chose instead of
+    // re-deriving a normalized tonal palette from it
     if (accentPreset_ == "custom" && customColor_.isValid()) return customColor_;
     if (accentPreset_.startsWith('#')) {
         QColor c(accentPreset_);
@@ -89,8 +91,20 @@ QColor MD3Theme::activeSeedColor() const {
     return QColor("#6750A4"); // M3 Default Purple
 }
 
+bool MD3Theme::usesDirectSeedColor() const {
+    return accentPreset_ == "custom" || accentPreset_.startsWith('#');
+}
+
+static QColor contrastTextColor(const QColor& bg) {
+    qreal lum = 0.2126 * bg.redF() + 0.7152 * bg.greenF() + 0.0722 * bg.blueF();
+    return lum > 0.5 ? QColor("#1B1B1F") : QColor("#FFFFFF");
+}
+
 QColor MD3Theme::primary() const {
     QColor seed = activeSeedColor();
+    if (usesDirectSeedColor()) {
+        return seed;
+    }
     if (isPitchBlack()) {
         return QColor::fromHslF(seed.hslHueF(), qBound(0.60f, seed.hslSaturationF(), 0.98f), 0.72f);
     } else if (isDark()) {
@@ -102,11 +116,25 @@ QColor MD3Theme::primary() const {
 
 QColor MD3Theme::onPrimary() const {
     QColor seed = activeSeedColor();
+    if (usesDirectSeedColor()) {
+        return contrastTextColor(seed);
+    }
     return isDark() ? QColor::fromHslF(seed.hslHueF(), 0.70f, 0.20f) : QColor("#FFFFFF");
 }
 
 QColor MD3Theme::primaryContainer() const {
     QColor seed = activeSeedColor();
+    if (usesDirectSeedColor()) {
+        float h = seed.hslHueF() >= 0.0f ? seed.hslHueF() : 0.0f;
+        float s = seed.hslSaturationF();
+        float l = seed.lightnessF();
+        if (isPitchBlack()) {
+            return QColor::fromHslF(h, s * 0.6f, qBound(0.10f, l * 0.45f, 0.22f));
+        } else if (isDark()) {
+            return QColor::fromHslF(h, s * 0.7f, qBound(0.20f, l * 0.60f, 0.32f));
+        }
+        return QColor::fromHslF(h, s * 0.55f, qBound(0.86f, l + 0.25f, 0.93f));
+    }
     if (isPitchBlack()) {
         return QColor::fromHslF(seed.hslHueF(), 0.60f, 0.22f);
     } else if (isDark()) {
@@ -118,6 +146,9 @@ QColor MD3Theme::primaryContainer() const {
 
 QColor MD3Theme::onPrimaryContainer() const {
     QColor seed = activeSeedColor();
+    if (usesDirectSeedColor()) {
+        return contrastTextColor(primaryContainer());
+    }
     if (isPitchBlack()) {
         return QColor::fromHslF(seed.hslHueF(), 0.75f, 0.90f);
     } else if (isDark()) {

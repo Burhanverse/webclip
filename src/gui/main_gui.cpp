@@ -6,10 +6,12 @@
 #include <QFontDatabase>
 #include <QIcon>
 #include <QLoggingCategory>
+#include <QSettings>
 #include <iostream>
 #include "util/icon_image_provider.hpp"
 #include "util/tray_icon_manager.hpp"
 #include "util/style_core_font.hpp"
+#include "theme/md3_theme.hpp"
 #include "controllers/webclip_controller.hpp"
 #include "util/cli.hpp"
 #include "sync/sync_manager.hpp"
@@ -251,6 +253,18 @@ int main(int argc, char* argv[]) {
     app.setWindowIcon(QIcon(QStringLiteral(":/qt/qml/src/gui/resources/icons/webclip.svg")));
 
     QQuickStyle::setStyle("Basic");
+
+    // Apply persisted appearance BEFORE the QML engine loads so the first
+    // rendered frame already honors the saved theme (Dark / Pitch Black, etc.)
+    {
+        QSettings persisted("Burhanverse", "WebClip");
+        QColor customAccent(persisted.value("customColor", "#6750A4").toString());
+        if (customAccent.isValid()) {
+            webclip::MD3Theme::instance()->setCustomColor(customAccent);
+        }
+        webclip::MD3Theme::instance()->setAccentPreset(persisted.value("accentPreset", "purple").toString());
+        webclip::MD3Theme::instance()->setThemeMode(persisted.value("themeMode", 0).toInt());
+    }
 
     QQmlApplicationEngine engine;
     engine.addImageProvider(QStringLiteral("icon"), new webclip::IconImageProvider());

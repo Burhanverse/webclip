@@ -203,6 +203,7 @@ QString WebClipController::clipboardBackend() const {
 void WebClipController::setHost(const QString& host) {
     if (host_ != host) {
         host_ = host;
+        saveSettings();
         emit hostChanged();
     }
 }
@@ -210,6 +211,7 @@ void WebClipController::setHost(const QString& host) {
 void WebClipController::setPort(int port) {
     if (port_ != port) {
         port_ = port;
+        saveSettings();
         emit portChanged();
     }
 }
@@ -217,6 +219,7 @@ void WebClipController::setPort(int port) {
 void WebClipController::setCode(const QString& code) {
     if (code_ != code) {
         code_ = code;
+        saveSettings();
         emit codeChanged();
     }
 }
@@ -224,6 +227,7 @@ void WebClipController::setCode(const QString& code) {
 void WebClipController::setUseHttps(bool useHttps) {
     if (useHttps_ != useHttps) {
         useHttps_ = useHttps;
+        saveSettings();
         emit useHttpsChanged();
     }
 }
@@ -231,6 +235,7 @@ void WebClipController::setUseHttps(bool useHttps) {
 void WebClipController::setInsecure(bool insecure) {
     if (insecure_ != insecure) {
         insecure_ = insecure;
+        saveSettings();
         emit insecureChanged();
     }
 }
@@ -238,6 +243,7 @@ void WebClipController::setInsecure(bool insecure) {
 void WebClipController::setAutoSync(bool autoSync) {
     if (autoSync_ != autoSync) {
         autoSync_ = autoSync;
+        saveSettings();
         emit autoSyncChanged();
         if (connected_) {
             if (autoSync_) {
@@ -252,6 +258,7 @@ void WebClipController::setAutoSync(bool autoSync) {
 void WebClipController::setThanosSnapEnabled(bool enabled) {
     if (thanosSnapEnabled_ != enabled) {
         thanosSnapEnabled_ = enabled;
+        saveSettings();
         emit thanosSnapEnabledChanged();
     }
 }
@@ -261,6 +268,7 @@ void WebClipController::setPollInterval(double interval) {
     if (interval > 10.0) interval = 10.0;
     if (pollInterval_ != interval) {
         pollInterval_ = interval;
+        saveSettings();
         emit pollIntervalChanged();
         if (pollTimer_->isActive()) {
             pollTimer_->setInterval(static_cast<int>(pollInterval_ * 1000));
@@ -272,6 +280,7 @@ void WebClipController::setThemeMode(int mode) {
     if (themeMode_ != mode) {
         themeMode_ = mode;
         MD3Theme::instance()->setThemeMode(mode);
+        saveSettings();
         emit themeModeChanged();
     }
 }
@@ -280,6 +289,7 @@ void WebClipController::setAccentPreset(const QString& preset) {
     if (accentPreset_ != preset) {
         accentPreset_ = preset;
         MD3Theme::instance()->setAccentPreset(preset);
+        saveSettings();
         emit accentPresetChanged();
     }
 }
@@ -289,6 +299,7 @@ void WebClipController::setCustomColor(const QColor& color) {
         customColor_ = color;
         accentPreset_ = "custom";
         MD3Theme::instance()->setCustomColor(color);
+        saveSettings();
         emit customColorChanged();
         emit accentPresetChanged();
     }

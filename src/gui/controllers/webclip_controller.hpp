@@ -131,7 +131,7 @@ private:
     bool autoSync_ = true;
     bool thanosSnapEnabled_ = true;
     double pollInterval_ = 1.0;
-    int themeMode_ = 0; // 0: System, 1: Light, 2: Dark
+    int themeMode_ = 0; // 0: System, 1: Light, 2: Dark, 3: Pitch Black
     QString accentPreset_ = "purple";
     QColor customColor_ = QColor("#6750A4");
     QString statusMessage_ = "Disconnected";

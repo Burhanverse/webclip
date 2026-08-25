@@ -174,11 +174,13 @@ Window {
                         }
 
                         MD3IconButton {
-                            iconName: MD3Theme.isDark ? "sun" : "moon"
+                            iconName: controller.themeMode === 0 ? "sync"
+                                : (controller.themeMode === 1 ? "light_mode"
+                                : (controller.themeMode === 2 ? "dark_mode" : "moon"))
                             iconColor: MD3Theme.onSurfaceVariant
                             size: 34
                             onClicked: {
-                                var nextMode = MD3Theme.isDark ? 1 : 2
+                                var nextMode = (controller.themeMode + 1) % 4
                                 controller.themeMode = nextMode
                             }
                         }

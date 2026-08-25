@@ -173,6 +173,7 @@ private:
     QColor customColor_ = QColor("#6750A4");
 
     QColor activeSeedColor() const;
+    bool usesDirectSeedColor() const;
     QFont createFont(int pixelSize, QFont::Weight weight, bool italic = false, bool monospace = false) const;
 };
 
