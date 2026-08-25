@@ -40,7 +40,7 @@ struct StreamContext {
 size_t stream_write_cb(void* ptr, size_t size, size_t nmemb, void* userdata) {
     auto* ctx = static_cast<StreamContext*>(userdata);
     if (ctx->stop_flag && ctx->stop_flag->load()) {
-        return 0; // Aborts curl transfer
+        return 0;
     }
     size_t total = size * nmemb;
     ctx->parser->feed(static_cast<const char*>(ptr), total);
@@ -50,12 +50,12 @@ size_t stream_write_cb(void* ptr, size_t size, size_t nmemb, void* userdata) {
 int progress_cb(void* clientp, curl_off_t, curl_off_t, curl_off_t, curl_off_t) {
     auto* stop_flag = static_cast<const std::atomic<bool>*>(clientp);
     if (stop_flag && stop_flag->load()) {
-        return 1; // Non-zero aborts transfer
+        return 1;
     }
     return 0;
 }
 
-} // namespace
+}
 
 HttpClient::HttpClient(std::string host, int port, std::string code, bool use_https, bool insecure, std::string client_id)
     : host_(std::move(host)),
@@ -64,10 +64,7 @@ HttpClient::HttpClient(std::string host, int port, std::string code, bool use_ht
       use_https_(use_https),
       insecure_(insecure),
       client_id_(std::move(client_id)) {
-    // Initialize libcurl exactly once per process and never call
-    // curl_global_cleanup(): with concurrent/backed-off handles (detached
-    // workers, abandoned SSE streams) cleanup races live transfers and can
-    // crash or hang at exit. Skipping cleanup leaks nothing meaningful.
+
     static const bool curl_initialized = []() {
         curl_global_init(CURL_GLOBAL_DEFAULT);
         return true;
@@ -332,12 +329,10 @@ void HttpClient::stream_events(
         curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &stop_flag);
         curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
-        // Detect dead peers (half-open sockets after suspend/resume, NAT
-        // drops, unreachable phone) within ~30-40s so the reconnect loop can
-        // recover instead of blocking forever inside recv().
+
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 15L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 5L);
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 0L); // Infinite stream
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 0L);
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 6L);
 
         if (insecure_ || use_https_) {
@@ -368,4 +363,4 @@ void HttpClient::stream_events(
     }
 }
 
-} // namespace webclip
+}

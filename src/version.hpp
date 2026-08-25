@@ -17,4 +17,4 @@ inline constexpr std::string_view APP_DESCRIPTION = "Real-Time Gboard Clipboard 
 inline constexpr std::string_view APP_AUTHOR = "Burhanverse";
 inline constexpr std::string_view APP_URL = "https://github.com/Burhanverse/webclip";
 
-} // namespace webclip
+}

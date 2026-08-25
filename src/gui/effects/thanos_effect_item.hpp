@@ -75,4 +75,4 @@ private:
     uint32_t seedCounter_ = 12345;
 };
 
-} // namespace webclip
+}

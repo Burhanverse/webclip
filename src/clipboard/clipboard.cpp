@@ -144,9 +144,9 @@ std::unique_ptr<IClipboard> create_clipboard() {
     return std::make_unique<WindowsClipboard>();
 }
 
-} // namespace webclip
+}
 
-#else // Linux / Unix
+#else
 
 #include <unistd.h>
 #include <sys/wait.h>
@@ -163,12 +163,8 @@ class LinuxClipboard : public IClipboard {
 public:
     enum class Backend { Wayland, X11 };
 
-    // Max time (ms) to wait for a clipboard helper process. xclip/wl-paste can
-    // block forever if another selection owner stalls or the display server is
-    // going away during session logout; without a deadline the caller hangs.
     static constexpr int HELPER_TIMEOUT_MS = 3000;
 
-    // Wait for child with WNOHANG polling; SIGKILL + reap on timeout.
     static bool wait_pid_deadline(pid_t pid, int timeout_ms, int& exit_code) {
         auto deadline_ms = []() {
             struct timespec ts;
@@ -198,7 +194,6 @@ public:
         }
     }
 
-    // Read from pipe fd until EOF or deadline (fixes blocking read() stalls).
     static bool drain_pipe_deadline(int fd, std::vector<uint8_t>& output, int timeout_ms) {
         output.clear();
         std::array<char, 4096> buffer;
@@ -219,10 +214,10 @@ public:
                 if (errno == EINTR) continue;
                 return false;
             }
-            if (pr == 0) continue; // poll timeout tick, re-check deadline
+            if (pr == 0) continue;
 
             ssize_t n = read(fd, buffer.data(), buffer.size());
-            if (n == 0) return true;  // EOF: normal completion
+            if (n == 0) return true;
             if (n < 0) {
                 if (errno == EINTR) continue;
                 return false;
@@ -410,7 +405,6 @@ private:
         return ok && exit_code == 0;
     }
 
-    // Write input to pipe fd until done or deadline (fixes blocking write()).
     static bool write_all_deadline(int fd, const uint8_t* data, size_t size, int timeout_ms) {
         auto deadline_ms = []() {
             struct timespec ts;
@@ -435,7 +429,7 @@ private:
             ssize_t written = write(fd, data + total_written, size - total_written);
             if (written < 0) {
                 if (errno == EINTR || errno == EAGAIN) continue;
-                return false; // EPIPE: child died
+                return false;
             }
             total_written += static_cast<size_t>(written);
         }
@@ -497,6 +491,6 @@ std::unique_ptr<IClipboard> create_clipboard() {
     return std::make_unique<LinuxClipboard>();
 }
 
-} // namespace webclip
+}
 
 #endif

@@ -38,13 +38,13 @@ void SseParser::feed(const char* data, size_t length) {
 
 void SseParser::process_line(const std::string& line) {
     if (line.empty()) {
-        // Empty line denotes end of an event block
+
         dispatch_event();
         return;
     }
 
     if (line[0] == ':') {
-        // Comment or heartbeat line, e.g. ": heartbeat" or ": connected"
+
         return;
     }
 
@@ -88,9 +88,8 @@ void SseParser::dispatch_event() {
         }
     }
 
-    // Reset event fields for next SSE block
     current_event_ = "message";
     current_data_.clear();
 }
 
-} // namespace webclip
+}

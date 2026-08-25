@@ -17,8 +17,8 @@ constexpr float kTimeStepMultiplier = 1.65f;
 constexpr float kAccelerationStartPhase = 1.0f;
 constexpr float kAccelerationRampPhase = 2.5f;
 constexpr float kAccelerationMaxMultiplier = 2.2f;
-constexpr float kDisappearStartPhase = kMaxPhaseDuration * 0.15f; // 0.9f
-constexpr float kDisappearDuration = kMaxPhaseDuration - kDisappearStartPhase; // 5.1f
+constexpr float kDisappearStartPhase = kMaxPhaseDuration * 0.15f;
+constexpr float kDisappearDuration = kMaxPhaseDuration - kDisappearStartPhase;
 constexpr uint32_t kMaxParticleCount = 120000;
 
 uint32_t hashUint(uint32_t x) {
@@ -64,7 +64,7 @@ float easeInWindow(float fraction, float t) {
     return 1.0f - windowT;
 }
 
-} // namespace
+}
 
 ThanosEffectItem::ThanosEffectItem(QQuickItem* parent)
     : QQuickItem(parent) {
@@ -158,7 +158,7 @@ void ThanosEffectItem::addInstance(const QImage& image, const QRectF& sceneRect)
             const QRgb pixel = scanLine[sampleX];
             const int alpha = qAlpha(pixel);
             if (alpha < 8) {
-                continue; // Skip fully transparent regions
+                continue;
             }
 
             const uint32_t gid = pY * particleCountX + pX;
@@ -239,7 +239,7 @@ QSGNode* ThanosEffectItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData
 
             p.offsetX += p.vx * timeStep * particleFraction;
             p.offsetY += p.vy * timeStep * particleFraction;
-            // Upward drift acceleration (-Y in screen space) matching fagramdesktop's +Y NDC gravity
+
             p.vy -= 80.0f * timeStep * particleFraction;
             p.lifetime = std::max(0.0f, p.lifetime - 0.6f * timeStep * particleFraction);
 
@@ -255,7 +255,6 @@ QSGNode* ThanosEffectItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData
         }
     }
 
-    // Clean up finished instances
     const size_t beforeSize = instances_.size();
     instances_.erase(
         std::remove_if(instances_.begin(), instances_.end(), [](const ThanosInstance& inst) {
@@ -332,7 +331,6 @@ QSGNode* ThanosEffectItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData
             const uint8_t g = static_cast<uint8_t>((p.g * finalAlpha) / 255);
             const uint8_t b = static_cast<uint8_t>((p.b * finalAlpha) / 255);
 
-            // Triangle 1 (TL, TR, BL)
             vertices[vIdx].x = left;
             vertices[vIdx].y = top;
             vertices[vIdx].r = r; vertices[vIdx].g = g; vertices[vIdx].b = b; vertices[vIdx].a = finalAlpha;
@@ -348,7 +346,6 @@ QSGNode* ThanosEffectItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData
             vertices[vIdx].r = r; vertices[vIdx].g = g; vertices[vIdx].b = b; vertices[vIdx].a = finalAlpha;
             ++vIdx;
 
-            // Triangle 2 (TR, BR, BL)
             vertices[vIdx].x = right;
             vertices[vIdx].y = top;
             vertices[vIdx].r = r; vertices[vIdx].g = g; vertices[vIdx].b = b; vertices[vIdx].a = finalAlpha;
@@ -369,10 +366,9 @@ QSGNode* ThanosEffectItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData
     geom->markVertexDataDirty();
     node->markDirty(QSGNode::DirtyGeometry);
 
-    // Request next frame rendering
     update();
 
     return node;
 }
 
-} // namespace webclip
+}

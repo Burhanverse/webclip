@@ -12,10 +12,9 @@ QQC.Popup {
     signal accepted(color col)
     signal rejected()
 
-    // Internal HSL and RGB state
-    property real currentHue: 0.96      // 0.0 - 1.0 (e.g. 346 / 360)
-    property real currentSat: 1.0       // 0.0 - 1.0 (100%)
-    property real currentLight: 0.63    // 0.0 - 1.0 (63%)
+    property real currentHue: 0.96
+    property real currentSat: 1.0
+    property real currentLight: 0.63
 
     property int currentR: 255
     property int currentG: 65
@@ -151,7 +150,6 @@ QQC.Popup {
             anchors.margins: 20
             spacing: 16
 
-            // Header
             Text {
                 text: "Choose accent color"
                 font.pixelSize: 18
@@ -160,16 +158,13 @@ QQC.Popup {
                 Layout.fillWidth: true
             }
 
-            // Main Editor Row (2D Spectrum on left, numeric fields on right)
             RowLayout {
                 Layout.fillWidth: true
                 spacing: 16
 
-                // Left Column: 2D Spectrum Box + Bottom Lightness Slider
                 ColumnLayout {
                     spacing: 12
 
-                    // 2D Hue x Saturation Spectrum Area
                     Rectangle {
                         id: spectrumArea
                         width: 220
@@ -177,7 +172,6 @@ QQC.Popup {
                         radius: 4
                         clip: true
 
-                        // Horizontal rainbow hue gradient
                         Rectangle {
                             anchors.fill: parent
                             gradient: Gradient {
@@ -192,7 +186,6 @@ QQC.Popup {
                             }
                         }
 
-                        // Vertical Saturation overlay (Top: transparent / full color, Bottom: gray)
                         Rectangle {
                             anchors.fill: parent
                             gradient: Gradient {
@@ -205,7 +198,6 @@ QQC.Popup {
                         border.color: MD3Theme.outlineVariant
                         border.width: 1
 
-                        // Draggable Pointer Ring
                         Rectangle {
                             id: spectrumHandle
                             x: Math.max(0, Math.min(spectrumArea.width - width, root.currentHue * spectrumArea.width - width / 2))
@@ -247,7 +239,6 @@ QQC.Popup {
                         }
                     }
 
-                    // Bottom Lightness Slider Track
                     Item {
                         id: lightSliderContainer
                         width: 220
@@ -272,12 +263,10 @@ QQC.Popup {
                             border.width: 1
                         }
 
-                        // Top & Bottom Indicator Arrows
                         Item {
                             x: Math.max(0, Math.min(lightSliderContainer.width, root.currentLight * lightSliderContainer.width)) - 4
                             anchors.fill: parent
 
-                            // Top Arrow indicator pointing down
                             Canvas {
                                 width: 8
                                 height: 5
@@ -296,7 +285,6 @@ QQC.Popup {
                                 }
                             }
 
-                            // Bottom Arrow indicator pointing up
                             Canvas {
                                 width: 8
                                 height: 5
@@ -334,12 +322,10 @@ QQC.Popup {
                     }
                 }
 
-                // Right Column: Dual Swatch + HSL, RGB, HEX Inputs
                 ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 6
 
-                    // Dual Color Preview Swatch
                     Rectangle {
                         Layout.preferredWidth: 80
                         Layout.preferredHeight: 64
@@ -366,8 +352,6 @@ QQC.Popup {
 
                     Item { Layout.preferredHeight: 4 }
 
-                    // HSL Section
-                    // Hue Row
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 4
@@ -392,7 +376,6 @@ QQC.Popup {
                     }
                     Rectangle { Layout.fillWidth: true; height: 1; color: MD3Theme.outlineVariant }
 
-                    // Saturation Row
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 4
@@ -417,7 +400,6 @@ QQC.Popup {
                     }
                     Rectangle { Layout.fillWidth: true; height: 1; color: MD3Theme.outlineVariant }
 
-                    // Lightness Row
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 4
@@ -444,8 +426,6 @@ QQC.Popup {
 
                     Item { Layout.preferredHeight: 2 }
 
-                    // RGB Section
-                    // R Row
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 4
@@ -469,7 +449,6 @@ QQC.Popup {
                     }
                     Rectangle { Layout.fillWidth: true; height: 1; color: MD3Theme.outlineVariant }
 
-                    // G Row
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 4
@@ -493,7 +472,6 @@ QQC.Popup {
                     }
                     Rectangle { Layout.fillWidth: true; height: 1; color: MD3Theme.outlineVariant }
 
-                    // B Row
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 4
@@ -519,7 +497,6 @@ QQC.Popup {
 
                     Item { Layout.preferredHeight: 2 }
 
-                    // Hex Row
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 4
@@ -554,7 +531,6 @@ QQC.Popup {
                 }
             }
 
-            // Bottom Actions (Cancel / Save)
             RowLayout {
                 Layout.fillWidth: true
                 Layout.topMargin: 8

@@ -46,4 +46,4 @@ private:
     QHash<QString, QString> translations_;
 };
 
-} // namespace webclip
+}

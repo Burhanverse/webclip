@@ -26,18 +26,12 @@ public:
     SyncManager(SyncConfig config, std::unique_ptr<IClipboard> clipboard);
     ~SyncManager();
 
-    /**
-     * Runs the sync loop (blocking until stop is called or interrupted).
-     */
     void run();
 
-    /**
-     * Request clean shutdown.
-     */
     void stop();
-    // Async-signal-safe: only flips an atomic; safe to call from signal handlers.
+
     void request_stop();
-    // Exposes the stop flag for signal-handler use (store-only from signals).
+
     std::atomic<bool>* stop_flag_for_signal() { return &stop_flag_; }
 
 private:
@@ -65,4 +59,4 @@ private:
     void mark_image_applied(const std::string& hash, int64_t now_ms);
 };
 
-} // namespace webclip
+}

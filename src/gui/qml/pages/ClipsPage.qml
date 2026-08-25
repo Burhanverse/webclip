@@ -89,12 +89,10 @@ Item {
         anchors.fill: parent
         spacing: 0
 
-        // Chat Feed Stream
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
 
-            // Empty State
             ColumnLayout {
                 anchors.centerIn: parent
                 visible: controller.clipModel.count === 0
@@ -133,7 +131,6 @@ Item {
                 }
             }
 
-            // Chat Feed ListView
             ListView {
                 id: listView
                 anchors.fill: parent
@@ -198,7 +195,6 @@ Item {
                         id: hoverHandler
                     }
 
-                    // Seamless Chat Bubble Container with Vector Tail
                     Item {
                         id: bubbleCard
                         anchors.left: isFromPhone ? parent.left : undefined
@@ -249,7 +245,7 @@ Item {
 
                                 ctx.beginPath()
                                 if (!isFromPhone) {
-                                    // Outgoing right bubble: smooth rounded corner & tail on bottom-right
+
                                     ctx.moveTo(r, 0)
                                     ctx.lineTo(w - tw - r, 0)
                                     ctx.arcTo(w - tw, 0, w - tw, r, r)
@@ -260,7 +256,7 @@ Item {
                                     ctx.lineTo(0, r)
                                     ctx.arcTo(0, 0, r, 0, r)
                                 } else {
-                                    // Incoming left bubble: smooth rounded corner & tail on bottom-left
+
                                     ctx.moveTo(tw + r, 0)
                                     ctx.lineTo(w - r, 0)
                                     ctx.arcTo(w, 0, w, r, r)
@@ -288,7 +284,6 @@ Item {
                             anchors.bottomMargin: 8
                             spacing: 4
 
-                            // Image Content Area
                             Rectangle {
                                 id: imageContainer
                                 visible: delegateItem.isImageClip
@@ -320,7 +315,6 @@ Item {
                                 }
                             }
 
-                            // Text Content Area (clipped to 85px with gradient when collapsed)
                             Item {
                                 id: textClipContainer
                                 visible: !delegateItem.isImageClip
@@ -361,7 +355,6 @@ Item {
                                     }
                                 }
 
-                                // Fade gradient at the bottom of preview text
                                 Rectangle {
                                     anchors.left: parent.left
                                     anchors.right: parent.right
@@ -379,7 +372,6 @@ Item {
                                 }
                             }
 
-                            // Centered "Show full clip" Pill Button
                             Rectangle {
                                 Layout.alignment: Qt.AlignHCenter
                                 visible: delegateItem.isLong && !delegateItem.expanded
@@ -407,14 +399,12 @@ Item {
                                 }
                             }
 
-                            // Bottom Metadata & Actions Row
                             RowLayout {
                                 id: metadataRow
                                 Layout.fillWidth: true
                                 Layout.topMargin: 2
                                 spacing: 8
 
-                                // Timestamp
                                 Text {
                                     id: timeLabel
                                     Layout.alignment: Qt.AlignVCenter
@@ -426,7 +416,6 @@ Item {
 
                                 Item { Layout.fillWidth: true }
 
-                                // Interactive Inline Actions Container
                                 Rectangle {
                                     Layout.alignment: Qt.AlignVCenter
                                     Layout.preferredHeight: 24
@@ -525,7 +514,6 @@ Item {
             }
         }
 
-        // Google Messages Style Bottom Input Dock
         Rectangle {
             id: chatInputDock
             Layout.fillWidth: true
@@ -540,7 +528,6 @@ Item {
                 anchors.bottomMargin: 8
                 spacing: 10
 
-                // Attach Image Button
                 Rectangle {
                     id: attachBtn
                     Layout.preferredWidth: 44
@@ -564,7 +551,6 @@ Item {
                     }
                 }
 
-                // Rounded Input Pill Container
                 Rectangle {
                     id: inputPill
                     Layout.fillWidth: true
@@ -576,7 +562,6 @@ Item {
 
                     Behavior on border.color { ColorAnimation { duration: 150 } }
 
-                    // Inside-Pill Paste Icon Button (anchored to right)
                     Rectangle {
                         id: pasteBtn
                         anchors.right: parent.right
@@ -609,7 +594,6 @@ Item {
                         }
                     }
 
-                    // Placeholder Text (Vertically centered)
                     Text {
                         anchors.left: parent.left
                         anchors.leftMargin: 18
@@ -623,7 +607,6 @@ Item {
                         elide: Text.ElideRight
                     }
 
-                    // Single-line text input (Vertically centered)
                     TextInput {
                         id: msgInput
                         anchors.left: parent.left
@@ -650,7 +633,6 @@ Item {
                     }
                 }
 
-                // Circular Send FAB
                 Rectangle {
                     id: sendFab
                     Layout.preferredWidth: 48
@@ -682,7 +664,6 @@ Item {
         }
     }
 
-    // Full-Screen Image Preview Modal
     Rectangle {
         id: imageModalOverlay
         anchors.fill: parent
@@ -711,7 +692,6 @@ Item {
             }
         }
 
-        // Close button top right
         Rectangle {
             anchors.top: parent.top
             anchors.right: parent.right

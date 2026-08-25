@@ -66,7 +66,7 @@ bool MD3Theme::isDark() const {
         return QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
     }
 #else
-    // Fallback for Qt < 6.5 (e.g. Qt 6.4 on Ubuntu runners)
+
     if (QGuiApplication::palette().color(QPalette::Window).value() < 128) {
         return true;
     }
@@ -81,14 +81,13 @@ QColor MD3Theme::activeSeedColor() const {
     if (accentPreset_ == "orange") return QColor("#FF9800");
     if (accentPreset_ == "red") return QColor("#F44336");
     if (accentPreset_ == "pink") return QColor("#E91E63");
-    // Direct user picks: honor the exact color they chose instead of
-    // re-deriving a normalized tonal palette from it
+
     if (accentPreset_ == "custom" && customColor_.isValid()) return customColor_;
     if (accentPreset_.startsWith('#')) {
         QColor c(accentPreset_);
         if (c.isValid()) return c;
     }
-    return QColor("#6750A4"); // M3 Default Purple
+    return QColor("#6750A4");
 }
 
 bool MD3Theme::usesDirectSeedColor() const {
@@ -376,4 +375,4 @@ QFont MD3Theme::codeSmall() const {
     return createFont(11, QFont::Normal, false, true);
 }
 
-} // namespace webclip
+}

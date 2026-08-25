@@ -8,7 +8,6 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
-# Find System Dependencies
 find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
 find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Quick Qml QuickControls2 Svg Widgets)
@@ -21,7 +20,6 @@ if(COMMAND qt_standard_project_setup)
     qt_standard_project_setup(REQUIRES 6.5)
 endif()
 
-# Common Core Library (Shared between CLI and GUI)
 add_library(webclip_core STATIC
     src/clipboard/clipboard.hpp
     src/clipboard/clipboard.cpp
@@ -58,11 +56,9 @@ if(WIN32)
     set(WINDOWS_RESOURCE src/gui/resources/webclip.rc)
 endif()
 
-# Unified Standalone WebClip Executable (GUI + Headless CLI Daemon)
 add_executable(webclip src/gui/main_gui.cpp ${WINDOWS_RESOURCE})
 
 if(WIN32)
-    # Instructs MSVC to pass /SUBSYSTEM:WINDOWS and MinGW to pass -mwindows
     set_target_properties(webclip PROPERTIES WIN32_EXECUTABLE TRUE)
 endif()
 
@@ -90,7 +86,6 @@ qt_add_qml_module(webclip
         src/gui/qml/components/MD3Badge.qml
         src/gui/qml/components/MD3TextField.qml
         src/gui/qml/components/MD3Switch.qml
-        src/gui/qml/components/MD3ColorPicker.qml
         src/gui/qml/components/MD3ColorPickerDialog.qml
         src/gui/qml/components/MD3SettingsDialog.qml
         src/gui/qml/components/MD3SmoothScroll.qml
@@ -163,7 +158,6 @@ target_link_libraries(webclip PRIVATE
     Qt6::Widgets
 )
 
-# Compiler optimization and warning options
 if(MSVC)
     target_compile_options(webclip_core PRIVATE /W4 /O2 /Oi /Ot /Oy /Gy /GF /permissive-)
     target_compile_options(webclip PRIVATE /W4 /O2 /Oi /Ot /Oy /Gy /GF /permissive-)

@@ -20,7 +20,6 @@ class MD3Theme : public QObject {
     Q_PROPERTY(QString accentPreset READ accentPreset WRITE setAccentPreset NOTIFY accentPresetChanged)
     Q_PROPERTY(QColor customColor READ customColor WRITE setCustomColor NOTIFY customColorChanged)
 
-    // MD3 Color Tokens
     Q_PROPERTY(QColor primary READ primary NOTIFY themeChanged)
     Q_PROPERTY(QColor onPrimary READ onPrimary NOTIFY themeChanged)
     Q_PROPERTY(QColor primaryContainer READ primaryContainer NOTIFY themeChanged)
@@ -41,7 +40,6 @@ class MD3Theme : public QObject {
     Q_PROPERTY(QColor errorContainer READ errorContainer NOTIFY themeChanged)
     Q_PROPERTY(QColor onErrorContainer READ onErrorContainer NOTIFY themeChanged)
 
-    // Surface Container Tiers
     Q_PROPERTY(QColor surface READ surface NOTIFY themeChanged)
     Q_PROPERTY(QColor surfaceDim READ surfaceDim NOTIFY themeChanged)
     Q_PROPERTY(QColor surfaceBright READ surfaceBright NOTIFY themeChanged)
@@ -56,7 +54,6 @@ class MD3Theme : public QObject {
     Q_PROPERTY(QColor outline READ outline NOTIFY themeChanged)
     Q_PROPERTY(QColor outlineVariant READ outlineVariant NOTIFY themeChanged)
 
-    // Shapes
     Q_PROPERTY(qreal cornerXS READ cornerXS CONSTANT)
     Q_PROPERTY(qreal cornerS READ cornerS CONSTANT)
     Q_PROPERTY(qreal cornerM READ cornerM CONSTANT)
@@ -64,7 +61,6 @@ class MD3Theme : public QObject {
     Q_PROPERTY(qreal cornerXL READ cornerXL CONSTANT)
     Q_PROPERTY(qreal cornerFull READ cornerFull CONSTANT)
 
-    // Typography
     Q_PROPERTY(QFont headlineSmall READ headlineSmall CONSTANT)
     Q_PROPERTY(QFont titleLarge READ titleLarge CONSTANT)
     Q_PROPERTY(QFont titleMedium READ titleMedium CONSTANT)
@@ -98,7 +94,6 @@ public:
     QColor customColor() const { return customColor_; }
     void setCustomColor(const QColor& color);
 
-    // Colors
     QColor primary() const;
     QColor onPrimary() const;
     QColor primaryContainer() const;
@@ -133,7 +128,6 @@ public:
     QColor outline() const;
     QColor outlineVariant() const;
 
-    // Shapes
     qreal cornerXS() const { return 4.0; }
     qreal cornerS() const { return 8.0; }
     qreal cornerM() const { return 12.0; }
@@ -141,7 +135,6 @@ public:
     qreal cornerXL() const { return 28.0; }
     qreal cornerFull() const { return 9999.0; }
 
-    // Typography
     QFont headlineSmall() const;
     QFont titleLarge() const;
     QFont titleMedium() const;
@@ -168,7 +161,7 @@ signals:
     void themeChanged();
 
 private:
-    int themeMode_ = 0; // 0: System, 1: Light, 2: Dark
+    int themeMode_ = 0;
     QString accentPreset_ = "purple";
     QColor customColor_ = QColor("#6750A4");
 
@@ -177,4 +170,4 @@ private:
     QFont createFont(int pixelSize, QFont::Weight weight, bool italic = false, bool monospace = false) const;
 };
 
-} // namespace webclip
+}

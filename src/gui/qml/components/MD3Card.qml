@@ -4,7 +4,6 @@ import WebClip
 Rectangle {
     id: root
 
-    // "outlined", "filled", "elevated"
     property string variant: "outlined"
 
     radius: MD3Theme.cornerL

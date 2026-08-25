@@ -38,6 +38,16 @@ static inline void trimHeapMemory() {}
 
 namespace webclip {
 
+static constexpr int kMaxCachedClipImages = 200;
+
+static void prune_image_cache(const QString& cacheDir) {
+    QDir dir(cacheDir);
+    const QFileInfoList entries = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot, QDir::Time);
+    for (int i = kMaxCachedClipImages; i < entries.size(); ++i) {
+        QFile::remove(entries.at(i).absoluteFilePath());
+    }
+}
+
 static QString saveImageBytesToCache(const QByteArray& bytes, const QString& mimeType) {
     if (bytes.isEmpty()) return QString();
     QString cacheDir = QStandardPaths::writableLocation(QStandardPaths::CacheLocation) + "/clips";
@@ -49,6 +59,7 @@ static QString saveImageBytesToCache(const QByteArray& bytes, const QString& mim
     if (file.open(QIODevice::WriteOnly)) {
         file.write(bytes);
         file.close();
+        prune_image_cache(cacheDir);
         return QUrl::fromLocalFile(filePath).toString();
     }
     return QString();
@@ -167,7 +178,6 @@ WebClipController::WebClipController(QObject* parent)
 
     loadSettings();
 
-    // Check initial clipboard
     if (QGuiApplication::clipboard()) {
         QImage img = QGuiApplication::clipboard()->image();
         if (!img.isNull()) {
@@ -305,13 +315,6 @@ void WebClipController::setCustomColor(const QColor& color) {
     }
 }
 
-void WebClipController::setCustomAccentColor(const QString& hexColor) {
-    QColor c(hexColor);
-    if (c.isValid()) {
-        setCustomColor(c);
-    }
-}
-
 void WebClipController::setConnected(bool c) {
     if (connected_ != c) {
         connected_ = c;
@@ -323,13 +326,6 @@ void WebClipController::setConnecting(bool c) {
     if (connecting_ != c) {
         connecting_ = c;
         emit connectingChanged();
-    }
-}
-
-void WebClipController::setStatusMessage(const QString& msg) {
-    if (statusMessage_ != msg) {
-        statusMessage_ = msg;
-        emit statusMessageChanged();
     }
 }
 
@@ -359,13 +355,11 @@ void WebClipController::connectToPortal() {
     sanitizeHostInput();
 
     if (host_.trimmed().isEmpty()) {
-        setStatusMessage("Host is required");
         emit showToast("Please enter a valid phone IP or hostname", true);
         return;
     }
 
     setConnecting(true);
-    setStatusMessage("Connecting to " + host_ + ":" + QString::number(port_) + "...");
 
     clientId_ = generate_random_client_id();
     auto client = std::make_shared<HttpClient>(
@@ -379,11 +373,10 @@ void WebClipController::connectToPortal() {
     httpClient_ = client;
 
     QPointer<WebClipController> self(this);
-    int activePort = port_;
-    std::thread([self, client, activePort]() {
+    std::thread([self, client]() {
         HttpResponse stateResp = client->get_state();
         if (!self) return;
-        QMetaObject::invokeMethod(self.data(), [self, stateResp, activePort, client]() {
+        QMetaObject::invokeMethod(self.data(), [self, stateResp, client]() {
             if (!self) return;
             if (stateResp.status_code == 200) {
                 JsonValue stateJson = JsonValue::parse(stateResp.body);
@@ -442,7 +435,6 @@ void WebClipController::connectToPortal() {
 
                 self->setConnecting(false);
                 self->setConnected(true);
-                self->setStatusMessage("Connected (" + QString::number(activePort) + ")");
                 emit self->showToast("Connected to Gboard Web Clipboard", false);
 
                 if (self->autoSync_) {
@@ -456,7 +448,6 @@ void WebClipController::connectToPortal() {
                 QString err = stateResp.status_code == 401
                     ? "Invalid pairing code"
                     : (stateResp.error.empty() ? ("HTTP " + QString::number(stateResp.status_code)) : QString::fromStdString(stateResp.error));
-                self->setStatusMessage("Connection failed: " + err);
                 emit self->showToast("Failed to connect: " + err, true);
             }
         });
@@ -468,7 +459,6 @@ void WebClipController::disconnectFromPortal() {
     pollTimer_->stop();
     setConnecting(false);
     setConnected(false);
-    setStatusMessage("Disconnected");
 }
 
 void WebClipController::toggleConnection() {
@@ -483,9 +473,6 @@ void WebClipController::startSseListener() {
     stopSseListener();
     sseStopFlag_->store(false);
 
-    // QPointer self-guards: if the controller is destroyed while an abandoned
-    // stream thread is still delivering events, the callbacks below become
-    // no-ops instead of touching freed memory.
     QPointer<WebClipController> self(this);
     auto client = httpClient_;
     auto stopFlag = sseStopFlag_;
@@ -510,7 +497,6 @@ void WebClipController::startSseListener() {
                         c->markClipIdHandled(clipId);
                     }
 
-                    // Suppress echo from this client or from web sources pushed by this client
                     if (source == "web" || (!evClientId.empty() && evClientId == c->clientId_)) {
                         return;
                     }
@@ -616,14 +602,8 @@ void WebClipController::startSseListener() {
                     });
                 }
             },
-            [self](const std::string& status) {
-                WebClipController* c = self.data();
-                if (!c) return;
-                QMetaObject::invokeMethod(c, [c, status]() {
-                    if (c->connected_) {
-                        c->setStatusMessage(QString::fromStdString(status));
-                    }
-                });
+            [](const std::string&) {
+
             },
             *stopFlag
         );
@@ -633,9 +613,7 @@ void WebClipController::startSseListener() {
 void WebClipController::stopSseListener() {
     if (sseStopFlag_->exchange(true) == false) {
         if (sseThread_ && sseThread_->joinable()) {
-            // NEVER join on the calling (usually GUI) thread: the worker may
-            // be blocked inside curl on a wedged socket. Hand it to a detached
-            // reaper; the process exits without waiting for a dead connection.
+
             std::shared_ptr<std::thread> stale(sseThread_.release());
             std::thread([stale]() {
                 if (stale && stale->joinable()) {
@@ -657,7 +635,6 @@ void WebClipController::onClipboardDataChanged() {
 
     int64_t nowMs = QDateTime::currentMSecsSinceEpoch();
 
-    // 1. Check Qt Clipboard MIME data for image formats
     if (QGuiApplication::clipboard()) {
         const QMimeData* mimeData = QGuiApplication::clipboard()->mimeData();
         if (mimeData) {
@@ -709,7 +686,6 @@ void WebClipController::onClipboardDataChanged() {
         }
     }
 
-    // 2. Check native clipboard for image (xclip/wl-paste/win32)
     if (nativeClipboard_ && nativeClipboard_->has_image()) {
         ClipboardImage local_img = nativeClipboard_->get_image();
         if (local_img.valid && !local_img.data.empty()) {
@@ -735,7 +711,6 @@ void WebClipController::onClipboardDataChanged() {
         }
     }
 
-    // 3. Check text clipboard
     QString current;
     if (QGuiApplication::clipboard()) {
         current = QGuiApplication::clipboard()->text(QClipboard::Clipboard);
@@ -746,7 +721,6 @@ void WebClipController::onClipboardDataChanged() {
 
     if (current.trimmed().isEmpty()) return;
 
-    // Guard: Intercept raw binary image data (e.g. from xclip/wl-paste fallback outputting PNG magic bytes)
     QByteArray rawBytes = current.toUtf8();
     if (rawBytes.size() >= 4) {
         const uint8_t* u = reinterpret_cast<const uint8_t*>(rawBytes.constData());
@@ -921,7 +895,6 @@ bool WebClipController::pushImageBytes(const QByteArray& bytes, const QString& m
 bool WebClipController::pushCurrentClipboard() {
     int64_t nowMs = QDateTime::currentMSecsSinceEpoch();
 
-    // 1. Check Qt Clipboard MIME data for image formats
     if (QGuiApplication::clipboard()) {
         const QMimeData* mimeData = QGuiApplication::clipboard()->mimeData();
         if (mimeData) {
@@ -969,7 +942,6 @@ bool WebClipController::pushCurrentClipboard() {
         }
     }
 
-    // 2. Check native clipboard for image
     if (nativeClipboard_ && nativeClipboard_->has_image()) {
         ClipboardImage local_img = nativeClipboard_->get_image();
         if (local_img.valid && !local_img.data.empty()) {
@@ -992,7 +964,6 @@ bool WebClipController::pushCurrentClipboard() {
         }
     }
 
-    // 3. Check text clipboard
     QString current;
     if (QGuiApplication::clipboard()) {
         current = QGuiApplication::clipboard()->text(QClipboard::Clipboard);
@@ -1003,7 +974,6 @@ bool WebClipController::pushCurrentClipboard() {
 
     if (current.trimmed().isEmpty()) return false;
 
-    // Check if raw binary image
     QByteArray rawBytes = current.toUtf8();
     if (rawBytes.size() >= 4) {
         const uint8_t* u = reinterpret_cast<const uint8_t*>(rawBytes.constData());
@@ -1190,4 +1160,4 @@ void WebClipController::notifyMinimizedToTray() {
     emit minimizedToTray();
 }
 
-} // namespace webclip
+}

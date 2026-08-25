@@ -59,12 +59,10 @@ QHash<int, QByteArray> ClipboardHistoryModel::roleNames() const {
 void ClipboardHistoryModel::addClip(const QString& text, const QString& source) {
     if (text.trimmed().isEmpty()) return;
 
-    // Check if the most recent clip is identical to avoid duplicates
     if (!items_.isEmpty() && !items_.last().isImage && items_.last().text == text) {
         return;
     }
 
-    // Limit maximum history in memory to 100 items
     if (items_.size() >= 100) {
         beginRemoveRows(QModelIndex(), 0, 0);
         items_.removeFirst();
@@ -87,7 +85,6 @@ void ClipboardHistoryModel::addClip(const QString& text, const QString& source) 
 void ClipboardHistoryModel::addClipImage(const QString& imageData, const QString& mimeType, int size, const QString& source) {
     if (imageData.isEmpty()) return;
 
-    // Check if duplicate of last image
     if (!items_.isEmpty() && items_.last().isImage && items_.last().imageData == imageData) {
         return;
     }
@@ -101,7 +98,6 @@ void ClipboardHistoryModel::addClipImage(const QString& imageData, const QString
     QString finalImageUrl = imageData;
     int imgSize = size > 0 ? size : imageData.length();
 
-    // If it is a base64 data URL, persist to disk cache so we don't hold megabytes of base64 in RAM
     if (imageData.startsWith("data:")) {
         int commaIdx = imageData.indexOf(',');
         if (commaIdx >= 0) {
@@ -184,4 +180,4 @@ QString ClipboardHistoryModel::getClipMimeType(int index) const {
     return items_.at(index).mimeType;
 }
 
-} // namespace webclip
+}

@@ -25,36 +25,16 @@ public:
     std::string get_base_url() const;
     const std::string& get_client_id() const { return client_id_; }
 
-    /**
-     * Fetches current remote state via GET /state
-     */
     HttpResponse get_state();
 
-    /**
-     * Fetches raw binary image data (e.g., from GET /image/latest?source=phone)
-     */
     HttpResponse get_image(const std::string& path_or_url = "/image/latest?source=phone");
 
-    /**
-     * Pushes local text to remote portal via POST /clipboard
-     */
     HttpResponse push_clipboard(const std::string& text, const std::string& clip_id = "");
 
-    /**
-     * Pushes local binary image data to remote portal via POST /clipboard
-     */
     HttpResponse push_image(const std::vector<uint8_t>& bytes, const std::string& mime_type = "image/png", const std::string& clip_id = "");
 
-    /**
-     * Pushes data URL / base64 image data to remote portal via POST /clipboard
-     */
     HttpResponse push_image_data_url(const std::string& data_url, const std::string& mime_type = "image/png", const std::string& clip_id = "");
 
-    /**
-     * Streams SSE events continuously from GET /events.
-     * Blocks until stop_flag is true or unrecoverable error occurs.
-     * Automatically reconnects on network drop.
-     */
     void stream_events(
         std::function<void(const SseEvent&)> on_event,
         std::function<void(const std::string&)> on_status,
@@ -72,4 +52,4 @@ private:
     std::string build_url(const std::string& path, const std::string& extra_query = "") const;
 };
 
-} // namespace webclip
+}

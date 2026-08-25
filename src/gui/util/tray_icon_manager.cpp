@@ -28,6 +28,7 @@ TrayIconManager::~TrayIconManager() {
     if (trayIcon_) {
         trayIcon_->hide();
     }
+    delete trayMenu_;
 }
 
 void TrayIconManager::createTrayIcon() {
@@ -39,7 +40,6 @@ void TrayIconManager::createTrayIcon() {
         icon = QIcon(":/qt/qml/src/gui/resources/icons/sync.svg");
     }
 
-    // Generate crisp multi-size icon if needed
     QPixmap pixmap(64, 64);
     pixmap.fill(Qt::transparent);
     QSvgRenderer renderer(QStringLiteral(":/qt/qml/src/gui/resources/icons/webclip.svg"));
@@ -60,6 +60,7 @@ void TrayIconManager::createTrayIcon() {
 }
 
 void TrayIconManager::setupMenu() {
+
     trayMenu_ = new QMenu();
 
     openAction_ = trayMenu_->addAction(QStringLiteral("Open WebClip"));
@@ -176,4 +177,4 @@ void TrayIconManager::onTrayActivated(QSystemTrayIcon::ActivationReason reason) 
     }
 }
 
-} // namespace webclip
+}

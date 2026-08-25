@@ -18,14 +18,8 @@ class SseParser {
 public:
     explicit SseParser(SseEventCallback callback);
 
-    /**
-     * Feed incoming raw bytes from HTTP stream.
-     */
     void feed(const char* data, size_t length);
 
-    /**
-     * Reset internal buffer state.
-     */
     void reset();
 
 private:
@@ -39,4 +33,4 @@ private:
     void dispatch_event();
 };
 
-} // namespace webclip
+}

@@ -6,7 +6,7 @@ Item {
 
     property string text: ""
     property string iconName: ""
-    property string variant: "filled" // "filled", "tonal", "outlined", "text"
+    property string variant: "filled"
     signal clicked()
 
     implicitWidth: contentRow.implicitWidth + (variant === "text" ? 24 : 32)
@@ -39,7 +39,6 @@ Item {
             : "transparent"
         border.width: control.variant === "outlined" ? 1 : 0
 
-        // Hover & Pressed State Layer
         Rectangle {
             anchors.fill: parent
             radius: parent.radius

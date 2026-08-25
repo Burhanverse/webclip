@@ -37,16 +37,6 @@
 #include <QFile>
 #include <QFileInfo>
 
-// Tradeoff / Known Limitation:
-// By configuring fontconfig to point exclusively to our bundled fonts directory and
-// isolating the cache directory, we prevent fontconfig from scanning the entire OS font
-// directory tree (/usr/share/fonts, ~/.fonts, ~/.local/share/fonts, etc.) on Linux startup.
-// This significantly reduces cold-start latency on xcb/Wayland platforms.
-//
-// TRADEOFF: Because system font directories and fallbacks are omitted, glyphs outside the
-// Unicode coverage of Google Sans & Vazirmatn (such as CJK ideographs, Devanagari,
-// complex emoji, etc.) will lack OS-level font fallback and may render as tofu/replacement
-// boxes in clipboard history previews (Arabic and Persian are natively supported by Vazirmatn).
 static void setup_linux_fontconfig() {
     QString appData = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
     if (appData.isEmpty()) {
@@ -190,15 +180,11 @@ void setup_windows_console() {
     }
 }
 
-} // namespace
+}
 #endif
 
 namespace {
 
-// Force-exit watchdog: armed once at startup, triggered when shutdown begins.
-// If graceful teardown exceeds the grace period, the process exits
-// unconditionally. Uses a raw thread on purpose: it must fire even after the
-// Qt event loop and all timers are gone.
 std::atomic<bool> g_shutdown_started{false};
 std::atomic<int> g_watchdog_grace{3};
 
@@ -221,7 +207,6 @@ void start_shutdown_watchdog() {
     (void)started;
 }
 
-// Atomic store: safe to call from signal handlers.
 void notify_shutdown_started() {
     g_shutdown_started.store(true);
 }
@@ -231,8 +216,7 @@ std::atomic<bool>* g_cli_stop_flag = nullptr;
 std::atomic<int> g_signal_count{0};
 
 extern "C" void cli_signal_handler(int sig) {
-    // Async-signal-safe only: atomic stores. Second signal restores the
-    // default disposition so the user can always force-kill with another Ctrl+C.
+
     if (g_cli_stop_flag) {
         g_cli_stop_flag->store(true);
     }
@@ -245,9 +229,6 @@ extern "C" void cli_signal_handler(int sig) {
     }
 }
 
-// GUI: self-pipe pattern. The handler only write()s one byte (async-signal-
-// safe); a QSocketNotifier on the read end turns it into a normal Qt event
-// that can safely run quit()/teardown on the event loop thread.
 int g_gui_sig_pipe[2] = {-1, -1};
 
 extern "C" void gui_signal_handler(int) {
@@ -259,7 +240,7 @@ extern "C" void gui_signal_handler(int) {
 }
 #endif
 
-} // namespace
+}
 
 int main(int argc, char* argv[]) {
     bool is_cli_mode = false;
@@ -305,18 +286,17 @@ int main(int argc, char* argv[]) {
         auto sync_manager = std::make_unique<webclip::SyncManager>(config, std::move(clipboard));
 
 #if defined(__linux__) || defined(__APPLE__)
-        // Signal-safe stop: handler only flips an atomic; the main thread's
-        // run() loop notices it and performs the (bounded) teardown itself.
+
         {
             webclip::SyncManager* mgr = sync_manager.get();
             g_cli_stop_flag = mgr->stop_flag_for_signal();
-            g_watchdog_grace.store(10); // SSE reconnect cycle can take ~8s
+            g_watchdog_grace.store(10);
             start_shutdown_watchdog();
             struct sigaction sa;
             std::memset(&sa, 0, sizeof(sa));
             sa.sa_handler = cli_signal_handler;
             sigemptyset(&sa.sa_mask);
-            sa.sa_flags = 0; // deliberately no SA_RESTART: wake blocking syscalls
+            sa.sa_flags = 0;
             sigaction(SIGINT, &sa, nullptr);
             sigaction(SIGTERM, &sa, nullptr);
             sigaction(SIGHUP, &sa, nullptr);
@@ -357,11 +337,9 @@ int main(int argc, char* argv[]) {
     QQuickStyle::setStyle("Basic");
 
 #if defined(__linux__) || defined(__APPLE__)
-    // Handle SIGINT/SIGTERM/SIGHUP (systemd stop, session logout, kill) so the
-    // app shuts down through the normal Qt quit path instead of being killed.
+
     if (pipe(g_gui_sig_pipe) == 0) {
-        // Read end must be non-blocking so the drain loop can't stall on an
-        // empty pipe (a blocking read here would defeat the whole purpose).
+
         int flags = fcntl(g_gui_sig_pipe[0], F_GETFL, 0);
         if (flags >= 0) {
             fcntl(g_gui_sig_pipe[0], F_SETFL, flags | O_NONBLOCK);
@@ -370,7 +348,7 @@ int main(int argc, char* argv[]) {
         std::memset(&sa, 0, sizeof(sa));
         sa.sa_handler = gui_signal_handler;
         sigemptyset(&sa.sa_mask);
-        sa.sa_flags = SA_RESTART; // handler only writes to the pipe
+        sa.sa_flags = SA_RESTART;
         sigaction(SIGINT, &sa, nullptr);
         sigaction(SIGTERM, &sa, nullptr);
         sigaction(SIGHUP, &sa, nullptr);
@@ -386,15 +364,11 @@ int main(int argc, char* argv[]) {
     }
 #endif
 
-    // Last-resort watchdog: once shutdown begins, destructors get 3 seconds;
-    // after that the process exits unconditionally instead of hanging.
     start_shutdown_watchdog();
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &app, []() {
         notify_shutdown_started();
     });
 
-    // Apply persisted appearance BEFORE the QML engine loads so the first
-    // rendered frame already honors the saved theme (Dark / Pitch Black, etc.)
     {
         QSettings persisted("Burhanverse", "WebClip");
         QColor customAccent(persisted.value("customColor", "#6750A4").toString());

@@ -1,35 +1,21 @@
 import QtQuick
 
-// Chromium / Telegram-style smooth scroller.
-//
-// Wheel input moves an internal *target* offset instead of restarting a
-// fixed-duration animation. A frame-timed exponential follower drives the
-// Flickable's contentY toward that target, which gives:
-//   - instant response (no easing ramp-up delay)
-//   - natural accumulation when the wheel is spun quickly
-//   - a smooth momentum-style settle, independent of refresh rate
-//
-// Touchpad high-resolution deltas are streamed through the same filter with a
-// snappier follow rate, so they track precisely without jitter.
-
 Item {
     id: root
 
     required property Flickable target
 
-    // Distance scrolled per mouse-wheel notch (px)
     property real wheelStep: 140
-    // Extra speed multiplier while consecutive notches chain together
+
     property real repeatBoost: 1.25
-    // Exponential follow rates (1/s). Higher = snappier.
+
     property real wheelFollowRate: 18
     property real touchpadFollowRate: 30
-    // Peak animated speed (px/s); keeps very large jumps readable
+
     property real maxSpeed: 6000
-    // Multiplier for touchpad pixel deltas
+
     property real touchpadGain: 1.0
 
-    // Internal state
     property real _targetY: 0
     property real _followRate: wheelFollowRate
     property real _lastWheelTs: 0
@@ -47,8 +33,6 @@ Item {
         return Math.max(_minY(), Math.min(_maxY(), y))
     }
 
-    // Keep the internal target aligned when something else moves the view
-    // (user drag/flick, programmatic positioning, model changes)
     function syncToContent() {
         if (target && !follower.running) {
             _targetY = target.contentY
@@ -72,7 +56,6 @@ Item {
                 return
             }
 
-            // A manual drag/flick takes priority: hand back control instantly
             if (f.dragging || f.flicking) {
                 follower.stop()
                 root._targetY = f.contentY
@@ -88,10 +71,8 @@ Item {
                 return
             }
 
-            // Frame-rate-independent exponential approach (Chromium style)
             var step = diff * (1.0 - Math.exp(-root._followRate * frameTime))
 
-            // Cap peak velocity so long jumps stay readable
             var maxStep = root.maxSpeed * frameTime
             if (step > maxStep) step = maxStep
             else if (step < -maxStep) step = -maxStep

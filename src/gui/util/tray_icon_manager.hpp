@@ -47,4 +47,4 @@ private:
     bool firstMinimizeShown_{false};
 };
 
-} // namespace webclip
+}

@@ -85,4 +85,4 @@ QImage IconImageProvider::requestImage(const QString& id, QSize* size, const QSi
     return img;
 }
 
-} // namespace webclip
+}

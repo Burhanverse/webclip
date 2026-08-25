@@ -11,10 +11,10 @@ struct ClipItem {
     QString id;
     bool isImage = false;
     QString text;
-    QString imageData; // Data URL ("data:image/png;base64,...") or file path
+    QString imageData;
     QString mimeType;
     int imageSize = 0;
-    QString source; // "phone", "local", "manual"
+    QString source;
     qint64 timestamp = 0;
 
     QString formattedTime() const {
@@ -89,4 +89,4 @@ private:
     QList<ClipItem> items_;
 };
 
-} // namespace webclip
+}

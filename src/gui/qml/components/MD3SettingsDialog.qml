@@ -34,14 +34,12 @@ QQC.Popup {
             anchors.fill: parent
             spacing: 0
 
-            // Solid Elevated Header with top rounded corners
             Rectangle {
                 Layout.fillWidth: true
                 Layout.preferredHeight: 56
                 radius: 28
                 color: MD3Theme.surfaceContainer
 
-                // Fill bottom square corners of the header
                 Rectangle {
                     anchors.left: parent.left
                     anchors.right: parent.right
@@ -87,7 +85,6 @@ QQC.Popup {
                 }
             }
 
-            // Scrollable Settings Content (with bottom padding inside popup)
             Flickable {
                 id: flickable
                 Layout.fillWidth: true
@@ -106,7 +103,6 @@ QQC.Popup {
                     target: flickable
                 }
 
-                // Sleek Material 3 Inset Scrollbar
                 QQC.ScrollBar.vertical: QQC.ScrollBar {
                     id: vScrollBar
                     policy: QQC.ScrollBar.AsNeeded
@@ -135,7 +131,6 @@ QQC.Popup {
                     anchors.bottomMargin: 16
                     spacing: 16
 
-                    // Section 1: Connection Settings
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 8
@@ -198,8 +193,8 @@ QQC.Popup {
 
                                     MD3Button {
                                         Layout.preferredHeight: 44
-                                        text: root.controller.connected 
-                                            ? I18n.tr("settings.connection.btn_disconnect") 
+                                        text: root.controller.connected
+                                            ? I18n.tr("settings.connection.btn_disconnect")
                                             : (root.controller.connecting ? I18n.tr("settings.connection.btn_connecting") : I18n.tr("settings.connection.btn_connect"))
                                         variant: root.controller.connected ? "tonal" : "filled"
                                         iconName: root.controller.connected ? "close" : "sync"
@@ -210,7 +205,6 @@ QQC.Popup {
                         }
                     }
 
-                    // Section 2: Security & Protocols
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 8
@@ -221,7 +215,6 @@ QQC.Popup {
                             color: MD3Theme.primary
                         }
 
-                        // HTTPS Row Card
                         Rectangle {
                             Layout.fillWidth: true
                             implicitHeight: 56
@@ -249,7 +242,6 @@ QQC.Popup {
                             }
                         }
 
-                        // Self-Signed SSL Row Card
                         Rectangle {
                             Layout.fillWidth: true
                             implicitHeight: 56
@@ -278,7 +270,6 @@ QQC.Popup {
                         }
                     }
 
-                    // Section 3: Sync Behavior
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 8
@@ -289,7 +280,6 @@ QQC.Popup {
                             color: MD3Theme.primary
                         }
 
-                        // Auto-sync Row Card
                         Rectangle {
                             Layout.fillWidth: true
                             implicitHeight: 56
@@ -317,7 +307,6 @@ QQC.Popup {
                             }
                         }
 
-                        // Material You Pill Slider Row Card
                         Rectangle {
                             id: sliderCard
                             Layout.fillWidth: true
@@ -353,7 +342,6 @@ QQC.Popup {
                                     }
                                 }
 
-                                // Material You Expressive Slider
                                 Item {
                                     id: sliderContainer
                                     Layout.fillWidth: true
@@ -364,7 +352,6 @@ QQC.Popup {
                                     readonly property real currentVal: root.controller.pollInterval
                                     readonly property real normalizedPos: Math.max(0.0, Math.min(1.0, (currentVal - minVal) / (maxVal - minVal)))
 
-                                    // Inactive Track (Full Width)
                                     Rectangle {
                                         anchors.left: parent.left
                                         anchors.right: parent.right
@@ -374,7 +361,6 @@ QQC.Popup {
                                         color: MD3Theme.surfaceContainerHighest
                                     }
 
-                                    // Active Track (Filled up to handle)
                                     Rectangle {
                                         anchors.left: parent.left
                                         anchors.verticalCenter: parent.verticalCenter
@@ -389,7 +375,6 @@ QQC.Popup {
                                         }
                                     }
 
-                                    // Material 3 Thumb Handle
                                     Rectangle {
                                         x: Math.max(0, Math.min(sliderContainer.width - width, (sliderContainer.normalizedPos * sliderContainer.width) - (width / 2)))
                                         anchors.verticalCenter: parent.verticalCenter
@@ -423,7 +408,6 @@ QQC.Popup {
                         }
                     }
 
-                    // Section 4: Appearance & Theming
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 8
@@ -434,7 +418,6 @@ QQC.Popup {
                             color: MD3Theme.primary
                         }
 
-                        // Theme Mode Row Card
                         Rectangle {
                             Layout.fillWidth: true
                             implicitHeight: 56
@@ -491,7 +474,6 @@ QQC.Popup {
                             }
                         }
 
-                        // Accent Color Palette Card
                         Rectangle {
                             Layout.fillWidth: true
                             implicitHeight: accentCol.implicitHeight + 24
@@ -562,7 +544,6 @@ QQC.Popup {
                                         }
                                     }
 
-                                    // Custom Color Pill
                                     Rectangle {
                                         width: customPillRow.implicitWidth + 14
                                         height: 26
@@ -609,7 +590,6 @@ QQC.Popup {
                             }
                         }
 
-                        // Thanos Snap Delete Effect Switch Card
                         Rectangle {
                             Layout.fillWidth: true
                             implicitHeight: 56
@@ -648,7 +628,6 @@ QQC.Popup {
                         }
                     }
 
-                    // Section 5: About & Versioning
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 8

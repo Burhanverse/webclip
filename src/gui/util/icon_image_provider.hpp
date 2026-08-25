@@ -22,4 +22,4 @@ private:
     QCache<QString, QImage> cache_;
 };
 
-} // namespace webclip
+}

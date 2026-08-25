@@ -10,10 +10,6 @@
 
 namespace webclip {
 
-/**
- * Minimal, lightweight JSON parser and serializer for WebClip sync.
- * Zero external dependencies.
- */
 class JsonValue {
 public:
     enum class Type { Null, Boolean, Number, String, Object, Array };
@@ -178,7 +174,7 @@ private:
     }
 
     static JsonValue parse_object(const std::string& s, size_t& idx) {
-        idx++; // skip '{'
+        idx++;
         JsonValue val = JsonValue::object();
         skip_ws(s, idx);
         if (idx < s.size() && s[idx] == '}') {
@@ -192,7 +188,7 @@ private:
             std::string key = parse_raw_string(s, idx);
             skip_ws(s, idx);
             if (idx >= s.size() || s[idx] != ':') break;
-            idx++; // skip ':'
+            idx++;
             skip_ws(s, idx);
             JsonValue child = parse_value(s, idx);
             val.obj_val[key] = std::move(child);
@@ -211,7 +207,7 @@ private:
     }
 
     static JsonValue parse_array(const std::string& s, size_t& idx) {
-        idx++; // skip '['
+        idx++;
         JsonValue val = JsonValue::array();
         skip_ws(s, idx);
         if (idx < s.size() && s[idx] == ']') {
@@ -238,7 +234,7 @@ private:
     }
 
     static std::string parse_raw_string(const std::string& s, size_t& idx) {
-        idx++; // skip opening '"'
+        idx++;
         std::string res;
         while (idx < s.size()) {
             char c = s[idx++];
@@ -262,15 +258,29 @@ private:
                             idx += 4;
                             try {
                                 unsigned int codepoint = std::stoul(hex_str, nullptr, 16);
+
+                                if (codepoint >= 0xD800 && codepoint <= 0xDBFF &&
+                                    idx + 6 <= s.size() && s[idx] == '\\' && s[idx + 1] == 'u') {
+                                    unsigned int low = std::stoul(s.substr(idx + 2, 4), nullptr, 16);
+                                    if (low >= 0xDC00 && low <= 0xDFFF) {
+                                        codepoint = 0x10000 + ((codepoint - 0xD800) << 10) + (low - 0xDC00);
+                                        idx += 6;
+                                    }
+                                }
                                 if (codepoint < 0x80) {
                                     res += static_cast<char>(codepoint);
                                 } else if (codepoint < 0x800) {
                                     res += static_cast<char>(0xC0 | ((codepoint >> 6) & 0x1F));
-                                    res += static_cast<char>(0x80 | (codepoint & 0x3F));
-                                } else {
+                                    res += static_cast<char>(0x80 | ((codepoint >> 0) & 0x3F));
+                                } else if (codepoint <= 0xFFFF) {
                                     res += static_cast<char>(0xE0 | ((codepoint >> 12) & 0x0F));
                                     res += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
-                                    res += static_cast<char>(0x80 | (codepoint & 0x3F));
+                                    res += static_cast<char>(0x80 | ((codepoint >> 0) & 0x3F));
+                                } else if (codepoint <= 0x10FFFF) {
+                                    res += static_cast<char>(0xF0 | ((codepoint >> 18) & 0x07));
+                                    res += static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F));
+                                    res += static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F));
+                                    res += static_cast<char>(0x80 | ((codepoint >> 0) & 0x3F));
                                 }
                             } catch (...) {}
                         }
@@ -324,4 +334,4 @@ private:
     }
 };
 
-} // namespace webclip
+}

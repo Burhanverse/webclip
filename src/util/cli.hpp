@@ -94,8 +94,11 @@ inline bool parse_cli_args(int argc, char* argv[], SyncConfig& config) {
         } else if (arg == "--host" && i + 1 < argc) {
             config.host = argv[++i];
         } else if ((arg == "--port" || arg == "-p") && i + 1 < argc) {
-            config.port = std::stoi(argv[++i]);
-            port_set = true;
+
+            try {
+                config.port = std::stoi(argv[++i]);
+                port_set = true;
+            } catch (...) {}
         } else if ((arg == "--code" || arg == "-c") && i + 1 < argc) {
             config.code = argv[++i];
         } else if (arg == "--https") {
@@ -103,11 +106,14 @@ inline bool parse_cli_args(int argc, char* argv[], SyncConfig& config) {
         } else if (arg == "--insecure" || arg == "-k") {
             config.insecure = true;
         } else if ((arg == "--poll-interval" || arg == "-i") && i + 1 < argc) {
-            config.poll_interval_sec = std::stod(argv[++i]);
+            try {
+                double v = std::stod(argv[++i]);
+                if (v > 0) config.poll_interval_sec = v;
+            } catch (...) {}
         } else if (arg == "--client-id" && i + 1 < argc) {
             config.client_id = argv[++i];
         } else if (arg == "--headless" || arg == "--cli") {
-            // Mode selector consumed by main(); not a config option.
+
         } else {
             std::cerr << "Unknown argument: " << arg << "\n\n";
             print_usage(argv[0]);
@@ -130,4 +136,4 @@ inline bool parse_cli_args(int argc, char* argv[], SyncConfig& config) {
     return true;
 }
 
-} // namespace webclip
+}

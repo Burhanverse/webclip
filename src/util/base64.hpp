@@ -47,7 +47,6 @@ inline std::vector<uint8_t> decode(std::string_view input) {
     std::vector<uint8_t> result;
     if (input.empty()) return result;
 
-    // Decode table
     std::vector<int> T(256, -1);
     for (int i = 0; i < 64; ++i) {
         T[static_cast<unsigned char>("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"[i])] = i;
@@ -57,7 +56,7 @@ inline std::vector<uint8_t> decode(std::string_view input) {
     for (unsigned char c : input) {
         if (c == '=') break;
         if (c == '\r' || c == '\n' || c == ' ' || c == '\t') continue;
-        if (T[c] == -1) continue; // skip non-base64 chars
+        if (T[c] == -1) continue;
         val = (val << 6) + T[c];
         valb += 6;
         if (valb >= 0) {
@@ -68,6 +67,6 @@ inline std::vector<uint8_t> decode(std::string_view input) {
     return result;
 }
 
-} // namespace base64
+}
 
-} // namespace webclip
+}

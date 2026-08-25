@@ -30,7 +30,6 @@ QStringList I18n::availableLanguages() const {
     QStringList langs;
     langs << "en";
 
-    // Scan QRC resources for extra language files
     QDir qrcDir(":/qt/qml/src/gui/resources/langs");
     if (qrcDir.exists()) {
         const auto files = qrcDir.entryList(QStringList() << "*.json", QDir::Files);
@@ -50,7 +49,7 @@ void I18n::loadLanguage(const QString& langCode) {
     QString path = QStringLiteral(":/qt/qml/src/gui/resources/langs/%1.json").arg(langCode);
     QFile file(path);
     if (!file.exists()) {
-        // Fallback to English if requested language not found
+
         path = QStringLiteral(":/qt/qml/src/gui/resources/langs/en.json");
         file.setFileName(path);
     }
@@ -91,4 +90,4 @@ QString I18n::t(const QString& key, const QString& defaultVal) const {
     return defaultVal.isEmpty() ? key : defaultVal;
 }
 
-} // namespace webclip
+}

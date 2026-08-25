@@ -35,7 +35,6 @@ class WebClipController : public QObject {
     Q_PROPERTY(bool insecure READ insecure WRITE setInsecure NOTIFY insecureChanged)
     Q_PROPERTY(bool autoSync READ autoSync WRITE setAutoSync NOTIFY autoSyncChanged)
     Q_PROPERTY(double pollInterval READ pollInterval WRITE setPollInterval NOTIFY pollIntervalChanged)
-    Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged)
     Q_PROPERTY(QString clipboardBackend READ clipboardBackend CONSTANT)
     Q_PROPERTY(int themeMode READ themeMode WRITE setThemeMode NOTIFY themeModeChanged)
     Q_PROPERTY(QString accentPreset READ accentPreset WRITE setAccentPreset NOTIFY accentPresetChanged)
@@ -58,7 +57,6 @@ public:
     bool insecure() const { return insecure_; }
     bool autoSync() const { return autoSync_; }
     double pollInterval() const { return pollInterval_; }
-    QString statusMessage() const { return statusMessage_; }
     QString clipboardBackend() const;
     int themeMode() const { return themeMode_; }
     QString accentPreset() const { return accentPreset_; }
@@ -81,7 +79,6 @@ public:
     Q_INVOKABLE void setThemeMode(int mode);
     Q_INVOKABLE void setAccentPreset(const QString& preset);
     Q_INVOKABLE void setCustomColor(const QColor& color);
-    Q_INVOKABLE void setCustomAccentColor(const QString& hexColor);
 
     Q_INVOKABLE void connectToPortal();
     Q_INVOKABLE void disconnectFromPortal();
@@ -107,7 +104,6 @@ signals:
     void insecureChanged();
     void autoSyncChanged();
     void pollIntervalChanged();
-    void statusMessageChanged();
     void themeModeChanged();
     void accentPresetChanged();
     void customColorChanged();
@@ -131,17 +127,16 @@ private:
     bool autoSync_ = true;
     bool thanosSnapEnabled_ = true;
     double pollInterval_ = 1.0;
-    int themeMode_ = 0; // 0: System, 1: Light, 2: Dark, 3: Pitch Black
+    int themeMode_ = 0;
     QString accentPreset_ = "purple";
     QColor customColor_ = QColor("#6750A4");
-    QString statusMessage_ = "Disconnected";
 
     ClipboardHistoryModel clipModel_;
     std::unique_ptr<IClipboard> nativeClipboard_;
     std::shared_ptr<HttpClient> httpClient_;
 
     QTimer* pollTimer_ = nullptr;
-    // Owned by shared_ptr so abandoned stream threads keep it alive safely
+
     std::shared_ptr<std::atomic<bool>> sseStopFlag_{std::make_shared<std::atomic<bool>>(false)};
     std::unique_ptr<std::thread> sseThread_;
     std::mutex syncLock_;
@@ -161,7 +156,6 @@ private:
 
     void setConnected(bool c);
     void setConnecting(bool c);
-    void setStatusMessage(const QString& msg);
     void startSseListener();
     void stopSseListener();
     void sanitizeHostInput();
@@ -176,4 +170,4 @@ private:
     void markImageApplied(const QString& hash, const QString& pixelFp, int64_t nowMs);
 };
 
-} // namespace webclip
+}

@@ -105,7 +105,7 @@ void SyncManager::handle_sse_event(const SseEvent& event) {
     std::string client_id = data.get_string("clientId");
 
     if (source == "web" || (!client_id.empty() && client_id == client_->get_client_id())) {
-        // Echo of something pushed by this client; ignore
+
         return;
     }
 
@@ -168,7 +168,6 @@ void SyncManager::run() {
     std::cout << "Using clipboard backend: " << clipboard_->get_backend_name() << std::endl;
     std::cout << "Client ID: " << client_->get_client_id() << std::endl;
 
-    // Fetch initial state
     HttpResponse initial_state = client_->get_state();
     if (initial_state.status_code == 200) {
         JsonValue state_json = JsonValue::parse(initial_state.body);
@@ -208,7 +207,6 @@ void SyncManager::run() {
         std::cerr << "[error] Authentication failed: invalid pairing code." << std::endl;
     }
 
-    // Start SSE background thread
     sse_thread_ = std::make_unique<std::thread>([this]() {
         client_->stream_events(
             [this](const SseEvent& ev) { handle_sse_event(ev); },
@@ -228,7 +226,6 @@ void SyncManager::run() {
 
         auto now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
-        // Check image clipboard first
         if (clipboard_->has_image()) {
             ClipboardImage local_img = clipboard_->get_image();
             if (local_img.valid && !local_img.data.empty()) {
@@ -259,7 +256,7 @@ void SyncManager::run() {
 
         std::string current_local = clipboard_->get_text();
         if (!current_local.empty()) {
-            // Guard: Check if get_text returned raw binary image bytes (PNG / JPEG / GIF / WEBP)
+
             const uint8_t* u = reinterpret_cast<const uint8_t*>(current_local.data());
             size_t len = current_local.size();
             bool is_png = (len >= 4 && u[0] == 0x89 && u[1] == 0x50 && u[2] == 0x4E && u[3] == 0x47);
@@ -317,12 +314,11 @@ void SyncManager::run() {
 }
 
 void SyncManager::stop() {
-    // Store (not exchange): request_stop() from a signal handler may have
-    // flipped the flag already — we must still join here regardless.
+
     stop_flag_.store(true);
     if (sse_thread_ && sse_thread_->joinable()) {
         if (sse_thread_->get_id() == std::this_thread::get_id()) {
-            // Never self-join (would deadlock / throw); detach instead.
+
             sse_thread_->detach();
             return;
         }
@@ -334,4 +330,4 @@ void SyncManager::request_stop() {
     stop_flag_.store(true);
 }
 
-} // namespace webclip
+}

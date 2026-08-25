@@ -57,7 +57,6 @@ Window {
         }
     }
 
-    // Phone Container Shell
     Rectangle {
         id: phoneContainer
         anchors.fill: parent
@@ -74,7 +73,6 @@ Window {
             anchors.fill: parent
             spacing: 0
 
-            // Phone Header Bar / Drag Region
             Rectangle {
                 id: headerBar
                 Layout.fillWidth: true
@@ -83,7 +81,6 @@ Window {
 
                 Behavior on color { ColorAnimation { duration: 200 } }
 
-                // Window Drag MouseArea (drags the frameless window)
                 MouseArea {
                     anchors.fill: parent
                     cursorShape: Qt.ArrowCursor
@@ -96,7 +93,6 @@ Window {
                     anchors.rightMargin: 12
                     spacing: 12
 
-                    // Android Avatar with Status Dot
                     Item {
                         width: 38
                         height: 38
@@ -133,7 +129,6 @@ Window {
                         }
                     }
 
-                    // App Title and Subtitle
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 1
@@ -161,7 +156,6 @@ Window {
                         }
                     }
 
-                    // Action Icons
                     Row {
                         spacing: 4
                         Layout.alignment: Qt.AlignRight | Qt.AlignVCenter
@@ -263,13 +257,11 @@ Window {
         }
     }
 
-    // Frameless Edge & Corner Resize Handles
     Item {
         id: resizeHandles
         anchors.fill: parent
         z: 999
 
-        // Edge Handles
         MouseArea {
             anchors.left: parent.left
             anchors.right: parent.right
@@ -303,7 +295,6 @@ Window {
             onPressed: window.startSystemResize(Qt.RightEdge)
         }
 
-        // Corner Handles
         MouseArea {
             anchors.left: parent.left
             anchors.top: parent.top

@@ -32,7 +32,7 @@ QString resolveMonospaceFont() {
     return QFontDatabase::systemFont(QFontDatabase::FixedFont).family();
 }
 
-} // namespace
+}
 
 void initFonts() {
     const QStringList fontFiles = {
@@ -95,4 +95,4 @@ QFont createFont(int pixelSize, QFont::Weight weight, bool italic, bool monospac
     return f;
 }
 
-} // namespace webclip::font
+}
