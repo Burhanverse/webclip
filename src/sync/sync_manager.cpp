@@ -317,11 +317,21 @@ void SyncManager::run() {
 }
 
 void SyncManager::stop() {
-    if (!stop_flag_.exchange(true)) {
-        if (sse_thread_ && sse_thread_->joinable()) {
-            sse_thread_->join();
+    // Store (not exchange): request_stop() from a signal handler may have
+    // flipped the flag already — we must still join here regardless.
+    stop_flag_.store(true);
+    if (sse_thread_ && sse_thread_->joinable()) {
+        if (sse_thread_->get_id() == std::this_thread::get_id()) {
+            // Never self-join (would deadlock / throw); detach instead.
+            sse_thread_->detach();
+            return;
         }
+        sse_thread_->join();
     }
+}
+
+void SyncManager::request_stop() {
+    stop_flag_.store(true);
 }
 
 } // namespace webclip

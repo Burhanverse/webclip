@@ -141,7 +141,8 @@ private:
     std::shared_ptr<HttpClient> httpClient_;
 
     QTimer* pollTimer_ = nullptr;
-    std::atomic<bool> sseStopFlag_{false};
+    // Owned by shared_ptr so abandoned stream threads keep it alive safely
+    std::shared_ptr<std::atomic<bool>> sseStopFlag_{std::make_shared<std::atomic<bool>>(false)};
     std::unique_ptr<std::thread> sseThread_;
     std::mutex syncLock_;
     std::string clientId_;

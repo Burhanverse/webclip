@@ -7,7 +7,21 @@
 #include <QIcon>
 #include <QLoggingCategory>
 #include <QSettings>
+#include <QSocketNotifier>
+#include <QTimer>
+#include <chrono>
+#include <thread>
+#include <atomic>
+#include <cstring>
+#include <cstdlib>
 #include <iostream>
+
+#if defined(__linux__) || defined(__APPLE__)
+#include <unistd.h>
+#include <fcntl.h>
+#include <csignal>
+#endif
+
 #include "util/icon_image_provider.hpp"
 #include "util/tray_icon_manager.hpp"
 #include "util/style_core_font.hpp"
@@ -179,6 +193,74 @@ void setup_windows_console() {
 } // namespace
 #endif
 
+namespace {
+
+// Force-exit watchdog: armed once at startup, triggered when shutdown begins.
+// If graceful teardown exceeds the grace period, the process exits
+// unconditionally. Uses a raw thread on purpose: it must fire even after the
+// Qt event loop and all timers are gone.
+std::atomic<bool> g_shutdown_started{false};
+std::atomic<int> g_watchdog_grace{3};
+
+void start_shutdown_watchdog() {
+    static const bool started = []() {
+        std::thread([]() {
+            while (!g_shutdown_started.load(std::memory_order_relaxed)) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+            const int grace = g_watchdog_grace.load();
+            const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(grace);
+            while (std::chrono::steady_clock::now() < deadline) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+            std::cerr << "[webclip] graceful shutdown timed out, forcing exit" << std::endl;
+            std::_Exit(0);
+        }).detach();
+        return true;
+    }();
+    (void)started;
+}
+
+// Atomic store: safe to call from signal handlers.
+void notify_shutdown_started() {
+    g_shutdown_started.store(true);
+}
+
+#if defined(__linux__) || defined(__APPLE__)
+std::atomic<bool>* g_cli_stop_flag = nullptr;
+std::atomic<int> g_signal_count{0};
+
+extern "C" void cli_signal_handler(int sig) {
+    // Async-signal-safe only: atomic stores. Second signal restores the
+    // default disposition so the user can always force-kill with another Ctrl+C.
+    if (g_cli_stop_flag) {
+        g_cli_stop_flag->store(true);
+    }
+    notify_shutdown_started();
+    if (g_signal_count.fetch_add(1) >= 1) {
+        struct sigaction sa;
+        std::memset(&sa, 0, sizeof(sa));
+        sa.sa_handler = SIG_DFL;
+        sigaction(sig, &sa, nullptr);
+    }
+}
+
+// GUI: self-pipe pattern. The handler only write()s one byte (async-signal-
+// safe); a QSocketNotifier on the read end turns it into a normal Qt event
+// that can safely run quit()/teardown on the event loop thread.
+int g_gui_sig_pipe[2] = {-1, -1};
+
+extern "C" void gui_signal_handler(int) {
+    if (g_gui_sig_pipe[1] >= 0) {
+        const char b = 1;
+        ssize_t rc = write(g_gui_sig_pipe[1], &b, 1);
+        (void)rc;
+    }
+}
+#endif
+
+} // namespace
+
 int main(int argc, char* argv[]) {
     bool is_cli_mode = false;
     for (int i = 1; i < argc; ++i) {
@@ -221,6 +303,26 @@ int main(int argc, char* argv[]) {
             return 1;
         }
         auto sync_manager = std::make_unique<webclip::SyncManager>(config, std::move(clipboard));
+
+#if defined(__linux__) || defined(__APPLE__)
+        // Signal-safe stop: handler only flips an atomic; the main thread's
+        // run() loop notices it and performs the (bounded) teardown itself.
+        {
+            webclip::SyncManager* mgr = sync_manager.get();
+            g_cli_stop_flag = mgr->stop_flag_for_signal();
+            g_watchdog_grace.store(10); // SSE reconnect cycle can take ~8s
+            start_shutdown_watchdog();
+            struct sigaction sa;
+            std::memset(&sa, 0, sizeof(sa));
+            sa.sa_handler = cli_signal_handler;
+            sigemptyset(&sa.sa_mask);
+            sa.sa_flags = 0; // deliberately no SA_RESTART: wake blocking syscalls
+            sigaction(SIGINT, &sa, nullptr);
+            sigaction(SIGTERM, &sa, nullptr);
+            sigaction(SIGHUP, &sa, nullptr);
+        }
+#endif
+
         sync_manager->run();
         return 0;
     }
@@ -253,6 +355,43 @@ int main(int argc, char* argv[]) {
     app.setWindowIcon(QIcon(QStringLiteral(":/qt/qml/src/gui/resources/icons/webclip.svg")));
 
     QQuickStyle::setStyle("Basic");
+
+#if defined(__linux__) || defined(__APPLE__)
+    // Handle SIGINT/SIGTERM/SIGHUP (systemd stop, session logout, kill) so the
+    // app shuts down through the normal Qt quit path instead of being killed.
+    if (pipe(g_gui_sig_pipe) == 0) {
+        // Read end must be non-blocking so the drain loop can't stall on an
+        // empty pipe (a blocking read here would defeat the whole purpose).
+        int flags = fcntl(g_gui_sig_pipe[0], F_GETFL, 0);
+        if (flags >= 0) {
+            fcntl(g_gui_sig_pipe[0], F_SETFL, flags | O_NONBLOCK);
+        }
+        struct sigaction sa;
+        std::memset(&sa, 0, sizeof(sa));
+        sa.sa_handler = gui_signal_handler;
+        sigemptyset(&sa.sa_mask);
+        sa.sa_flags = SA_RESTART; // handler only writes to the pipe
+        sigaction(SIGINT, &sa, nullptr);
+        sigaction(SIGTERM, &sa, nullptr);
+        sigaction(SIGHUP, &sa, nullptr);
+
+        auto* sigNotifier = new QSocketNotifier(g_gui_sig_pipe[0], QSocketNotifier::Read, &app);
+        QObject::connect(sigNotifier, &QSocketNotifier::activated, &app, [sigNotifier]() {
+            sigNotifier->setEnabled(false);
+            char drain[32];
+            while (read(g_gui_sig_pipe[0], drain, sizeof(drain)) > 0) {
+            }
+            qApp->quit();
+        });
+    }
+#endif
+
+    // Last-resort watchdog: once shutdown begins, destructors get 3 seconds;
+    // after that the process exits unconditionally instead of hanging.
+    start_shutdown_watchdog();
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, &app, []() {
+        notify_shutdown_started();
+    });
 
     // Apply persisted appearance BEFORE the QML engine loads so the first
     // rendered frame already honors the saved theme (Dark / Pitch Black, etc.)

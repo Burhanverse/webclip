@@ -106,6 +106,8 @@ inline bool parse_cli_args(int argc, char* argv[], SyncConfig& config) {
             config.poll_interval_sec = std::stod(argv[++i]);
         } else if (arg == "--client-id" && i + 1 < argc) {
             config.client_id = argv[++i];
+        } else if (arg == "--headless" || arg == "--cli") {
+            // Mode selector consumed by main(); not a config option.
         } else {
             std::cerr << "Unknown argument: " << arg << "\n\n";
             print_usage(argv[0]);

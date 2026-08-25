@@ -35,6 +35,10 @@ public:
      * Request clean shutdown.
      */
     void stop();
+    // Async-signal-safe: only flips an atomic; safe to call from signal handlers.
+    void request_stop();
+    // Exposes the stop flag for signal-handler use (store-only from signals).
+    std::atomic<bool>* stop_flag_for_signal() { return &stop_flag_; }
 
 private:
     SyncConfig config_;

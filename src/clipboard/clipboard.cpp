@@ -151,12 +151,89 @@ std::unique_ptr<IClipboard> create_clipboard() {
 #include <unistd.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <poll.h>
+#include <signal.h>
+#include <ctime>
+#include <cerrno>
+#include <algorithm>
 
 namespace webclip {
 
 class LinuxClipboard : public IClipboard {
 public:
     enum class Backend { Wayland, X11 };
+
+    // Max time (ms) to wait for a clipboard helper process. xclip/wl-paste can
+    // block forever if another selection owner stalls or the display server is
+    // going away during session logout; without a deadline the caller hangs.
+    static constexpr int HELPER_TIMEOUT_MS = 3000;
+
+    // Wait for child with WNOHANG polling; SIGKILL + reap on timeout.
+    static bool wait_pid_deadline(pid_t pid, int timeout_ms, int& exit_code) {
+        auto deadline_ms = []() {
+            struct timespec ts;
+            clock_gettime(CLOCK_MONOTONIC, &ts);
+            return static_cast<int64_t>(ts.tv_sec) * 1000 + ts.tv_nsec / 1000000;
+        };
+
+        const int64_t deadline = deadline_ms() + timeout_ms;
+        int status = 0;
+        for (;;) {
+            pid_t r = waitpid(pid, &status, WNOHANG);
+            if (r == pid) {
+                exit_code = WIFEXITED(status) ? WEXITSTATUS(status) : 127;
+                return true;
+            }
+            if (r < 0) {
+                exit_code = 127;
+                return false;
+            }
+            if (deadline_ms() >= deadline) {
+                kill(pid, SIGKILL);
+                waitpid(pid, &status, 0);
+                exit_code = 127;
+                return false;
+            }
+            usleep(20 * 1000);
+        }
+    }
+
+    // Read from pipe fd until EOF or deadline (fixes blocking read() stalls).
+    static bool drain_pipe_deadline(int fd, std::vector<uint8_t>& output, int timeout_ms) {
+        output.clear();
+        std::array<char, 4096> buffer;
+        auto deadline_ms = []() {
+            struct timespec ts;
+            clock_gettime(CLOCK_MONOTONIC, &ts);
+            return static_cast<int64_t>(ts.tv_sec) * 1000 + ts.tv_nsec / 1000000;
+        };
+        const int64_t deadline = deadline_ms() + timeout_ms;
+
+        for (;;) {
+            int64_t remaining = deadline - deadline_ms();
+            if (remaining <= 0) return false;
+
+            struct pollfd pfd{fd, POLLIN, 0};
+            int pr = poll(&pfd, 1, static_cast<int>(std::min<int64_t>(remaining, 200)));
+            if (pr < 0) {
+                if (errno == EINTR) continue;
+                return false;
+            }
+            if (pr == 0) continue; // poll timeout tick, re-check deadline
+
+            ssize_t n = read(fd, buffer.data(), buffer.size());
+            if (n == 0) return true;  // EOF: normal completion
+            if (n < 0) {
+                if (errno == EINTR) continue;
+                return false;
+            }
+            output.insert(output.end(), buffer.data(), buffer.data() + n);
+
+            if (deadline_ms() >= deadline) return false;
+        }
+    }
+
+public:
 
     LinuxClipboard() {
         const char* wayland_display = std::getenv("WAYLAND_DISPLAY");
@@ -284,17 +361,14 @@ private:
         }
 
         close(pipefd[1]);
-        output.clear();
-        std::array<char, 4096> buffer;
-        ssize_t bytes_read;
-        while ((bytes_read = read(pipefd[0], buffer.data(), buffer.size())) > 0) {
-            output.append(buffer.data(), bytes_read);
-        }
+        std::vector<uint8_t> raw;
+        bool ok = drain_pipe_deadline(pipefd[0], raw, HELPER_TIMEOUT_MS);
         close(pipefd[0]);
 
-        int status = 0;
-        waitpid(pid, &status, 0);
-        return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+        int exit_code = 127;
+        wait_pid_deadline(pid, HELPER_TIMEOUT_MS, exit_code);
+        output.assign(raw.begin(), raw.end());
+        return ok && exit_code == 0;
     }
 
     static bool run_command_read_bytes(const std::vector<std::string>& args, std::vector<uint8_t>& output) {
@@ -328,107 +402,94 @@ private:
         }
 
         close(pipefd[1]);
-        output.clear();
-        std::array<uint8_t, 8192> buffer;
-        ssize_t bytes_read;
-        while ((bytes_read = read(pipefd[0], buffer.data(), buffer.size())) > 0) {
-            output.insert(output.end(), buffer.data(), buffer.data() + bytes_read);
-        }
+        bool ok = drain_pipe_deadline(pipefd[0], output, HELPER_TIMEOUT_MS);
         close(pipefd[0]);
 
-        int status = 0;
-        waitpid(pid, &status, 0);
-        return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+        int exit_code = 127;
+        wait_pid_deadline(pid, HELPER_TIMEOUT_MS, exit_code);
+        return ok && exit_code == 0;
+    }
+
+    // Write input to pipe fd until done or deadline (fixes blocking write()).
+    static bool write_all_deadline(int fd, const uint8_t* data, size_t size, int timeout_ms) {
+        auto deadline_ms = []() {
+            struct timespec ts;
+            clock_gettime(CLOCK_MONOTONIC, &ts);
+            return static_cast<int64_t>(ts.tv_sec) * 1000 + ts.tv_nsec / 1000000;
+        };
+        const int64_t deadline = deadline_ms() + timeout_ms;
+        size_t total_written = 0;
+
+        while (total_written < size) {
+            int64_t remaining = deadline - deadline_ms();
+            if (remaining <= 0) return false;
+
+            struct pollfd pfd{fd, POLLOUT, 0};
+            int pr = poll(&pfd, 1, static_cast<int>(std::min<int64_t>(remaining, 200)));
+            if (pr < 0) {
+                if (errno == EINTR) continue;
+                return false;
+            }
+            if (pr == 0) continue;
+
+            ssize_t written = write(fd, data + total_written, size - total_written);
+            if (written < 0) {
+                if (errno == EINTR || errno == EAGAIN) continue;
+                return false; // EPIPE: child died
+            }
+            total_written += static_cast<size_t>(written);
+        }
+        return true;
+    }
+
+    template <typename Container>
+    static bool run_command_write_impl(const std::vector<std::string>& args, const Container& input) {
+        if (args.empty()) return false;
+        int pipefd[2];
+        if (pipe(pipefd) != 0) return false;
+
+        pid_t pid = fork();
+        if (pid < 0) {
+            close(pipefd[0]);
+            close(pipefd[1]);
+            return false;
+        }
+
+        if (pid == 0) {
+            close(pipefd[1]);
+            dup2(pipefd[0], STDIN_FILENO);
+            int devnull = open("/dev/null", O_WRONLY);
+            if (devnull >= 0) {
+                dup2(devnull, STDOUT_FILENO);
+                dup2(devnull, STDERR_FILENO);
+                close(devnull);
+            }
+            close(pipefd[0]);
+
+            std::vector<char*> c_args;
+            for (const auto& a : args) c_args.push_back(const_cast<char*>(a.c_str()));
+            c_args.push_back(nullptr);
+
+            execvp(c_args[0], c_args.data());
+            _exit(127);
+        }
+
+        close(pipefd[0]);
+        const uint8_t* data = reinterpret_cast<const uint8_t*>(input.data());
+        bool ok = write_all_deadline(pipefd[1], data, input.size(), HELPER_TIMEOUT_MS);
+        close(pipefd[1]);
+
+        int exit_code = 127;
+        wait_pid_deadline(pid, HELPER_TIMEOUT_MS, exit_code);
+        return ok && exit_code == 0;
     }
 
     static bool run_command_write(const std::vector<std::string>& args, const std::string& input) {
-        if (args.empty()) return false;
-        int pipefd[2];
-        if (pipe(pipefd) != 0) return false;
-
-        pid_t pid = fork();
-        if (pid < 0) {
-            close(pipefd[0]);
-            close(pipefd[1]);
-            return false;
-        }
-
-        if (pid == 0) {
-            close(pipefd[1]);
-            dup2(pipefd[0], STDIN_FILENO);
-            int devnull = open("/dev/null", O_WRONLY);
-            if (devnull >= 0) {
-                dup2(devnull, STDOUT_FILENO);
-                dup2(devnull, STDERR_FILENO);
-                close(devnull);
-            }
-            close(pipefd[0]);
-
-            std::vector<char*> c_args;
-            for (const auto& a : args) c_args.push_back(const_cast<char*>(a.c_str()));
-            c_args.push_back(nullptr);
-
-            execvp(c_args[0], c_args.data());
-            _exit(127);
-        }
-
-        close(pipefd[0]);
-        size_t total_written = 0;
-        while (total_written < input.size()) {
-            ssize_t written = write(pipefd[1], input.data() + total_written, input.size() - total_written);
-            if (written <= 0) break;
-            total_written += written;
-        }
-        close(pipefd[1]);
-
-        int status = 0;
-        waitpid(pid, &status, 0);
-        return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+        return run_command_write_impl(args, input);
     }
 
     static bool run_command_write_bytes(const std::vector<std::string>& args, const std::vector<uint8_t>& input) {
-        if (args.empty()) return false;
-        int pipefd[2];
-        if (pipe(pipefd) != 0) return false;
-
-        pid_t pid = fork();
-        if (pid < 0) {
-            close(pipefd[0]);
-            close(pipefd[1]);
-            return false;
-        }
-
-        if (pid == 0) {
-            close(pipefd[1]);
-            dup2(pipefd[0], STDIN_FILENO);
-            int devnull = open("/dev/null", O_WRONLY);
-            if (devnull >= 0) {
-                dup2(devnull, STDOUT_FILENO);
-                dup2(devnull, STDERR_FILENO);
-                close(devnull);
-            }
-            close(pipefd[0]);
-
-            std::vector<char*> c_args;
-            for (const auto& a : args) c_args.push_back(const_cast<char*>(a.c_str()));
-            c_args.push_back(nullptr);
-
-            execvp(c_args[0], c_args.data());
-            _exit(127);
-        }
-
-        close(pipefd[0]);
-        size_t total_written = 0;
-        while (total_written < input.size()) {
-            ssize_t written = write(pipefd[1], input.data() + total_written, input.size() - total_written);
-            if (written <= 0) break;
-            total_written += written;
-        }
-        close(pipefd[1]);
-
-        int status = 0;
-        waitpid(pid, &status, 0);
-        return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+        return run_command_write_impl(args, input);
     }
 };
 

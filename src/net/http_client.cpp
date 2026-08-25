@@ -64,12 +64,18 @@ HttpClient::HttpClient(std::string host, int port, std::string code, bool use_ht
       use_https_(use_https),
       insecure_(insecure),
       client_id_(std::move(client_id)) {
-    curl_global_init(CURL_GLOBAL_DEFAULT);
+    // Initialize libcurl exactly once per process and never call
+    // curl_global_cleanup(): with concurrent/backed-off handles (detached
+    // workers, abandoned SSE streams) cleanup races live transfers and can
+    // crash or hang at exit. Skipping cleanup leaks nothing meaningful.
+    static const bool curl_initialized = []() {
+        curl_global_init(CURL_GLOBAL_DEFAULT);
+        return true;
+    }();
+    (void)curl_initialized;
 }
 
-HttpClient::~HttpClient() {
-    curl_global_cleanup();
-}
+HttpClient::~HttpClient() = default;
 
 std::string HttpClient::get_base_url() const {
     std::string scheme = use_https_ ? "https" : "http";
@@ -326,6 +332,11 @@ void HttpClient::stream_events(
         curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &stop_flag);
         curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
+        // Detect dead peers (half-open sockets after suspend/resume, NAT
+        // drops, unreachable phone) within ~30-40s so the reconnect loop can
+        // recover instead of blocking forever inside recv().
+        curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 15L);
+        curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 5L);
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, 0L); // Infinite stream
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 6L);
 

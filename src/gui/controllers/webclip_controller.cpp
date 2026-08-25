@@ -481,11 +481,21 @@ void WebClipController::toggleConnection() {
 
 void WebClipController::startSseListener() {
     stopSseListener();
-    sseStopFlag_.store(false);
+    sseStopFlag_->store(false);
 
-    sseThread_ = std::make_unique<std::thread>([this]() {
-        httpClient_->stream_events(
-            [this](const SseEvent& ev) {
+    // QPointer self-guards: if the controller is destroyed while an abandoned
+    // stream thread is still delivering events, the callbacks below become
+    // no-ops instead of touching freed memory.
+    QPointer<WebClipController> self(this);
+    auto client = httpClient_;
+    auto stopFlag = sseStopFlag_;
+
+    sseThread_ = std::make_unique<std::thread>([self, client, stopFlag]() {
+        if (!client || !stopFlag) return;
+        client->stream_events(
+            [self, client](const SseEvent& ev) {
+                WebClipController* c = self.data();
+                if (!c) return;
                 if (ev.event == "clipboard") {
                     JsonValue data = JsonValue::parse(ev.data);
                     std::string type = data.get_string("type");
@@ -493,15 +503,15 @@ void WebClipController::startSseListener() {
                     std::string evClientId = data.get_string("clientId");
                     std::string clipId = data.get_string("clipId");
 
-                    if (!clipId.empty() && isClipIdHandled(clipId)) {
+                    if (!clipId.empty() && c->isClipIdHandled(clipId)) {
                         return;
                     }
                     if (!clipId.empty()) {
-                        markClipIdHandled(clipId);
+                        c->markClipIdHandled(clipId);
                     }
 
                     // Suppress echo from this client or from web sources pushed by this client
-                    if (source == "web" || (!evClientId.empty() && evClientId == clientId_)) {
+                    if (source == "web" || (!evClientId.empty() && evClientId == c->clientId_)) {
                         return;
                     }
 
@@ -525,55 +535,60 @@ void WebClipController::startSseListener() {
                             qimg.loadFromData(bytes);
                             QString pixelFp = computeQImageFingerprint(qimg);
                             QString hash = computeImageHash(bytes);
-                            markImageApplied(hash, pixelFp, nowMs);
+                            c->markImageApplied(hash, pixelFp, nowMs);
 
                             QString fileUrl = saveImageBytesToCache(bytes, QString::fromStdString(mimeType));
                             int byteSize = bytes.size();
 
-                            QMetaObject::invokeMethod(this, [this, fileUrl, bytes, mimeType, source, qimg, byteSize]() {
+                            QMetaObject::invokeMethod(c, [self, fileUrl, bytes, mimeType, source, qimg, byteSize]() {
+                                WebClipController* c = self.data();
+                                if (!c) return;
                                 if (!qimg.isNull()) {
-                                    suppressNextLocalChange_.store(true);
+                                    c->suppressNextLocalChange_.store(true);
                                     if (QGuiApplication::clipboard()) {
                                         QGuiApplication::clipboard()->setImage(qimg, QClipboard::Clipboard);
-                                    } else if (nativeClipboard_) {
+                                    } else if (c->nativeClipboard_) {
                                         std::vector<uint8_t> stdBytes(bytes.begin(), bytes.end());
-                                        nativeClipboard_->set_image(stdBytes, mimeType);
+                                        c->nativeClipboard_->set_image(stdBytes, mimeType);
                                     }
                                 }
 
-                                clipModel_.addClipImage(fileUrl, QString::fromStdString(mimeType), byteSize, QString::fromStdString(source.empty() ? "phone" : source));
-                                emit clipReceived("[Image]", QString::fromStdString(source.empty() ? "phone" : source));
+                                c->clipModel_.addClipImage(fileUrl, QString::fromStdString(mimeType), byteSize, QString::fromStdString(source.empty() ? "phone" : source));
+                                emit c->clipReceived("[Image]", QString::fromStdString(source.empty() ? "phone" : source));
                                 trimHeapMemory();
                             });
                         } else {
                             std::string imageUrl = data.get_string("imageUrl");
-                            auto client = httpClient_;
-                            std::thread([this, client, imageUrl, mimeType, source, nowMs]() {
+                            std::thread([self, client, imageUrl, mimeType, source, nowMs]() {
                                 HttpResponse imgResp = client->get_image(imageUrl);
+                                WebClipController* c = self.data();
+                                if (!c) return;
                                 if (imgResp.status_code != 200 || imgResp.binary_body.empty()) return;
                                 QByteArray bytes(reinterpret_cast<const char*>(imgResp.binary_body.data()), static_cast<int>(imgResp.binary_body.size()));
                                 QImage qimg;
                                 qimg.loadFromData(bytes);
                                 QString pixelFp = computeQImageFingerprint(qimg);
                                 QString hash = computeImageHash(bytes);
-                                markImageApplied(hash, pixelFp, nowMs);
+                                c->markImageApplied(hash, pixelFp, nowMs);
 
                                 QString fileUrl = saveImageBytesToCache(bytes, QString::fromStdString(mimeType));
                                 int byteSize = bytes.size();
 
-                                QMetaObject::invokeMethod(this, [this, fileUrl, bytes, mimeType, source, qimg, byteSize]() {
+                                QMetaObject::invokeMethod(c, [self, fileUrl, bytes, mimeType, source, qimg, byteSize]() {
+                                    WebClipController* c = self.data();
+                                    if (!c) return;
                                     if (!qimg.isNull()) {
-                                        suppressNextLocalChange_.store(true);
+                                        c->suppressNextLocalChange_.store(true);
                                         if (QGuiApplication::clipboard()) {
                                             QGuiApplication::clipboard()->setImage(qimg, QClipboard::Clipboard);
-                                        } else if (nativeClipboard_) {
+                                        } else if (c->nativeClipboard_) {
                                             std::vector<uint8_t> stdBytes(bytes.begin(), bytes.end());
-                                            nativeClipboard_->set_image(stdBytes, mimeType);
+                                            c->nativeClipboard_->set_image(stdBytes, mimeType);
                                         }
                                     }
 
-                                    clipModel_.addClipImage(fileUrl, QString::fromStdString(mimeType), byteSize, QString::fromStdString(source.empty() ? "phone" : source));
-                                    emit clipReceived("[Image]", QString::fromStdString(source.empty() ? "phone" : source));
+                                    c->clipModel_.addClipImage(fileUrl, QString::fromStdString(mimeType), byteSize, QString::fromStdString(source.empty() ? "phone" : source));
+                                    emit c->clipReceived("[Image]", QString::fromStdString(source.empty() ? "phone" : source));
                                     trimHeapMemory();
                                 });
                             }).detach();
@@ -583,40 +598,53 @@ void WebClipController::startSseListener() {
 
                     QString text = QString::fromStdString(data.get_string("text"));
                     if (text.trimmed().isEmpty()) return;
-                    markTextApplied(text, nowMs);
+                    c->markTextApplied(text, nowMs);
 
-                    QMetaObject::invokeMethod(this, [this, text, source]() {
-                        suppressNextLocalChange_.store(true);
+                    QMetaObject::invokeMethod(c, [self, text, source]() {
+                        WebClipController* c = self.data();
+                        if (!c) return;
+                        c->suppressNextLocalChange_.store(true);
                         if (QGuiApplication::clipboard()) {
                             QGuiApplication::clipboard()->setText(text, QClipboard::Clipboard);
-                        } else if (nativeClipboard_) {
-                            nativeClipboard_->set_text(text.toStdString());
+                        } else if (c->nativeClipboard_) {
+                            c->nativeClipboard_->set_text(text.toStdString());
                         }
 
-                        clipModel_.addClip(text, QString::fromStdString(source.empty() ? "phone" : source));
-                        emit clipReceived(text, QString::fromStdString(source.empty() ? "phone" : source));
+                        c->clipModel_.addClip(text, QString::fromStdString(source.empty() ? "phone" : source));
+                        emit c->clipReceived(text, QString::fromStdString(source.empty() ? "phone" : source));
                         trimHeapMemory();
                     });
                 }
             },
-            [this](const std::string& status) {
-                QMetaObject::invokeMethod(this, [this, status]() {
-                    if (connected_) {
-                        setStatusMessage(QString::fromStdString(status));
+            [self](const std::string& status) {
+                WebClipController* c = self.data();
+                if (!c) return;
+                QMetaObject::invokeMethod(c, [c, status]() {
+                    if (c->connected_) {
+                        c->setStatusMessage(QString::fromStdString(status));
                     }
                 });
             },
-            sseStopFlag_
+            *stopFlag
         );
     });
 }
 
 void WebClipController::stopSseListener() {
-    if (sseStopFlag_.exchange(true) == false) {
+    if (sseStopFlag_->exchange(true) == false) {
         if (sseThread_ && sseThread_->joinable()) {
-            sseThread_->join();
+            // NEVER join on the calling (usually GUI) thread: the worker may
+            // be blocked inside curl on a wedged socket. Hand it to a detached
+            // reaper; the process exits without waiting for a dead connection.
+            std::shared_ptr<std::thread> stale(sseThread_.release());
+            std::thread([stale]() {
+                if (stale && stale->joinable()) {
+                    stale->join();
+                }
+            }).detach();
+        } else {
+            sseThread_.reset();
         }
-        sseThread_.reset();
     }
 }
 
