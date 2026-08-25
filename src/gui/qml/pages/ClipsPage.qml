@@ -186,7 +186,8 @@ Item {
                 delegate: Item {
                     id: delegateItem
                     width: listView.width
-                    implicitHeight: bubbleCard.implicitHeight + 8
+                    height: bubbleCard.height + 8
+                    implicitHeight: height
 
                     readonly property bool isFromPhone: model.source === "phone"
                     readonly property bool isImageClip: model.isImage
@@ -216,9 +217,10 @@ Item {
                         width: isImageClip
                             ? Math.min(listView.width * 0.84, 320)
                             : Math.min(listView.width * 0.84, Math.max(130, Math.max(textNeededWidth, metaNeededWidth)))
-                        implicitHeight: bubbleInnerCol.implicitHeight + 16
+                        height: bubbleInnerCol.implicitHeight + 16
+                        implicitHeight: height
 
-                        Behavior on implicitHeight { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                        Behavior on height { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
 
                         Text {
                             id: sizingText
@@ -323,12 +325,13 @@ Item {
                                 id: textClipContainer
                                 visible: !delegateItem.isImageClip
                                 Layout.fillWidth: true
-                                implicitHeight: delegateItem.isLong && !delegateItem.expanded
+                                height: delegateItem.isLong && !delegateItem.expanded
                                     ? 85
                                     : bubbleContent.implicitHeight
+                                implicitHeight: height
                                 clip: true
 
-                                Behavior on implicitHeight { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                                Behavior on height { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
 
                                 TextEdit {
                                     id: bubbleContent
@@ -501,9 +504,11 @@ Item {
                                                 if (controller.thanosSnapEnabled && root.thanosEffect && bubbleCard) {
                                                     var pos = bubbleCard.mapToItem(root.thanosEffect, 0, 0)
                                                     var w = bubbleCard.width
-                                                    var h = bubbleCard.height
+                                                    var h = bubbleCard.height > 0 ? bubbleCard.height : bubbleCard.implicitHeight
                                                     bubbleCard.grabToImage(function(result) {
-                                                        root.thanosEffect.snapImage(result.image, Qt.rect(pos.x, pos.y, w, h))
+                                                        if (result && result.image) {
+                                                            root.thanosEffect.snapImage(result.image, Qt.rect(pos.x, pos.y, w, h))
+                                                        }
                                                         controller.clipModel.removeClipById(clipId)
                                                     })
                                                 } else {
