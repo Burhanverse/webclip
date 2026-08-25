@@ -33,6 +33,8 @@ public:
 
     HttpResponse push_image(const std::vector<uint8_t>& bytes, const std::string& mime_type = "image/png", const std::string& clip_id = "");
 
+    HttpResponse push_image(const uint8_t* data, size_t len, const std::string& mime_type = "image/png", const std::string& clip_id = "");
+
     HttpResponse push_image_data_url(const std::string& data_url, const std::string& mime_type = "image/png", const std::string& clip_id = "");
 
     void stream_events(
@@ -50,6 +52,7 @@ private:
     std::string client_id_;
 
     std::string build_url(const std::string& path, const std::string& extra_query = "") const;
+    HttpResponse post_json_body(std::string json_body, long timeout_s, long connect_timeout_s);
 };
 
 }

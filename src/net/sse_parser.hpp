@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <string_view>
 #include <functional>
 
 namespace webclip {
@@ -29,7 +30,7 @@ private:
     std::string current_data_;
     std::string current_id_;
 
-    void process_line(const std::string& line);
+    void process_line(std::string_view line);
     void dispatch_event();
 };
 

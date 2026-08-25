@@ -1,6 +1,5 @@
 #include "http_client.hpp"
 #include "../util/json.hpp"
-#include "../util/base64.hpp"
 #include "../version.hpp"
 #include <curl/curl.h>
 #include <iostream>
@@ -183,66 +182,87 @@ HttpResponse HttpClient::get_image(const std::string& path_or_url) {
 }
 
 HttpResponse HttpClient::push_clipboard(const std::string& text, const std::string& clip_id) {
-    HttpResponse resp;
-    CURL* curl = curl_easy_init();
-    if (!curl) {
-        resp.error = "Failed to initialize CURL";
-        return resp;
-    }
-
-    std::string url = build_url("/clipboard");
-    JsonValue json = JsonValue::object();
-    json.set("type", JsonValue("text"));
-    json.set("text", JsonValue(text));
-    json.set("clientId", JsonValue(client_id_));
+    std::string json_body;
+    json_body.reserve(text.size() + client_id_.size() + clip_id.size() + 96);
+    json_body += "{\"type\":\"text\",\"text\":\"";
+    json_body += JsonValue::escape_string(text);
+    json_body += "\",\"clientId\":\"";
+    json_body += JsonValue::escape_string(client_id_);
     if (!clip_id.empty()) {
-        json.set("clipId", JsonValue(clip_id));
+        json_body += "\",\"clipId\":\"";
+        json_body += JsonValue::escape_string(clip_id);
     }
-    std::string json_body = json.serialize();
+    json_body += "\"}";
 
-    struct curl_slist* headers = nullptr;
-    headers = curl_slist_append(headers, "Content-Type: application/json; charset=utf-8");
-    headers = curl_slist_append(headers, ("X-Pairing-Code: " + code_).c_str());
-    headers = curl_slist_append(headers, "Accept: application/json");
-
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT.c_str());
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_body.c_str());
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(json_body.length()));
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_string_cb);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp.body);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
-
-    if (insecure_ || use_https_) {
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, insecure_ ? 0L : 2L);
-    }
-
-    CURLcode res = curl_easy_perform(curl);
-    if (res != CURLE_OK) {
-        resp.error = curl_easy_strerror(res);
-    } else {
-        long http_code = 0;
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-        resp.status_code = static_cast<int>(http_code);
-    }
-
-    curl_slist_free_all(headers);
-    curl_easy_cleanup(curl);
-    return resp;
+    return post_json_body(std::move(json_body), 10L, 5L);
 }
 
 HttpResponse HttpClient::push_image(const std::vector<uint8_t>& bytes, const std::string& mime_type, const std::string& clip_id) {
+    return push_image(bytes.data(), bytes.size(), mime_type, clip_id);
+}
+
+HttpResponse HttpClient::push_image(const uint8_t* data, size_t len, const std::string& mime_type, const std::string& clip_id) {
+    static const char b64_charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
     std::string mime = mime_type.empty() ? "image/png" : mime_type;
-    std::string b64 = base64::encode(bytes);
-    std::string data_url = "data:" + mime + ";base64," + b64;
-    return push_image_data_url(data_url, mime, clip_id);
+
+    const size_t b64_len = ((len + 2) / 3) * 4;
+    const size_t prefix_len = 64 + mime.size() * 2 + client_id_.size() + (clip_id.empty() ? 0 : clip_id.size() + 11);
+    std::string json_body;
+    json_body.reserve(prefix_len + b64_len + 24);
+
+    json_body += "{\"type\":\"image\",\"mimeType\":\"";
+    json_body += JsonValue::escape_string(mime);
+    json_body += "\",\"data\":\"data:";
+    json_body += mime;
+    json_body += ";base64,";
+
+    size_t body_start = json_body.size();
+    json_body.resize(body_start + b64_len);
+    char* out = &json_body[body_start];
+    size_t oi = 0;
+    for (size_t i = 0; i < len; i += 3) {
+        uint32_t b = (static_cast<uint32_t>(data[i]) << 16);
+        if (i + 1 < len) b |= (static_cast<uint32_t>(data[i + 1]) << 8);
+        if (i + 2 < len) b |= static_cast<uint32_t>(data[i + 2]);
+
+        out[oi++] = b64_charset[(b >> 18) & 0x3F];
+        out[oi++] = b64_charset[(b >> 12) & 0x3F];
+        out[oi++] = (i + 1 < len) ? b64_charset[(b >> 6) & 0x3F] : '=';
+        out[oi++] = (i + 2 < len) ? b64_charset[b & 0x3F] : '=';
+    }
+
+    json_body += "\",\"clientId\":\"";
+    json_body += JsonValue::escape_string(client_id_);
+    if (!clip_id.empty()) {
+        json_body += "\",\"clipId\":\"";
+        json_body += JsonValue::escape_string(clip_id);
+    }
+    json_body += "\"}";
+
+    return post_json_body(std::move(json_body), 20L, 6L);
 }
 
 HttpResponse HttpClient::push_image_data_url(const std::string& data_url, const std::string& mime_type, const std::string& clip_id) {
+    std::string mime = mime_type.empty() ? "image/png" : mime_type;
+
+    std::string json_body;
+    json_body.reserve(data_url.size() + mime.size() + client_id_.size() + clip_id.size() + 160);
+    json_body += "{\"type\":\"image\",\"mimeType\":\"";
+    json_body += JsonValue::escape_string(mime);
+    json_body += "\",\"data\":\"";
+    json_body += data_url;
+    json_body += "\",\"clientId\":\"";
+    json_body += JsonValue::escape_string(client_id_);
+    if (!clip_id.empty()) {
+        json_body += "\",\"clipId\":\"";
+        json_body += JsonValue::escape_string(clip_id);
+    }
+    json_body += "\"}";
+
+    return post_json_body(std::move(json_body), 20L, 6L);
+}
+
+HttpResponse HttpClient::post_json_body(std::string json_body, long timeout_s, long connect_timeout_s) {
     HttpResponse resp;
     CURL* curl = curl_easy_init();
     if (!curl) {
@@ -251,15 +271,6 @@ HttpResponse HttpClient::push_image_data_url(const std::string& data_url, const 
     }
 
     std::string url = build_url("/clipboard");
-    JsonValue json = JsonValue::object();
-    json.set("type", JsonValue("image"));
-    json.set("mimeType", JsonValue(mime_type.empty() ? "image/png" : mime_type));
-    json.set("data", JsonValue(data_url));
-    json.set("clientId", JsonValue(client_id_));
-    if (!clip_id.empty()) {
-        json.set("clipId", JsonValue(clip_id));
-    }
-    std::string json_body = json.serialize();
 
     struct curl_slist* headers = nullptr;
     headers = curl_slist_append(headers, "Content-Type: application/json; charset=utf-8");
@@ -274,8 +285,8 @@ HttpResponse HttpClient::push_image_data_url(const std::string& data_url, const 
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_string_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp.body);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 20L);
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 6L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout_s);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, connect_timeout_s);
 
     if (insecure_ || use_https_) {
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);

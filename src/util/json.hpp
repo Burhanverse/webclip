@@ -63,6 +63,15 @@ public:
         return def;
     }
 
+    std::string take_string(const std::string& key, const std::string& def = "") {
+        if (type != Type::Object) return def;
+        auto it = obj_val.find(key);
+        if (it != obj_val.end() && it->second.type == Type::String) {
+            return std::move(it->second.str_val);
+        }
+        return def;
+    }
+
     int64_t get_int64(const std::string& key, int64_t def = 0) const {
         if (type != Type::Object) return def;
         auto it = obj_val.find(key);

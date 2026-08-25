@@ -6,9 +6,9 @@ SseParser::SseParser(SseEventCallback callback)
     : callback_(std::move(callback)), current_event_("message") {}
 
 void SseParser::reset() {
-    buffer_.clear();
+    std::string().swap(buffer_);
     current_event_ = "message";
-    current_data_.clear();
+    std::string().swap(current_data_);
     current_id_.clear();
 }
 
@@ -22,9 +22,9 @@ void SseParser::feed(const char* data, size_t length) {
             break;
         }
 
-        std::string line = buffer_.substr(pos, next_newline - pos);
+        std::string_view line(buffer_.data() + pos, next_newline - pos);
         if (!line.empty() && line.back() == '\r') {
-            line.pop_back();
+            line.remove_suffix(1);
         }
 
         process_line(line);
@@ -36,7 +36,7 @@ void SseParser::feed(const char* data, size_t length) {
     }
 }
 
-void SseParser::process_line(const std::string& line) {
+void SseParser::process_line(std::string_view line) {
     if (line.empty()) {
 
         dispatch_event();
@@ -49,8 +49,8 @@ void SseParser::process_line(const std::string& line) {
     }
 
     size_t colon_pos = line.find(':');
-    std::string field;
-    std::string value;
+    std::string_view field;
+    std::string_view value;
 
     if (colon_pos != std::string::npos) {
         field = line.substr(0, colon_pos);
@@ -61,27 +61,27 @@ void SseParser::process_line(const std::string& line) {
         value = line.substr(value_start);
     } else {
         field = line;
-        value = "";
+        value = std::string_view();
     }
 
     if (field == "event") {
-        current_event_ = value;
+        current_event_.assign(value);
     } else if (field == "data") {
         if (!current_data_.empty()) {
             current_data_ += "\n";
         }
-        current_data_ += value;
+        current_data_.append(value);
     } else if (field == "id") {
-        current_id_ = value;
+        current_id_.assign(value);
     }
 }
 
 void SseParser::dispatch_event() {
     if (!current_data_.empty() || current_event_ != "message") {
         SseEvent ev;
-        ev.event = current_event_.empty() ? "message" : current_event_;
-        ev.data = current_data_;
-        ev.id = current_id_;
+        ev.event = std::move(current_event_);
+        ev.data = std::move(current_data_);
+        ev.id = std::move(current_id_);
 
         if (callback_) {
             callback_(ev);
@@ -90,6 +90,7 @@ void SseParser::dispatch_event() {
 
     current_event_ = "message";
     current_data_.clear();
+    current_data_.shrink_to_fit();
 }
 
 }

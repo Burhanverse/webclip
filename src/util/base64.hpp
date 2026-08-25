@@ -46,6 +46,7 @@ inline std::string encode(std::string_view str) {
 inline std::vector<uint8_t> decode(std::string_view input) {
     std::vector<uint8_t> result;
     if (input.empty()) return result;
+    result.reserve(input.size() / 4 * 3);
 
     std::vector<int> T(256, -1);
     for (int i = 0; i < 64; ++i) {

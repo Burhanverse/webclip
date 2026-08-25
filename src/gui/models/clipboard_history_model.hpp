@@ -14,8 +14,16 @@ struct ClipItem {
     QString imageData;
     QString mimeType;
     int imageSize = 0;
+    int imgWidth = 0;
+    int imgHeight = 0;
     QString source;
     qint64 timestamp = 0;
+    bool textSpilled = false;
+    qint64 fullChars = 0;
+
+    qint64 charCount() const {
+        return isImage ? imageSize : (textSpilled ? fullChars : text.length());
+    }
 
     QString formattedTime() const {
         QDateTime dt = QDateTime::fromMSecsSinceEpoch(timestamp);
@@ -23,7 +31,7 @@ struct ClipItem {
     }
 
     QString formattedSize() const {
-        if (!isImage) return QString::number(text.length()) + " chars";
+        if (!isImage) return QString::number(charCount()) + " chars";
         if (imageSize < 1024) return QString::number(imageSize) + " B";
         if (imageSize < 1024 * 1024) return QString::number(imageSize / 1024.0, 'f', 1) + " KB";
         return QString::number(imageSize / (1024.0 * 1024.0), 'f', 1) + " MB";
@@ -50,10 +58,13 @@ public:
         IdRole = Qt::UserRole + 1,
         IsImageRole,
         TextRole,
+        HeadTextRole,
         PreviewRole,
         ImageDataRole,
         MimeTypeRole,
         ImageSizeRole,
+        ImageWRole,
+        ImageHRole,
         SizeFormattedRole,
         SourceRole,
         TimestampRole,
@@ -86,6 +97,9 @@ signals:
     void countChanged();
 
 private:
+    QString fullTextAt(int index) const;
+    void removeSpillFileLocked(const QString& clipId) const;
+
     QList<ClipItem> items_;
 };
 

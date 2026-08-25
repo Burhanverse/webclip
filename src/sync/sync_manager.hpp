@@ -53,6 +53,7 @@ private:
     void handle_sse_event(const SseEvent& event);
     static std::string truncate_preview(const std::string& text, size_t max_len = 60);
     static std::string compute_hash(const std::vector<uint8_t>& data);
+    static std::string compute_hash(const uint8_t* data, size_t len);
     bool should_suppress_text(const std::string& text, int64_t now_ms, int64_t window_ms = 2500);
     void mark_text_applied(const std::string& text, int64_t now_ms);
     bool should_suppress_image(const std::string& hash, int64_t now_ms, int64_t window_ms = 2500);

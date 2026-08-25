@@ -57,7 +57,8 @@ static void setup_linux_fontconfig() {
         QStringLiteral("GoogleSansItalic.ttf"),
         QStringLiteral("GoogleSansMediumItalic.ttf"),
         QStringLiteral("Vazirmatn-UI-NL-Regular.ttf"),
-        QStringLiteral("Vazirmatn-UI-NL-SemiBold.ttf")
+        QStringLiteral("Vazirmatn-UI-NL-SemiBold.ttf"),
+        QStringLiteral("Twemoji.ttf")
     };
 
     for (const QString& fontName : fontFiles) {

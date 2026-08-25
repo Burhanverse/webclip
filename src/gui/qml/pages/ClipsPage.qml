@@ -142,8 +142,8 @@ Item {
                 clip: true
                 spacing: 10
                 model: controller.clipModel
-                reuseItems: false
-                cacheBuffer: 2000
+                reuseItems: true
+                cacheBuffer: 800
 
                 flickDeceleration: 1800
                 maximumFlickVelocity: 4500
@@ -203,7 +203,19 @@ Item {
                     readonly property bool isFromPhone: model.source === "phone"
                     readonly property bool isImageClip: model.isImage
                     property bool expanded: false
-                    readonly property bool isLong: !isImageClip && (model.charCount > 350 || (model.text && model.text.split('\n').length > 5))
+                    property string expandedBody: ""
+                    readonly property bool isLong: !isImageClip && (model.charCount > 350 || (model.headText && model.headText.split('\n').length > 5))
+
+                    onExpandedChanged: {
+                        if (expanded && !isImageClip && expandedBody === "") {
+                            expandedBody = controller.clipModel.getClipText(index)
+                        }
+                    }
+
+                    ListView.onReused: {
+                        expanded = false
+                        expandedBody = ""
+                    }
 
                     HoverHandler {
                         id: hoverHandler
@@ -228,9 +240,10 @@ Item {
                         readonly property real imgMaxW: maxBubbleWidth - totalHPad
                         readonly property real imgMaxH: 360
 
+                        readonly property bool hasNatDims: model.imgWidth > 0 && model.imgHeight > 0
                         readonly property bool imgReady: imgPreview.status === Image.Ready
-                        readonly property real imgNatW: imgReady ? imgPreview.implicitWidth : 0
-                        readonly property real imgNatH: imgReady ? imgPreview.implicitHeight : 0
+                        readonly property real imgNatW: hasNatDims ? model.imgWidth : (imgReady ? imgPreview.implicitWidth : 0)
+                        readonly property real imgNatH: hasNatDims ? model.imgHeight : (imgReady ? imgPreview.implicitHeight : 0)
                         readonly property real imgScale: {
                             if (!delegateItem.isImageClip || imgNatW <= 0 || imgNatH <= 0)
                                 return 1
@@ -241,7 +254,7 @@ Item {
                             return s
                         }
                         readonly property real imgDispW: Math.max(1, Math.round(imgNatW * imgScale))
-                        readonly property real imgDispH: imgReady ? Math.max(1, Math.round(imgNatH * imgScale)) : 220
+                        readonly property real imgDispH: imgNatH > 0 ? Math.max(1, Math.round(imgNatH * imgScale)) : 220
 
                         readonly property real textNeededWidth: sizingText.implicitWidth + totalHPad
                         readonly property real metaNeededWidth: timeLabel.implicitWidth + actionIconsRow.implicitWidth + 24 + totalHPad
@@ -249,7 +262,7 @@ Item {
                         width: {
                             var needed
                             if (delegateItem.isImageClip) {
-                                needed = imgReady
+                                needed = (hasNatDims || imgReady)
                                     ? Math.max(imgDispW, metaNeededWidth) + totalHPad
                                     : Math.min(maxBubbleWidth, 260)
                             } else {
@@ -266,7 +279,7 @@ Item {
                             id: sizingText
                             visible: false
                             font: MD3Theme.bodyMedium
-                            text: !delegateItem.isImageClip ? (model.text || "") : ""
+                            text: !delegateItem.isImageClip ? (model.headText || "") : ""
                         }
 
                         Canvas {
@@ -337,15 +350,15 @@ Item {
                                 color: isFromPhone ? MD3Theme.surfaceContainerHigh : MD3Theme.secondaryContainer
                                 clip: true
 
-                                Image {
-                                    id: imgPreview
-                                    anchors.fill: parent
-                                    source: delegateItem.isImageClip ? model.imageData : ""
-                                    fillMode: Image.PreserveAspectFit
-                                    sourceSize.width: 720
-                                    sourceSize.height: 720
-                                    asynchronous: true
-                                }
+                            Image {
+                                id: imgPreview
+                                anchors.fill: parent
+                                source: delegateItem.isImageClip ? model.imageData : ""
+                                fillMode: Image.PreserveAspectFit
+                                sourceSize.width: 512
+                                sourceSize.height: 512
+                                asynchronous: true
+                            }
 
                                 MouseArea {
                                     anchors.fill: parent
@@ -376,9 +389,11 @@ Item {
                                     anchors.right: parent.right
                                     anchors.top: parent.top
                                     textFormat: TextEdit.RichText
-                                    text: !delegateItem.isImageClip
-                                        ? root.linkifyText(model.text, isFromPhone ? MD3Theme.primary : (MD3Theme.isDark ? "#8AB4F8" : "#1A73E8"))
-                                        : ""
+                                    text: {
+                                        if (delegateItem.isImageClip) return ""
+                                        var body = delegateItem.expanded ? delegateItem.expandedBody : (model.headText || "")
+                                        return root.linkifyText(body, isFromPhone ? MD3Theme.primary : (MD3Theme.isDark ? "#8AB4F8" : "#1A73E8"))
+                                    }
                                     font: MD3Theme.bodyMedium
                                     color: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
                                     wrapMode: Text.WrapAnywhere
@@ -474,13 +489,13 @@ Item {
                                         spacing: 2
 
                                         MD3IconButton {
-                                            visible: !delegateItem.isImageClip && root.extractFirstUrl(model.text) !== ""
+                                            visible: !delegateItem.isImageClip && root.extractFirstUrl(model.headText) !== ""
                                             iconName: "link"
                                             iconColor: isFromPhone ? MD3Theme.onSecondaryContainer : MD3Theme.onPrimaryContainer
                                             size: 20
                                             iconSize: 13
                                             onClicked: {
-                                                var url = root.extractFirstUrl(model.text)
+                                                var url = root.extractFirstUrl(controller.clipModel.getClipText(index))
                                                 if (url) Qt.openUrlExternally(url)
                                             }
                                         }
@@ -494,7 +509,7 @@ Item {
                                                 if (delegateItem.isImageClip) {
                                                     controller.copyImageToClipboard(index)
                                                 } else {
-                                                    controller.copyToClipboard(model.text)
+                                                    controller.copyToClipboard(controller.clipModel.getClipText(index))
                                                 }
                                             }
                                         }
@@ -521,7 +536,7 @@ Item {
                                                 if (delegateItem.isImageClip) {
                                                     controller.pushImage(model.imageData)
                                                 } else {
-                                                    controller.pushClipboard(model.text)
+                                                    controller.pushClipboard(controller.clipModel.getClipText(index))
                                                 }
                                             }
                                         }

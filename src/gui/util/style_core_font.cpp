@@ -2,6 +2,8 @@
 #include <QFontDatabase>
 #include <QFontInfo>
 #include <QDir>
+#include <QFileInfo>
+#include <QStandardPaths>
 #include <QLoggingCategory>
 
 namespace webclip::font {
@@ -45,8 +47,10 @@ void initFonts() {
         QStringLiteral(":/qt/qml/src/gui/resources/fonts/Twemoji.ttf")
     };
 
+    const QString extractedDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/fonts");
     for (const auto& path : fontFiles) {
-        QFontDatabase::addApplicationFont(path);
+        QString diskPath = extractedDir + "/" + QFileInfo(path).fileName();
+        QFontDatabase::addApplicationFont(QFileInfo::exists(diskPath) ? diskPath : path);
     }
 
     const QString googleSansFlex = QStringLiteral("Google Sans Flex");

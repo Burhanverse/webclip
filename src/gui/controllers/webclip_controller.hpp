@@ -160,7 +160,8 @@ private:
     void stopSseListener();
     void sanitizeHostInput();
     static QString computeImageHash(const QByteArray& data);
-    static QString computeQImageFingerprint(const QImage& img);
+    static QString computePixelFingerprint(const QImage& img);
+    static QString computePixelFingerprint(const QByteArray& encodedBytes);
     static std::string generateClipId();
     bool isClipIdHandled(const std::string& clipId);
     void markClipIdHandled(const std::string& clipId);

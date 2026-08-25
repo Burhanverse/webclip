@@ -7,7 +7,7 @@ namespace webclip {
 
 IconImageProvider::IconImageProvider()
     : QQuickImageProvider(QQuickImageProvider::Image) {
-    cache_.setMaxCost(500);
+    cache_.setMaxCost(4 * 1024 * 1024);
 }
 
 QImage IconImageProvider::requestImage(const QString& id, QSize* size, const QSize& requestedSize) {
@@ -81,7 +81,7 @@ QImage IconImageProvider::requestImage(const QString& id, QSize* size, const QSi
     }
 
     if (size) *size = img.size();
-    cache_.insert(id, new QImage(img));
+    cache_.insert(id, new QImage(img), img.sizeInBytes());
     return img;
 }
 

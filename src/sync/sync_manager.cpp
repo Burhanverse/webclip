@@ -42,14 +42,18 @@ std::string SyncManager::truncate_preview(const std::string& text, size_t max_le
 }
 
 std::string SyncManager::compute_hash(const std::vector<uint8_t>& data) {
-    if (data.empty()) return "";
+    return compute_hash(reinterpret_cast<const uint8_t*>(data.data()), data.size());
+}
+
+std::string SyncManager::compute_hash(const uint8_t* data, size_t len) {
+    if (len == 0) return "";
     uint64_t hash = 14695981039346656037ULL;
-    for (uint8_t byte : data) {
-        hash ^= byte;
+    for (size_t i = 0; i < len; ++i) {
+        hash ^= data[i];
         hash *= 1099511628211ULL;
     }
     std::stringstream ss;
-    ss << std::hex << std::setw(16) << std::setfill('0') << hash << "-" << data.size();
+    ss << std::hex << std::setw(16) << std::setfill('0') << hash << "-" << len;
     return ss.str();
 }
 
@@ -114,7 +118,7 @@ void SyncManager::handle_sse_event(const SseEvent& event) {
     if (type == "image") {
         std::string mime_type = data.get_string("mimeType");
         if (mime_type.empty()) mime_type = "image/png";
-        std::string inline_data = data.get_string("data");
+        std::string inline_data = data.take_string("data");
         std::vector<uint8_t> image_bytes;
 
         if (!inline_data.empty()) {
@@ -123,6 +127,7 @@ void SyncManager::handle_sse_event(const SseEvent& event) {
                 ? std::string_view(inline_data).substr(comma + 1)
                 : std::string_view(inline_data);
             image_bytes = base64::decode(b64_part);
+            std::string().swap(inline_data);
         } else {
             std::string image_url = data.get_string("imageUrl");
             HttpResponse img_resp = client_->get_image(image_url);
@@ -147,7 +152,7 @@ void SyncManager::handle_sse_event(const SseEvent& event) {
         return;
     }
 
-    std::string text = data.get_string("text");
+    std::string text = data.take_string("text");
     if (text.empty()) return;
     {
         std::lock_guard<std::mutex> guard(state_lock_);
@@ -266,8 +271,7 @@ void SyncManager::run() {
 
             if (is_png || is_jpg || is_gif || is_webp) {
                 std::string mime = is_png ? "image/png" : (is_jpg ? "image/jpeg" : (is_gif ? "image/gif" : "image/webp"));
-                std::vector<uint8_t> raw_bytes(u, u + len);
-                std::string hash = compute_hash(raw_bytes);
+                std::string hash = compute_hash(reinterpret_cast<const uint8_t*>(current_local.data()), current_local.size());
                 bool should_push = false;
                 {
                     std::lock_guard<std::mutex> guard(state_lock_);
@@ -279,9 +283,10 @@ void SyncManager::run() {
                     }
                 }
                 if (should_push) {
-                    HttpResponse push_resp = client_->push_image(raw_bytes, mime);
+                    HttpResponse push_resp = client_->push_image(
+                        reinterpret_cast<const uint8_t*>(current_local.data()), current_local.size(), mime);
                     if (push_resp.status_code == 200) {
-                        std::cout << "[local -> phone image] " << raw_bytes.size() << " bytes (" << mime << ")" << std::endl;
+                        std::cout << "[local -> phone image] " << current_local.size() << " bytes (" << mime << ")" << std::endl;
                     }
                 }
                 continue;
