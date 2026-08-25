@@ -142,14 +142,19 @@ Item {
                 clip: true
                 spacing: 10
                 model: controller.clipModel
-                reuseItems: true
-                cacheBuffer: 100
+                reuseItems: false
+                cacheBuffer: 2000
 
-                pixelAligned: true
-                flickDeceleration: 3000
-                maximumFlickVelocity: 6000
+                flickDeceleration: 1800
+                maximumFlickVelocity: 4500
                 boundsBehavior: Flickable.DragAndOvershootBounds
                 boundsMovement: Flickable.FollowBoundsBehavior
+
+                property bool _stickBottom: true
+
+                onContentYChanged: _stickBottom = atYEnd
+                onCountChanged: if (_stickBottom) Qt.callLater(listView.positionViewAtEnd)
+                Component.onCompleted: Qt.callLater(listView.positionViewAtEnd)
 
                 add: Transition {
                     ParallelAnimation {
@@ -174,11 +179,20 @@ Item {
                 }
 
                 QQC.ScrollBar.vertical: QQC.ScrollBar {
+                    id: chatScrollBar
                     policy: QQC.ScrollBar.AsNeeded
-                }
 
-                onCountChanged: Qt.callLater(listView.positionViewAtEnd)
-                Component.onCompleted: Qt.callLater(listView.positionViewAtEnd)
+                    contentItem: Rectangle {
+                        implicitWidth: 4
+                        radius: 2
+                        color: chatScrollBar.pressed
+                            ? MD3Theme.primary
+                            : MD3Theme.onSurfaceVariant
+                        opacity: chatScrollBar.active ? 0.6 : 0.25
+
+                        Behavior on opacity { NumberAnimation { duration: 200 } }
+                    }
+                }
 
                 delegate: Item {
                     id: delegateItem

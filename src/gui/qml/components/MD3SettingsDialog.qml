@@ -93,9 +93,8 @@ QQC.Popup {
                 contentWidth: width
                 contentHeight: settingsCol.implicitHeight + 16
                 clip: true
-                pixelAligned: true
-                flickDeceleration: 3000
-                maximumFlickVelocity: 6000
+                flickDeceleration: 1800
+                maximumFlickVelocity: 4500
                 boundsBehavior: Flickable.DragAndOvershootBounds
                 boundsMovement: Flickable.FollowBoundsBehavior
 
