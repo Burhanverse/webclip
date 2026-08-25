@@ -199,20 +199,50 @@ Item {
                         id: bubbleCard
                         anchors.left: isFromPhone ? parent.left : undefined
                         anchors.right: !isFromPhone ? parent.right : undefined
-                        anchors.leftMargin: isFromPhone ? 8 : 0
-                        anchors.rightMargin: !isFromPhone ? 8 : 0
+                        anchors.leftMargin: 8
+                        anchors.rightMargin: 8
 
                         readonly property color bubbleColor: isFromPhone
                             ? MD3Theme.secondaryContainer
                             : MD3Theme.primaryContainer
 
-                        readonly property real horizPad: isFromPhone ? 28 : 20
-                        readonly property real textNeededWidth: sizingText.implicitWidth + horizPad
-                        readonly property real metaNeededWidth: timeLabel.implicitWidth + actionIconsRow.implicitWidth + 24 + horizPad
+                        readonly property real maxBubbleWidth: listView.width * 0.84
+                        readonly property real minBubbleWidth: 100
+                        readonly property real tailSpace: 6
+                        readonly property real contentHPad: 12
+                        readonly property real totalHPad: tailSpace + contentHPad * 2
+                        readonly property real imgMaxW: maxBubbleWidth - totalHPad
+                        readonly property real imgMaxH: 360
 
-                        width: isImageClip
-                            ? Math.min(listView.width * 0.84, 320)
-                            : Math.min(listView.width * 0.84, Math.max(130, Math.max(textNeededWidth, metaNeededWidth)))
+                        readonly property bool imgReady: imgPreview.status === Image.Ready
+                        readonly property real imgNatW: imgReady ? imgPreview.implicitWidth : 0
+                        readonly property real imgNatH: imgReady ? imgPreview.implicitHeight : 0
+                        readonly property real imgScale: {
+                            if (!delegateItem.isImageClip || imgNatW <= 0 || imgNatH <= 0)
+                                return 1
+                            var s = Math.min(imgMaxW / imgNatW, imgMaxH / imgNatH)
+                            var minW = Math.min(160, imgMaxW)
+                            if (imgNatW * s < minW)
+                                s = minW / imgNatW
+                            return s
+                        }
+                        readonly property real imgDispW: Math.max(1, Math.round(imgNatW * imgScale))
+                        readonly property real imgDispH: imgReady ? Math.max(1, Math.round(imgNatH * imgScale)) : 220
+
+                        readonly property real textNeededWidth: sizingText.implicitWidth + totalHPad
+                        readonly property real metaNeededWidth: timeLabel.implicitWidth + actionIconsRow.implicitWidth + 24 + totalHPad
+
+                        width: {
+                            var needed
+                            if (delegateItem.isImageClip) {
+                                needed = imgReady
+                                    ? Math.max(imgDispW, metaNeededWidth) + totalHPad
+                                    : Math.min(maxBubbleWidth, 260)
+                            } else {
+                                needed = Math.max(minBubbleWidth, textNeededWidth, metaNeededWidth)
+                            }
+                            return Math.min(maxBubbleWidth, needed)
+                        }
                         height: bubbleInnerCol.implicitHeight + 16
                         implicitHeight: height
 
@@ -278,8 +308,8 @@ Item {
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.top: parent.top
-                            anchors.leftMargin: isFromPhone ? 14 : 10
-                            anchors.rightMargin: !isFromPhone ? 14 : 10
+                            anchors.leftMargin: isFromPhone ? bubbleCard.tailSpace + bubbleCard.contentHPad : bubbleCard.contentHPad
+                            anchors.rightMargin: !isFromPhone ? bubbleCard.tailSpace + bubbleCard.contentHPad : bubbleCard.contentHPad
                             anchors.topMargin: 8
                             anchors.bottomMargin: 8
                             spacing: 4
@@ -288,7 +318,7 @@ Item {
                                 id: imageContainer
                                 visible: delegateItem.isImageClip
                                 Layout.fillWidth: true
-                                Layout.preferredHeight: 220
+                                Layout.preferredHeight: delegateItem.isImageClip ? bubbleCard.imgDispH : 0
                                 radius: 12
                                 color: isFromPhone ? MD3Theme.surfaceContainerHigh : MD3Theme.secondaryContainer
                                 clip: true
@@ -296,11 +326,10 @@ Item {
                                 Image {
                                     id: imgPreview
                                     anchors.fill: parent
-                                    anchors.margins: 4
                                     source: delegateItem.isImageClip ? model.imageData : ""
                                     fillMode: Image.PreserveAspectFit
-                                    sourceSize.width: 480
-                                    sourceSize.height: 480
+                                    sourceSize.width: 720
+                                    sourceSize.height: 720
                                     asynchronous: true
                                 }
 
