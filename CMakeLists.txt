@@ -146,6 +146,8 @@ qt_add_qml_module(webclip
         src/gui/util/tray_icon_manager.cpp
         src/gui/util/style_core_font.hpp
         src/gui/util/style_core_font.cpp
+        src/gui/util/md3_kinetic_scroller.hpp
+        src/gui/util/md3_kinetic_scroller.cpp
 )
 
 target_link_libraries(webclip PRIVATE

@@ -170,10 +170,6 @@ Item {
                     }
                 }
 
-                displaced: Transition {
-                    NumberAnimation { property: "y"; duration: 200; easing.type: Easing.OutCubic }
-                }
-
                 MD3SmoothScroll {
                     target: listView
                 }
@@ -215,6 +211,8 @@ Item {
                     ListView.onReused: {
                         expanded = false
                         expandedBody = ""
+                        imgPreview.source = ""
+                        imgPreview.source = Qt.binding(function() { return delegateItem.isImageClip ? model.imageData : "" })
                     }
 
                     HoverHandler {
@@ -273,8 +271,6 @@ Item {
                         height: bubbleInnerCol.implicitHeight + 16
                         implicitHeight: height
 
-                        Behavior on height { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-
                         Text {
                             id: sizingText
                             visible: false
@@ -285,6 +281,8 @@ Item {
                         Canvas {
                             id: bubbleCanvas
                             anchors.fill: parent
+                            renderTarget: Canvas.FramebufferObject
+                            renderStrategy: Canvas.Threaded
                             property color bubbleColor: bubbleCard.bubbleColor
 
                             onBubbleColorChanged: requestPaint()
@@ -302,7 +300,6 @@ Item {
 
                                 ctx.beginPath()
                                 if (!isFromPhone) {
-
                                     ctx.moveTo(r, 0)
                                     ctx.lineTo(w - tw - r, 0)
                                     ctx.arcTo(w - tw, 0, w - tw, r, r)
@@ -313,7 +310,6 @@ Item {
                                     ctx.lineTo(0, r)
                                     ctx.arcTo(0, 0, r, 0, r)
                                 } else {
-
                                     ctx.moveTo(tw + r, 0)
                                     ctx.lineTo(w - r, 0)
                                     ctx.arcTo(w, 0, w, r, r)
@@ -358,6 +354,7 @@ Item {
                                 sourceSize.width: 512
                                 sourceSize.height: 512
                                 asynchronous: true
+                                cache: false
                             }
 
                                 MouseArea {
@@ -381,7 +378,10 @@ Item {
                                 implicitHeight: height
                                 clip: true
 
-                                Behavior on height { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                                Behavior on height {
+                                    enabled: delegateItem.expanded
+                                    NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+                                }
 
                                 TextEdit {
                                     id: bubbleContent
