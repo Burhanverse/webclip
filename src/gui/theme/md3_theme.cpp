@@ -1,4 +1,5 @@
 #include "md3_theme.hpp"
+#include "../util/style_core_font.hpp"
 #include <QGuiApplication>
 #include <QStyleHints>
 #include <QPalette>
@@ -292,12 +293,8 @@ QColor MD3Theme::outlineVariant() const {
     return isDark() ? QColor::fromHslF(h, s, 0.25f) : QColor::fromHslF(h, s, 0.82f);
 }
 
-QFont MD3Theme::createFont(int pixelSize, QFont::Weight weight) const {
-    QFont f(QStringLiteral("Open Sans"));
-    f.setStyleHint(QFont::SansSerif);
-    f.setPixelSize(pixelSize);
-    f.setWeight(weight);
-    return f;
+QFont MD3Theme::createFont(int pixelSize, QFont::Weight weight, bool italic, bool monospace) const {
+    return font::createFont(pixelSize, weight, italic, monospace);
 }
 
 QFont MD3Theme::headlineSmall() const {
@@ -338,6 +335,14 @@ QFont MD3Theme::labelMedium() const {
 
 QFont MD3Theme::labelSmall() const {
     return createFont(11, QFont::Medium);
+}
+
+QFont MD3Theme::codeMedium() const {
+    return createFont(13, QFont::Normal, false, true);
+}
+
+QFont MD3Theme::codeSmall() const {
+    return createFont(11, QFont::Normal, false, true);
 }
 
 } // namespace webclip

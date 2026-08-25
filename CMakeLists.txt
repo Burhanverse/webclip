@@ -96,9 +96,12 @@ qt_add_qml_module(webclip
         src/gui/qml/components/MD3SmoothScroll.qml
         src/gui/qml/pages/ClipsPage.qml
     RESOURCES
-        src/gui/resources/fonts/OpenSans-Regular.ttf
-        src/gui/resources/fonts/OpenSans-SemiBold.ttf
-        src/gui/resources/fonts/OpenSans-Bold.ttf
+        src/gui/resources/fonts/GoogleSansFlexRegular.ttf
+        src/gui/resources/fonts/GoogleSansFlexMedium.ttf
+        src/gui/resources/fonts/GoogleSansItalic.ttf
+        src/gui/resources/fonts/GoogleSansMediumItalic.ttf
+        src/gui/resources/fonts/Vazirmatn-UI-NL-Regular.ttf
+        src/gui/resources/fonts/Vazirmatn-UI-NL-SemiBold.ttf
         src/gui/resources/langs/en.json
         src/gui/resources/icons/webclip.svg
         src/gui/resources/icons/webclip.ico
@@ -145,6 +148,8 @@ qt_add_qml_module(webclip
         src/gui/util/i18n.cpp
         src/gui/util/tray_icon_manager.hpp
         src/gui/util/tray_icon_manager.cpp
+        src/gui/util/style_core_font.hpp
+        src/gui/util/style_core_font.cpp
 )
 
 target_link_libraries(webclip PRIVATE

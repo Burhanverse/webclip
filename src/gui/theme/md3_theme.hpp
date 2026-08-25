@@ -75,6 +75,8 @@ class MD3Theme : public QObject {
     Q_PROPERTY(QFont labelLarge READ labelLarge CONSTANT)
     Q_PROPERTY(QFont labelMedium READ labelMedium CONSTANT)
     Q_PROPERTY(QFont labelSmall READ labelSmall CONSTANT)
+    Q_PROPERTY(QFont codeMedium READ codeMedium CONSTANT)
+    Q_PROPERTY(QFont codeSmall READ codeSmall CONSTANT)
 
 public:
     explicit MD3Theme(QObject* parent = nullptr);
@@ -150,6 +152,8 @@ public:
     QFont labelLarge() const;
     QFont labelMedium() const;
     QFont labelSmall() const;
+    QFont codeMedium() const;
+    QFont codeSmall() const;
 
     Q_INVOKABLE QColor colorWithAlpha(const QColor& c, qreal alpha) const {
         return QColor::fromRgbF(c.redF(), c.greenF(), c.blueF(), qBound(0.0, alpha, 1.0));
@@ -169,7 +173,7 @@ private:
     QColor customColor_ = QColor("#6750A4");
 
     QColor activeSeedColor() const;
-    QFont createFont(int pixelSize, QFont::Weight weight) const;
+    QFont createFont(int pixelSize, QFont::Weight weight, bool italic = false, bool monospace = false) const;
 };
 
 } // namespace webclip

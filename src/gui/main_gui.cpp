@@ -9,12 +9,101 @@
 #include <iostream>
 #include "util/icon_image_provider.hpp"
 #include "util/tray_icon_manager.hpp"
+#include "util/style_core_font.hpp"
 #include "controllers/webclip_controller.hpp"
 #include "util/cli.hpp"
 #include "sync/sync_manager.hpp"
 #include "version.hpp"
 #ifdef __linux__
 #include <malloc.h>
+#include <QStandardPaths>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+
+// Tradeoff / Known Limitation:
+// By configuring fontconfig to point exclusively to our bundled fonts directory and
+// isolating the cache directory, we prevent fontconfig from scanning the entire OS font
+// directory tree (/usr/share/fonts, ~/.fonts, ~/.local/share/fonts, etc.) on Linux startup.
+// This significantly reduces cold-start latency on xcb/Wayland platforms.
+//
+// TRADEOFF: Because system font directories and fallbacks are omitted, glyphs outside the
+// Unicode coverage of Google Sans & Vazirmatn (such as CJK ideographs, Devanagari,
+// complex emoji, etc.) will lack OS-level font fallback and may render as tofu/replacement
+// boxes in clipboard history previews (Arabic and Persian are natively supported by Vazirmatn).
+static void setup_linux_fontconfig() {
+    QString appData = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (appData.isEmpty()) {
+        appData = QDir::homePath() + QStringLiteral("/.local/share/WebClip");
+    }
+
+    QString fontsDir = appData + QStringLiteral("/fonts");
+    QString fontconfigDir = appData + QStringLiteral("/fontconfig");
+    QString cacheDir = fontconfigDir + QStringLiteral("/cache");
+    QString fontsConfPath = fontconfigDir + QStringLiteral("/fonts.conf");
+
+    QDir().mkpath(fontsDir);
+    QDir().mkpath(cacheDir);
+
+    const QStringList fontFiles = {
+        QStringLiteral("GoogleSansFlexRegular.ttf"),
+        QStringLiteral("GoogleSansFlexMedium.ttf"),
+        QStringLiteral("GoogleSansItalic.ttf"),
+        QStringLiteral("GoogleSansMediumItalic.ttf"),
+        QStringLiteral("Vazirmatn-UI-NL-Regular.ttf"),
+        QStringLiteral("Vazirmatn-UI-NL-SemiBold.ttf")
+    };
+
+    for (const QString& fontName : fontFiles) {
+        QString resPath = QStringLiteral(":/qt/qml/src/gui/resources/fonts/") + fontName;
+        QString destPath = fontsDir + QStringLiteral("/") + fontName;
+
+        QFile resFile(resPath);
+        if (!resFile.exists()) {
+            continue;
+        }
+
+        QFileInfo destInfo(destPath);
+        if (!destInfo.exists() || destInfo.size() != resFile.size()) {
+            if (destInfo.exists()) {
+                QFile::remove(destPath);
+            }
+            if (resFile.copy(destPath)) {
+                QFile::setPermissions(destPath,
+                    QFileDevice::ReadOwner | QFileDevice::WriteOwner |
+                    QFileDevice::ReadGroup | QFileDevice::ReadOther);
+            }
+        }
+    }
+
+    QString fontsConfContent = QStringLiteral(
+        "<?xml version=\"1.0\"?>\n"
+        "<!DOCTYPE fontconfig SYSTEM \"fonts.dtd\">\n"
+        "<fontconfig>\n"
+        "  <dir>%1</dir>\n"
+        "  <cachedir>%2</cachedir>\n"
+        "  <config></config>\n"
+        "</fontconfig>\n"
+    ).arg(fontsDir, cacheDir);
+
+    bool shouldWrite = true;
+    QFile confFile(fontsConfPath);
+    if (confFile.exists() && confFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        if (confFile.readAll() == fontsConfContent.toUtf8()) {
+            shouldWrite = false;
+        }
+        confFile.close();
+    }
+
+    if (shouldWrite) {
+        if (confFile.open(QIODevice::WriteOnly | QIODevice::Text | QIODevice::Truncate)) {
+            confFile.write(fontsConfContent.toUtf8());
+            confFile.close();
+        }
+    }
+
+    qputenv("FONTCONFIG_FILE", fontsConfPath.toUtf8());
+}
 #endif
 
 #if defined(__SANITIZE_ADDRESS__) || (defined(__has_feature) && __has_feature(address_sanitizer)) || defined(__GNUC__)
@@ -134,6 +223,11 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
+    QCoreApplication::setOrganizationName(QString::fromUtf8(webclip::APP_ORGANIZATION.data(), webclip::APP_ORGANIZATION.size()));
+    QCoreApplication::setOrganizationDomain(QString::fromUtf8(webclip::APP_DOMAIN.data(), webclip::APP_DOMAIN.size()));
+    QCoreApplication::setApplicationName(QString::fromUtf8(webclip::APP_NAME.data(), webclip::APP_NAME.size()));
+    QCoreApplication::setApplicationVersion(QString::fromUtf8(webclip::VERSION_STRING.data(), webclip::VERSION_STRING.size()));
+
     qputenv("QT_LOGGING_RULES", "qt.text.font.db*=false;qt.gui.fontdatabase*=false");
     QLoggingCategory::setFilterRules(QStringLiteral("qt.text.font.db*=false\nqt.gui.fontdatabase*=false"));
 
@@ -141,6 +235,7 @@ int main(int argc, char* argv[]) {
     mallopt(M_ARENA_MAX, 2);
     mallopt(M_TRIM_THRESHOLD, 64 * 1024);
     mallopt(M_MMAP_THRESHOLD, 64 * 1024);
+    setup_linux_fontconfig();
 #elif defined(_WIN32)
     ULONG lfhFlag = 2;
     HeapSetInformation(GetProcessHeap(), HeapCompatibilityInformation, &lfhFlag, sizeof(lfhFlag));
@@ -148,21 +243,12 @@ int main(int argc, char* argv[]) {
 
     QApplication app(argc, argv);
     app.setQuitOnLastWindowClosed(false);
+    app.setApplicationDisplayName(QString::fromUtf8(webclip::APP_DISPLAY_NAME.data(), webclip::APP_DISPLAY_NAME.size()));
 
-    QFontDatabase::addApplicationFont(QStringLiteral(":/qt/qml/src/gui/resources/fonts/OpenSans-Regular.ttf"));
-    QFontDatabase::addApplicationFont(QStringLiteral(":/qt/qml/src/gui/resources/fonts/OpenSans-SemiBold.ttf"));
-    QFontDatabase::addApplicationFont(QStringLiteral(":/qt/qml/src/gui/resources/fonts/OpenSans-Bold.ttf"));
-
-    QFont defaultFont(QStringLiteral("Open Sans"));
-    defaultFont.setStyleHint(QFont::SansSerif);
-    app.setFont(defaultFont);
+    webclip::font::initFonts();
+    app.setFont(webclip::font::createFont(14, QFont::Normal));
 
     app.setWindowIcon(QIcon(QStringLiteral(":/qt/qml/src/gui/resources/icons/webclip.svg")));
-    app.setOrganizationName(QString::fromUtf8(webclip::APP_ORGANIZATION.data(), webclip::APP_ORGANIZATION.size()));
-    app.setOrganizationDomain(QString::fromUtf8(webclip::APP_DOMAIN.data(), webclip::APP_DOMAIN.size()));
-    app.setApplicationName(QString::fromUtf8(webclip::APP_NAME.data(), webclip::APP_NAME.size()));
-    app.setApplicationDisplayName(QString::fromUtf8(webclip::APP_DISPLAY_NAME.data(), webclip::APP_DISPLAY_NAME.size()));
-    app.setApplicationVersion(QString::fromUtf8(webclip::VERSION_STRING.data(), webclip::VERSION_STRING.size()));
 
     QQuickStyle::setStyle("Basic");
 

@@ -209,12 +209,23 @@ Item {
                             ? MD3Theme.secondaryContainer
                             : MD3Theme.primaryContainer
 
+                        readonly property real horizPad: isFromPhone ? 28 : 20
+                        readonly property real textNeededWidth: sizingText.implicitWidth + horizPad
+                        readonly property real metaNeededWidth: timeLabel.implicitWidth + actionIconsRow.implicitWidth + 24 + horizPad
+
                         width: isImageClip
                             ? Math.min(listView.width * 0.84, 320)
-                            : Math.min(listView.width * 0.84, Math.max(180, Math.max(bubbleContent.implicitWidth + 30, metadataRow.implicitWidth + 30)))
+                            : Math.min(listView.width * 0.84, Math.max(130, Math.max(textNeededWidth, metaNeededWidth)))
                         implicitHeight: bubbleInnerCol.implicitHeight + 16
 
                         Behavior on implicitHeight { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+
+                        Text {
+                            id: sizingText
+                            visible: false
+                            font: MD3Theme.bodyMedium
+                            text: !delegateItem.isImageClip ? (model.text || "") : ""
+                        }
 
                         Canvas {
                             id: bubbleCanvas
@@ -402,6 +413,7 @@ Item {
 
                                 // Timestamp
                                 Text {
+                                    id: timeLabel
                                     Layout.alignment: Qt.AlignVCenter
                                     text: model.timeFormatted
                                     font: MD3Theme.labelSmall

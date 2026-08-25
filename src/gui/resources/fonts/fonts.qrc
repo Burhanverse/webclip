@@ -1,0 +1,10 @@
+<RCC>
+  <qresource prefix="/gui/resources/fonts">
+    <file>GoogleSansFlexRegular.ttf</file>
+    <file>GoogleSansFlexMedium.ttf</file>
+    <file>GoogleSansItalic.ttf</file>
+    <file>GoogleSansMediumItalic.ttf</file>
+    <file>Vazirmatn-UI-NL-Regular.ttf</file>
+    <file>Vazirmatn-UI-NL-SemiBold.ttf</file>
+  </qresource>
+</RCC>
