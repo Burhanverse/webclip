@@ -1,6 +1,7 @@
 *.AppImage
 AppDir/
 build/
+build-*/
 bin/
 .cache/
 compile_commands.json
