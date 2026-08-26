@@ -1,5 +1,10 @@
 *.AppImage
+*.tar.gz
+*.zip
+linuxdeploy-*
+runtime-*
 AppDir/
+dist/
 build/
 build-*/
 bin/

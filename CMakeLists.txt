@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(webclip VERSION 1.2.0 LANGUAGES CXX)
+project(webclip VERSION 1.3.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,8 +12,8 @@ find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
 find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Quick Qml QuickControls2 Svg Widgets)
 
-if(COMMAND qt_policy)
-    qt_policy(SET QTP0004 OLD)
+if(QT_KNOWN_POLICY_QTP0004)
+    qt_policy(SET QTP0004 NEW)
 endif()
 
 if(COMMAND qt_standard_project_setup)
@@ -182,4 +182,32 @@ else()
     target_compile_options(webclip PRIVATE -Wall -Wextra -Wpedantic -O3)
 endif()
 
-install(TARGETS webclip RUNTIME DESTINATION bin)
+include(GNUInstallDirs)
+
+install(TARGETS webclip
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+
+if(UNIX AND NOT APPLE)
+    install(FILES packaging/webclip.desktop
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+    )
+    install(FILES src/gui/resources/icons/webclip.svg
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+    )
+    install(FILES src/gui/resources/icons/webclip.svg
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/pixmaps
+    )
+endif()
+
+# CPack packaging configuration
+set(CPACK_PACKAGE_NAME "webclip")
+set(CPACK_PACKAGE_VENDOR "Burhanverse")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Real-Time Gboard Clipboard Sync")
+set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_CURRENT_SOURCE_DIR}/README.md")
+include(CPack)
+

@@ -57,7 +57,28 @@ Note: `ninja-build` lives in the CRB repository and `wl-clipboard` / `xclip` in 
 
 ---
 
-### 2. Compile
+### 2. Automated Build & Packaging (All-in-One)
+
+You can build the binary and generate both the standalone AppImage and Linux tarball with a single command:
+
+```bash
+./build_linux.sh
+```
+
+Artifacts will be packaged into the `./dist` directory (`dist/webclip-linux-x86_64.AppImage` and `dist/webclip-linux-x86_64.tar.gz`).
+
+#### Options:
+- `--aio`, `--all-in-one`: Build executable and package both AppImage and Tarball (default).
+- `--appimage-only`: Build the binary and AppImage package only.
+- `--tarball-only`: Build the binary and Tarball package only.
+- `--bin-only`: Build only the `build/webclip` binary without packaging.
+- `--clean`: Clean previous build outputs before compiling.
+- `--build-type <Release|Debug>`: Choose CMake build configuration (default: `Release`).
+- `--output-dir <dir>`: Destination directory for packages (default: `dist`).
+
+---
+
+### 3. Manual Compilation
 
 ```bash
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -77,6 +98,32 @@ WebClip can be packaged into a self-contained AppImage with Wayland and QML depe
 ```
 
 This generates `webclip-linux-x86_64.AppImage`.
+
+---
+
+### 4. Build Distributable Tarball
+
+To package a standalone Linux tarball containing the binary, desktop launcher entry, application icons, and installation/uninstallation scripts:
+
+```bash
+./packaging/pack_linux_tarball.sh
+```
+
+This generates `webclip-linux-x86_64.tar.gz`.
+
+To install from the extracted tarball to `~/.local` (or `/usr/local` with `sudo`):
+
+```bash
+./install.sh
+```
+
+To uninstall:
+
+```bash
+./uninstall.sh
+```
+
+You can also run `./packaging/install.sh` and `./packaging/uninstall.sh` directly from the repository root after building.
 
 ---
 
@@ -145,7 +192,7 @@ Compress-Archive -Path "portable\webclip" -DestinationPath "webclip-windows-x64-
 ### 5. Build Standalone Inno Setup Installer
 
 ```powershell
-iscc.exe /DMyAppVersion="1.2.0" packaging\setup.iss
+iscc.exe /DMyAppVersion="1.3.0" packaging\setup.iss
 ```
 
 This outputs `webclip-setup-x64.exe`.

@@ -15,28 +15,34 @@ jobs:
   build-linux:
     name: Build Linux
     runs-on: ubuntu-latest
-    container:
-      image: rockylinux:10
 
     steps:
       - name: Install dependencies
         run: |
-          dnf install -y dnf-plugins-core epel-release && \
-          dnf config-manager --set-enabled crb && \
-          dnf install -y \
-            git \
-            gcc-c++ \
-            make \
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
             cmake \
             ninja-build \
-            libcurl-devel \
-            wget \
-            qt6-qtbase-devel \
-            qt6-qtdeclarative-devel \
-            qt6-qtsvg-devel \
-            qt6-qttools-devel \
-            qt6-qtwayland \
-            qt6-qtimageformats \
+            libcurl4-openssl-dev \
+            qt6-base-dev \
+            qt6-declarative-dev \
+            qt6-tools-dev \
+            libqt6svg6-dev \
+            qt6-wayland \
+            libqt6waylandclient6 \
+            qml6-module-qtquick \
+            qml6-module-qtquick-controls \
+            qml6-module-qtquick-layouts \
+            qml6-module-qtquick-templates \
+            qml6-module-qtquick-window \
+            qml6-module-qtquick-shapes \
+            qml6-module-qtquick-dialogs \
+            qml6-module-qtqml-workerscript \
+            qml6-module-qtqml-models \
+            qml6-module-qt-labs-platform \
+            qml6-module-qt-labs-settings \
+            qt6-image-formats-plugins \
             wl-clipboard \
             xclip
 
@@ -52,7 +58,7 @@ jobs:
         run: |
           cmake --build build --parallel
 
-      - name: Sanity check CLI invocation
+      - name: Sanity check
         run: |
           ./build/webclip --help
 
@@ -61,10 +67,10 @@ jobs:
           chmod +x packaging/build_appimage.sh
           ./packaging/build_appimage.sh
 
-      - name: Package Linux Binary
+      - name: Package Linux Tarball
         run: |
-          cp build/webclip webclip-linux-x86_64
-          chmod +x webclip-linux-x86_64
+          chmod +x packaging/pack_linux_tarball.sh
+          ./packaging/pack_linux_tarball.sh
 
       - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v6
@@ -72,7 +78,7 @@ jobs:
           name: webclip-linux-x86_64
           path: |
             webclip-linux-x86_64.AppImage
-            webclip-linux-x86_64
+            webclip-linux-x86_64.tar.gz
 
   build-windows:
     name: Build Windows
@@ -119,7 +125,6 @@ jobs:
       - name: Package Windows Bundle with windeployqt
         shell: pwsh
         run: |
-          # Create deployment directory
           New-Item -ItemType Directory -Force -Path "deploy"
           Copy-Item "build/Release/webclip.exe" -Destination "deploy/"
 
@@ -131,7 +136,6 @@ jobs:
               Copy-Item "build/vcpkg_installed/x64-windows/bin/*.dll" -Destination "deploy/" -ErrorAction SilentlyContinue
           }
 
-          # Run windeployqt to bundle Qt6 dependencies, plugins, and QML modules
           windeployqt `
             deploy/webclip.exe `
             --qmldir src/gui/qml `
@@ -141,19 +145,16 @@ jobs:
             --compiler-runtime `
             --verbose 1
 
-          # Verify dependencies with dumpbin
           Write-Host "=== Validating Executable Imports ==="
           dumpbin /dependents deploy/webclip.exe
 
-          # Create clean portable directory and package into zip
           New-Item -ItemType Directory -Force -Path "portable/webclip"
           Copy-Item -Recurse "deploy/*" -Destination "portable/webclip/"
           Compress-Archive -Path "portable/webclip" -DestinationPath "webclip-windows-x64-portable.zip" -Force
 
-      - name: Verify Clean Execution in Isolated Environment
+      - name: Verify Clean Execution
         shell: pwsh
         run: |
-          # Isolate PATH from Qt and build tools to verify deploy directory self-sufficiency
           $cleanPath = "C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\"
           $proc = Start-Process -FilePath "deploy/webclip.exe" -ArgumentList "--help" -Environment @{ PATH = $cleanPath } -PassThru -Wait -NoNewWindow
           if ($proc.ExitCode -ne 0) {

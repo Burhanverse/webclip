@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.burhanverse.webclip</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>WebClip</name>
+  <summary>Real-Time Gboard Clipboard Sync</summary>
+  <description>
+    <p>
+      WebClip is a lightweight, standalone desktop client for bidirectional
+      clipboard synchronization with Gboard Web Clipboard.
+    </p>
+  </description>
+  <developer id="io.github.burhanverse">
+    <name>Burhanverse</name>
+  </developer>
+  <launchable type="desktop-id">webclip.desktop</launchable>
+  <url type="homepage">https://github.com/Burhanverse/webclip</url>
+  <url type="bugtracker">https://github.com/Burhanverse/webclip/issues</url>
+  <provides>
+    <binary>webclip</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="1.3.0" date="2026-08-26"/>
+  </releases>
+</component>
