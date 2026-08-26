@@ -64,7 +64,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "")"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")"
 
 # Helper for download with progress
 download_file() {
@@ -171,15 +171,14 @@ if [ -z "$LOCAL_BIN" ]; then
         echo "==> Extracting package..."
         tar -xzf "$TMP_DIR/package.tar.gz" -C "$TMP_DIR"
 
-        EXTRACTED_ROOT="$(find "$TMP_DIR" -maxdepth 1 -type d -name "webclip-*" | head -n1)"
-        if [ -z "$EXTRACTED_ROOT" ]; then
-            EXTRACTED_ROOT="$TMP_DIR"
+        LOCAL_BIN="$(find "$TMP_DIR" -type f -name "webclip" | head -n1 || true)"
+        if [ -z "$LOCAL_BIN" ]; then
+            echo "Error: webclip executable not found in release archive."
+            exit 1
         fi
-
-        LOCAL_BIN="$EXTRACTED_ROOT/bin/webclip"
-        SRC_DESKTOP="$(find_local_file "$EXTRACTED_ROOT/share/applications/${APP_ID}.desktop" "$EXTRACTED_ROOT/share/applications/webclip.desktop" "$EXTRACTED_ROOT/webclip.desktop" || true)"
-        SRC_ICON="$(find_local_file "$EXTRACTED_ROOT/share/icons/hicolor/scalable/apps/webclip.svg" "$EXTRACTED_ROOT/webclip.svg" || true)"
-        SRC_METAINFO="$(find_local_file "$EXTRACTED_ROOT/share/metainfo/${APP_ID}.metainfo.xml" || true)"
+        SRC_DESKTOP="$(find "$TMP_DIR" -type f \( -name "${APP_ID}.desktop" -o -name "webclip.desktop" \) | head -n1 || true)"
+        SRC_ICON="$(find "$TMP_DIR" -type f -name "webclip.svg" | head -n1 || true)"
+        SRC_METAINFO="$(find "$TMP_DIR" -type f \( -name "*.metainfo.xml" -o -name "*.appdata.xml" \) | head -n1 || true)"
     fi
 else
     SRC_DESKTOP="$(find_local_file \
