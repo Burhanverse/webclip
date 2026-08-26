@@ -169,7 +169,7 @@ echo "Running linuxdeploy with Qt plugin..."
     --appdir AppDir \
     -e "${BUILD_DIR}/webclip" \
     "${HELPER_DEPLOY_ARGS[@]}" \
-    -d packaging/webclip.desktop \
+    -d packaging/io.github.burhanverse.webclip.desktop \
     -i src/gui/resources/icons/webclip.svg \
     --plugin qt
 
@@ -225,6 +225,7 @@ fi
 
 if [ -f "packaging/io.github.burhanverse.webclip.metainfo.xml" ]; then
     mkdir -p AppDir/usr/share/metainfo
+    cp "packaging/io.github.burhanverse.webclip.metainfo.xml" AppDir/usr/share/metainfo/io.github.burhanverse.webclip.appdata.xml
     cp "packaging/io.github.burhanverse.webclip.metainfo.xml" AppDir/usr/share/metainfo/io.github.burhanverse.webclip.metainfo.xml
 fi
 

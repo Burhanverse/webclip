@@ -26,6 +26,34 @@ WebClip is a lightweight, standalone C++ and Qt 6 application for bidirectional 
 
 ---
 
+## Installation
+
+### Linux (One-Line Installer)
+
+Install the latest release with desktop integration with a single command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Burhanverse/webclip/main/packaging/install.sh | bash
+```
+
+To install the standalone portable AppImage bundle instead:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Burhanverse/webclip/main/packaging/install.sh | bash -s -- --appimage
+```
+
+#### Uninstall
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Burhanverse/webclip/main/packaging/uninstall.sh | bash
+```
+
+### Windows
+
+Download and run `webclip-setup-x64.exe` installer or extract `webclip-windows-x64-portable.zip` from [GitHub Releases](https://github.com/Burhanverse/webclip/releases/latest).
+
+---
+
 ## Build Instructions
 
 For prerequisites and packaging details, see [docs/build.md](docs/build.md).

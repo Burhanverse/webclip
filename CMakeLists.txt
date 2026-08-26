@@ -189,8 +189,11 @@ install(TARGETS webclip
 )
 
 if(UNIX AND NOT APPLE)
-    install(FILES packaging/webclip.desktop
+    install(FILES packaging/webclip.desktop packaging/io.github.burhanverse.webclip.desktop
         DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+    )
+    install(FILES packaging/io.github.burhanverse.webclip.metainfo.xml
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/metainfo
     )
     install(FILES src/gui/resources/icons/webclip.svg
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps

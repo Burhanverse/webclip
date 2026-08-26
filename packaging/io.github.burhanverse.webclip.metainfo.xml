@@ -14,7 +14,7 @@
   <developer id="io.github.burhanverse">
     <name>Burhanverse</name>
   </developer>
-  <launchable type="desktop-id">webclip.desktop</launchable>
+  <launchable type="desktop-id">io.github.burhanverse.webclip.desktop</launchable>
   <url type="homepage">https://github.com/Burhanverse/webclip</url>
   <url type="bugtracker">https://github.com/Burhanverse/webclip/issues</url>
   <provides>

@@ -40,6 +40,7 @@ chmod 755 "${TARGET_DIR}/bin/webclip"
 
 mkdir -p "${TARGET_DIR}/share/metainfo"
 cp "packaging/io.github.burhanverse.webclip.metainfo.xml" "${TARGET_DIR}/share/metainfo/io.github.burhanverse.webclip.metainfo.xml" 2>/dev/null || true
+cp "packaging/io.github.burhanverse.webclip.desktop" "${TARGET_DIR}/share/applications/io.github.burhanverse.webclip.desktop" 2>/dev/null || true
 cp "packaging/webclip.desktop" "${TARGET_DIR}/share/applications/webclip.desktop"
 cp "packaging/webclip.desktop" "${TARGET_DIR}/webclip.desktop"
 cp "src/gui/resources/icons/webclip.svg" "${TARGET_DIR}/share/icons/hicolor/scalable/apps/webclip.svg"
