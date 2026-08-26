@@ -4,10 +4,6 @@ import QtQuick.Controls as QQC
 import QtQuick.Dialogs
 import WebClip
 
-// The clip list rendering, scrolling, hit-testing and painting now live in
-// C++ (src/gui/clips/*) - a port of Telegram Desktop's ListWidget approach.
-// This page is just a thin shell: empty state, input dock, dialogs and the
-// image preview modal.
 Item {
     id: root
 

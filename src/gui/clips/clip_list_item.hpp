@@ -16,11 +16,6 @@ namespace webclip {
 class ClipboardHistoryModel;
 class WebClipController;
 
-// Port of Telegram Desktop's history ListWidget applied to clipboard clips:
-// one custom-painted surface owns every element, keeps them sorted by cached
-// _y, paints only the items intersecting the damaged region (binary search),
-// and implements its own scroll physics, hit testing and overlay scrollbar.
-// There are no per-message scene graph objects at all.
 class ClipListItem : public QQuickPaintedItem {
     Q_OBJECT
     QML_ELEMENT
@@ -42,11 +37,8 @@ public:
 
     ClipboardHistoryModel* model() const { return model_; }
 
-    // Current scroll offset in content coordinates.
     int currentScrollY() const { return scrollY_; }
 
-    // Bubble rectangle (item coords) for a given clip id; useful for
-    // tooling/accessibility. Returns an invalid rect if not found.
     Q_INVOKABLE QRectF bubbleSceneRect(const QString& clipId) const;
 
 signals:
@@ -73,7 +65,6 @@ protected:
     void hoverLeaveEvent(QHoverEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
 
-    // --- Model synchronization (refreshRows/enforceViewForItem port) ---
     struct Anchor {
         int index = -1;
         int offset = 0;
@@ -90,20 +81,16 @@ protected:
                        const QVector<int>& roles);
     void fixRowsFrom(int index);
 
-    // --- Layout (ListWidget::resizeGetHeight / viewHeightAdjusted port) ---
     void layoutAll();
     void layoutElement(int index);
     void repositionFrom(int index);
     int contentHeight() const;
     int maxScroll() const;
 
-    // --- Visible-range bookkeeping (_visibleTop/_visibleBottom port) ---
     int findElementIndexByY(int y) const;
     ClipElement* elementAt(int y) const;
     QRectF elementSceneRect(const ClipElement* el) const;
     void repaintElement(const ClipElement* el);
-
-    // --- Scrolling ---
     void applyScroll(int newY, bool clampHard = true);
     void scrollToBottom(bool instant = true);
     void startWheelAnimation();
@@ -112,7 +99,6 @@ protected:
     void stopAnimations();
     void tickAnimations();
 
-    // --- Interaction (mouseActionUpdate port) ---
     enum class Gesture { None, Pressing, DraggingScroll, SelectingText };
     struct HitContext {
         int elementIndex = -1;
@@ -147,15 +133,13 @@ protected:
     constexpr static int kTopMargin = 12;
     constexpr static int kBottomMargin = 12;
 
-    // Scroll animation state (wheel easing / flick inertia / rubber band).
     QTimer animationTimer_;
     enum class Anim { None, Wheel, Flick, Settle };
     Anim animState_ = Anim::None;
     int animTarget_ = 0;
-    qreal flickVelocity_ = 0.0;  // px/sec
+    qreal flickVelocity_ = 0.0;
     QElapsedTimer animClock_;
 
-    // Gesture state.
     Gesture gesture_ = Gesture::None;
     QPointF pressPos_;
     int pressScrollY_ = 0;
@@ -164,21 +148,22 @@ protected:
     QString pressedLink_;
     std::deque<std::pair<qint64, qreal>> dragSamples_;
 
-    // Scrollbar state.
     enum class ScrollbarGesture { None, Dragging };
     ScrollbarGesture scrollbarGesture_ = ScrollbarGesture::None;
     qreal scrollbarGrabOffset_ = 0;
-    qreal scrollbarOpacity_ = 0.0;  // 0..1 animated toward target
+    qreal scrollbarOpacity_ = 0.0;
     qreal scrollbarTargetOpacity_ = 0.0;
     qint64 lastScrollbarInteractionMs_ = 0;
     int scrollbarAnimTimerId_ = 0;
 
-    // Distant-image eviction throttle.
     int evictionCounter_ = 0;
 
-    // Hover state.
     int hoveredElementIndex_ = -1;
     ClipElement::Zone hoveredZone_ = ClipElement::Zone::None;
+
+    QMetaObject::Connection windowScreenConn_;
+    QMetaObject::Connection screenDprConn_;
+    void followWindowDpr(QQuickWindow* window);
 
     friend class ClipElement;
     void onElementImageDecoded(const QString& clipId, const QString& sourceKey,

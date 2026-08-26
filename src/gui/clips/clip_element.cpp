@@ -275,6 +275,10 @@ ClipElement::Metrics ClipElement::computeMetrics(int containerWidth) const {
 
 int ClipElement::resizeGetHeight(int containerWidth) {
     if (!pendingResize_ && containerWidth == laidOutWidth_) return height_;
+    if (qEnvironmentVariableIsSet("WEBCLIP_DEBUG_LAYOUT")) {
+        fprintf(stderr, "[layout] row=%d containerWidth=%d laidOut=%d pending=%d\n",
+                row_, containerWidth, laidOutWidth_, pendingResize_ ? 1 : 0);
+    }
 
     if (expanded_ && !isImage_ && !fullTextLoaded_) {
         fullTextCache_ = owner_->model()->getClipText(row_);
@@ -286,23 +290,27 @@ int ClipElement::resizeGetHeight(int containerWidth) {
     const Metrics m = computeMetrics(containerWidth);
 
     const qreal leftInset = 16 + 8;
-    const qreal x =
-        fromPhone_ ? leftInset : containerWidth - leftInset - m.bubbleWidth;
-    bubbleRect_ = QRectF(x, 0, m.bubbleWidth, 0);
-    lastWrapWidth_ = qMax(40, m.textWrapWidth);
+    const qreal x = fromPhone_ ? leftInset
+                               : containerWidth - leftInset - m.bubbleWidth;
+    bubbleRect_ = QRectF(qRound(x), 0, qRound(m.bubbleWidth), 0);
+    lastWrapWidth_ = qMax(40, qRound(m.bubbleWidth) -
+                                  qCeil(m.totalHPad));
 
     const qreal contentX = bubbleRect_.left() +
                            (fromPhone_ ? kTailSpace + kContentHPad : kContentHPad);
-    const qreal contentW = m.bubbleWidth - m.totalHPad;
+    const qreal contentW = bubbleRect_.width() - m.totalHPad;
 
     qreal cy = kVPad;
     qreal totalH = kVPad;
 
     if (isImage_) {
         if (m.imageDisplaySize.width() > 1) {
-            const qreal imgW = std::min<qreal>(m.imageDisplaySize.width(), contentW);
-            imageAreaRect_ = QRectF(contentX + (contentW - imgW) / 2.0, cy, imgW,
-                                    m.imageDisplaySize.height());
+            const qreal imgW = qRound(
+                std::min<qreal>(m.imageDisplaySize.width(), contentW));
+            const qreal imgH = qRound(m.imageDisplaySize.height());
+            imageAreaRect_ =
+                QRectF(qRound(contentX + (contentW - imgW) / 2.0), cy, imgW,
+                       imgH);
             cy += imageAreaRect_.height() + kSectionSpacing;
             totalH += imageAreaRect_.height() + kSectionSpacing;
         } else {
@@ -314,9 +322,13 @@ int ClipElement::resizeGetHeight(int containerWidth) {
         collapsedLong_ = false;
     } else {
         collapsedLong_ = isLongText() && !expanded_;
-        const int textH = collapsedLong_
-                              ? qCeil(kCollapsedTextHeight)
-                              : std::max(text_.heightAt(lastWrapWidth_), 1);
+        int textH;
+        if (collapsedLong_) {
+            text_.heightAt(lastWrapWidth_);
+            textH = qCeil(kCollapsedTextHeight);
+        } else {
+            textH = std::max(text_.heightAt(lastWrapWidth_), 1);
+        }
         textAreaRect_ = QRectF(contentX, cy, contentW, textH);
         cy += textH + kSectionSpacing;
         totalH += textH + kSectionSpacing;
@@ -332,7 +344,8 @@ int ClipElement::resizeGetHeight(int containerWidth) {
             I18n::instance()->tr(QStringLiteral("chat.show_full_clip"));
         const qreal chipW = QFontMetricsF(chipFont).horizontalAdvance(label) + 24.0;
         expandChipRect_ =
-            QRectF(bubbleRect_.center().x() - chipW / 2.0, cy, chipW, kChipHeight);
+            QRectF(qRound(bubbleRect_.center().x() - chipW / 2.0), cy,
+                   qCeil(chipW), kChipHeight);
         cy += kChipHeight + kSectionSpacing;
         totalH += kChipHeight + kSectionSpacing;
     } else {

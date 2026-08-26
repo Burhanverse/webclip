@@ -22,13 +22,13 @@ namespace webclip {
 
 namespace {
 
-constexpr qreal kWheelStepPerNotch = 90.0;   // px per wheel notch
-constexpr qreal kFlickDecay = 4.2;           // exponential friction, 1/s
-constexpr qreal kFlickStartVelocity = 150;   // px/s
-constexpr qreal kFlickCutoffVelocity = 60;   // px/s
-constexpr qreal kMaxFlickVelocity = 4500;    // parity with old ListView cap
-constexpr qreal kBounceResistance = 0.5;     // drag overscroll resistance
-constexpr qreal kWheelEaseRate = 16.0;       // 1/s approach rate for wheel
+constexpr qreal kWheelStepPerNotch = 90.0;
+constexpr qreal kFlickDecay = 4.2;
+constexpr qreal kFlickStartVelocity = 150;
+constexpr qreal kFlickCutoffVelocity = 60;
+constexpr qreal kMaxFlickVelocity = 4500;
+constexpr qreal kBounceResistance = 0.5;
+constexpr qreal kWheelEaseRate = 16.0;
 
 WebClipController* typedController(const QPointer<QObject>& obj) {
     return qobject_cast<WebClipController*>(obj.data());
@@ -51,7 +51,6 @@ ClipListItem::ClipListItem(QQuickItem* parent) : QQuickPaintedItem(parent) {
     setFocusPolicy(Qt::ClickFocus);
     setCursor(Qt::ArrowCursor);
 
-    // Drives wheel easing / flick inertia / rubber-band settle-back.
     animationTimer_.setInterval(16);
     animationTimer_.setTimerType(Qt::CoarseTimer);
     connect(&animationTimer_, &QTimer::timeout, this,
@@ -83,7 +82,7 @@ void ClipListItem::componentComplete() {
     QQuickPaintedItem::componentComplete();
 
     if (window()) {
-        setContentsScale(window()->devicePixelRatio());
+        followWindowDpr(window());
     }
 
     attachModel();
@@ -101,7 +100,6 @@ void ClipListItem::componentComplete() {
     auto* ctrl = typedController(controller_);
     if (ctrl) {
         connect(ctrl, &WebClipController::connectedChanged, this, [this]() {
-            // Send-button visibility depends on the connection state.
             for (auto& el : elements_) el->setPendingResize(true);
             layoutAll();
             applyScroll(scrollY_);
@@ -110,10 +108,50 @@ void ClipListItem::componentComplete() {
     }
 }
 
+void ClipListItem::followWindowDpr(QQuickWindow* window) {
+    if (windowScreenConn_) {
+        disconnect(windowScreenConn_);
+        windowScreenConn_ = QMetaObject::Connection();
+    }
+    if (screenDprConn_) {
+        disconnect(screenDprConn_);
+        screenDprConn_ = QMetaObject::Connection();
+    }
+    if (!window) return;
+
+    setContentsScale(window->devicePixelRatio());
+
+    windowScreenConn_ =
+        connect(window, &QQuickWindow::screenChanged, this,
+                [this, window](QScreen* screen) {
+                    if (!window) return;
+                    setContentsScale(window->devicePixelRatio());
+                    if (screenDprConn_) {
+                        disconnect(screenDprConn_);
+                        screenDprConn_ = QMetaObject::Connection();
+                    }
+                    if (screen) {
+                        screenDprConn_ = connect(
+                            screen, &QScreen::physicalDotsPerInchChanged, this,
+                            [this, screen](qreal) {
+                                setContentsScale(screen->devicePixelRatio());
+                            });
+                    }
+                });
+    if (window->screen()) {
+        screenDprConn_ =
+            connect(window->screen(), &QScreen::physicalDotsPerInchChanged,
+                    this, [this](qreal) {
+                        if (this->window())
+                            setContentsScale(this->window()->devicePixelRatio());
+                    });
+    }
+}
+
 void ClipListItem::itemChange(ItemChange change, const ItemChangeData& data) {
     QQuickPaintedItem::itemChange(change, data);
-    if (change == ItemSceneChange && data.window) {
-        setContentsScale(data.window->devicePixelRatio());
+    if (change == ItemSceneChange) {
+        followWindowDpr(data.window);
     }
 }
 
@@ -122,8 +160,6 @@ void ClipListItem::geometryChange(const QRectF& newGeometry,
     QQuickPaintedItem::geometryChange(newGeometry, oldGeometry);
     viewportHeightCached_ = qFloor(height());
     if (!elements_.empty()) {
-        // Width change invalidates every memoized layout - ListWidget's
-        // resizeAllItems path.
         layoutAll();
         applyScroll(scrollY_);
     } else {
@@ -131,11 +167,6 @@ void ClipListItem::geometryChange(const QRectF& newGeometry,
     }
     update();
 }
-
-// ---------------------------------------------------------------------------
-// Model synchronization. Surviving elements are reused as-is so their shaped
-// text / decoded images / geometry caches survive refreshes.
-// ---------------------------------------------------------------------------
 
 void ClipListItem::attachModel() {
     auto* ctrl = typedController(controller_);
@@ -226,7 +257,7 @@ void ClipListItem::onRowsInserted(const QModelIndex& parent, int first, int last
     repositionFrom(first);
 
     if (wasAtBottom && first >= static_cast<int>(elements_.size()) - count) {
-        scrollToBottom(true);  // new clips appended at the bottom
+        scrollToBottom(true);
     } else {
         restoreAnchor(anchor);
     }
@@ -282,11 +313,6 @@ void ClipListItem::fixRowsFrom(int index) {
         elements_[i]->setRow(i);
     }
 }
-
-// ---------------------------------------------------------------------------
-// Layout: cumulative y positions with per-element memoized heights. Elements
-// only re-measure when dirty or when the width changed.
-// ---------------------------------------------------------------------------
 
 void ClipListItem::layoutAll() {
     const int w = qFloor(width());
@@ -353,14 +379,9 @@ QRectF ClipListItem::bubbleSceneRect(const QString& clipId) const {
 }
 
 void ClipListItem::repaintElement(const ClipElement* el) {
-    // Band-only repaint (ListWidget::repaintItem port).
-    update(QRect(0, el->y(), qCeil(width()), qCeil(el->height())));
+    Q_UNUSED(el);
+    update();
 }
-
-// ---------------------------------------------------------------------------
-// Painting: binary-search the visible range from the damaged rect, translate,
-// draw only those elements. Identical structure to ListWidget::paintEvent.
-// ---------------------------------------------------------------------------
 
 void ClipListItem::paint(QPainter* p) {
     p->setRenderHint(QPainter::Antialiasing, true);
@@ -380,7 +401,7 @@ void ClipListItem::paint(QPainter* p) {
             if (el->pendingResize() || el->height() <= 0) {
                 el->resizeGetHeight(qFloor(width()));
             }
-            el->ensureImageLoaded();  // idempotent lazy async decode
+            el->ensureImageLoaded();
             p->save();
             p->translate(0, el->y());
             ClipElement::PaintContext ctx;
@@ -397,10 +418,6 @@ void ClipListItem::paint(QPainter* p) {
     paintScrollbar(p);
 }
 
-// ---------------------------------------------------------------------------
-// Scrolling: wheel easing, drag with rubber band, flick inertia, settle-back.
-// ---------------------------------------------------------------------------
-
 void ClipListItem::applyScroll(int newY, bool clampHard) {
     const int max = maxScroll();
     if (clampHard) {
@@ -410,7 +427,7 @@ void ClipListItem::applyScroll(int newY, bool clampHard) {
     scrollY_ = newY;
     restartScrollbarFade();
     if (++evictionCounter_ % 16 == 0) {
-        evictDistantImages();  // keep decoded images bounded while scrolling
+        evictDistantImages();
     }
     update();
 }
@@ -523,10 +540,6 @@ void ClipListItem::tickAnimations() {
             break;
     }
 }
-
-// ---------------------------------------------------------------------------
-// Interaction: manual hit testing exactly like mouseActionUpdate/pointState.
-// ---------------------------------------------------------------------------
 
 ClipListItem::HitContext ClipListItem::hitContextAt(QPointF itemPos) const {
     HitContext ctx;
@@ -652,14 +665,12 @@ void ClipListItem::handleDelete(ClipElement* el) {
     auto* ctrl = typedController(controller_);
     if (!ctrl) return;
     if (ctrl->thanosSnapEnabled() && thanosTarget_) {
-        // Render the bubble ourselves instead of grabToImage().
         const QImage snap = el->snapshotBubble(contentsScale());
         const QPointF topLeft =
             mapToItem(thanosTarget_.data(), el->bubbleRect().topLeft());
         emit snapRequested(snap,
                            QRectF(topLeft, el->bubbleRect().size()),
                            el->clipId());
-        // The QML handler starts the dissolve and removes the row afterwards.
     } else {
         model_->removeClipById(el->clipId());
     }
@@ -673,10 +684,6 @@ void ClipListItem::selectWordAt(ClipElement* el, int position) {
     while (b < s.length() && !s.at(b).isSpace()) ++b;
     el->setSelection(a, b);
 }
-
-// ---------------------------------------------------------------------------
-// Input events
-// ---------------------------------------------------------------------------
 
 void ClipListItem::wheelEvent(QWheelEvent* event) {
     const double dy = event->angleDelta().y();
@@ -831,7 +838,7 @@ void ClipListItem::mouseReleaseEvent(QMouseEvent* event) {
                 const auto [t0, s0] = dragSamples_.front();
                 const auto [t1, s1] = dragSamples_.back();
                 const qreal dt = qMax<qreal>(1.0, t1 - t0);
-                velocity = (s1 - s0) / dt * 1000.0;  // px/s in scroll space
+                velocity = (s1 - s0) / dt * 1000.0;
             }
             gesture_ = Gesture::None;
             startFlick(-velocity);
@@ -847,7 +854,6 @@ void ClipListItem::mouseReleaseEvent(QMouseEvent* event) {
             ctx.elementIndex = pressedElementIndex_;
             ctx.hit.zone = pressedZone_;
             ctx.hit.url = pressedLink_;
-            // Re-verify the pointer is still inside the same zone.
             const HitContext now = hitContextAt(pos);
             activateZone(now.elementIndex == ctx.elementIndex &&
                                  now.hit.zone == ctx.hit.zone
@@ -916,10 +922,6 @@ void ClipListItem::keyPressEvent(QKeyEvent* event) {
     QQuickPaintedItem::keyPressEvent(event);
 }
 
-// ---------------------------------------------------------------------------
-// Scrollbar overlay
-// ---------------------------------------------------------------------------
-
 QRectF ClipListItem::scrollbarThumbRect() const {
     const int max = maxScroll();
     if (max <= 0 || height() <= 0) return QRectF();
@@ -945,7 +947,6 @@ void ClipListItem::restartScrollbarFade() {
 
 void ClipListItem::timerEvent(QTimerEvent* event) {
     if (event->timerId() == scrollbarAnimTimerId_) {
-        // Hold fully visible for 1.4s after the last interaction, then fade.
         if (scrollbarOpacity_ >= 1.0 && scrollbarTargetOpacity_ >= 1.0 &&
             nowMs() - lastScrollbarInteractionMs_ >= 1400) {
             scrollbarTargetOpacity_ = 0.0;
@@ -959,7 +960,7 @@ void ClipListItem::timerEvent(QTimerEvent* event) {
         }
         if (next != scrollbarOpacity_) {
             scrollbarOpacity_ = next;
-            update(QRect(qFloor(width()) - 16, 0, 16, qCeil(height())));
+            update();
         }
         if (scrollbarOpacity_ == scrollbarTargetOpacity_ &&
             scrollbarTargetOpacity_ <= 0.0) {
@@ -989,10 +990,6 @@ void ClipListItem::paintScrollbar(QPainter* p) {
     p->setBrush(color);
     p->drawRoundedRect(thumb, 2, 2);
 }
-
-// ---------------------------------------------------------------------------
-// Async image decode callbacks
-// ---------------------------------------------------------------------------
 
 void ClipListItem::onElementImageDecoded(const QString& clipId,
                                          const QString& sourceKey,
