@@ -518,25 +518,6 @@ void ClipElement::paint(const PaintContext& context) const {
     }
 }
 
-QImage ClipElement::snapshotBubble(qreal dpr) const {
-    if (!bubbleRect_.isValid()) return {};
-    const QSize sz(qCeil(bubbleRect_.width() * dpr),
-                   qCeil(bubbleRect_.height() * dpr));
-    QImage img(sz, QImage::Format_ARGB32_Premultiplied);
-    img.fill(Qt::transparent);
-    QPainter p(&img);
-    p.setRenderHint(QPainter::Antialiasing, true);
-    p.scale(dpr, dpr);
-    PaintContext ctx;
-    ctx.painter = &p;
-    ctx.clipItemCoords = QRectF(QPointF(0, 0), bubbleRect_.size());
-    ctx.dpr = dpr;
-    ctx.withInteractionChrome = false;
-    paint(ctx);
-    p.end();
-    return img;
-}
-
 ClipElement::Hit ClipElement::hitTest(QPointF localPos, int containerWidth) const {
     Q_UNUSED(containerWidth);
     Hit hit;

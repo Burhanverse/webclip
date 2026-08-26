@@ -201,14 +201,7 @@ Window {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
                 controller: controller
-                thanosEffect: thanosEffect
             }
-        }
-
-        ThanosEffect {
-            id: thanosEffect
-            anchors.fill: parent
-            z: 90
         }
 
         MD3SettingsDialog {

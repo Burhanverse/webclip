@@ -8,7 +8,6 @@ Item {
     id: root
 
     required property var controller
-    property var thanosEffect: null
 
     property string fullPreviewUrl: ""
     property bool fullPreviewVisible: false
@@ -104,7 +103,6 @@ Item {
                 anchors.fill: parent
                 visible: controller.clipModel.count > 0
                 controller: root.controller
-                thanosTarget: root.thanosEffect
 
                 onSaveImageRequested: (index) => {
                     saveImageDialog.targetClipIndex = index
@@ -114,13 +112,6 @@ Item {
                 onFullPreviewRequested: (imageUrl) => {
                     root.fullPreviewUrl = imageUrl
                     root.fullPreviewVisible = true
-                }
-
-                onSnapRequested: (image, rect, clipId) => {
-                    if (controller.thanosSnapEnabled && root.thanosEffect) {
-                        thanosEffect.snapImage(image, rect)
-                    }
-                    controller.clipModel.removeClipById(clipId)
                 }
             }
         }

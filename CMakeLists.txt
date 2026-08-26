@@ -145,8 +145,6 @@ qt_add_qml_module(webclip
         src/gui/clips/clip_element.cpp
         src/gui/clips/clip_list_item.hpp
         src/gui/clips/clip_list_item.cpp
-        src/gui/effects/thanos_effect_item.hpp
-        src/gui/effects/thanos_effect_item.cpp
         src/gui/util/icon_image_provider.hpp
         src/gui/util/icon_image_provider.cpp
         src/gui/util/i18n.hpp
@@ -158,6 +156,8 @@ qt_add_qml_module(webclip
         src/gui/util/md3_kinetic_scroller.hpp
         src/gui/util/md3_kinetic_scroller.cpp
 )
+
+
 
 target_link_libraries(webclip PRIVATE
     webclip_core

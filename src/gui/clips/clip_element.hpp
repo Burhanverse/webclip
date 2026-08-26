@@ -64,8 +64,6 @@ public:
     };
     void paint(const PaintContext& context) const;
 
-    QImage snapshotBubble(qreal dpr) const;
-
     struct Hit {
         Zone zone = Zone::None;
         QString url;

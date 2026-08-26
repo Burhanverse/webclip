@@ -22,8 +22,6 @@ class ClipListItem : public QQuickPaintedItem {
 
     Q_PROPERTY(QObject* controller READ controller WRITE setController NOTIFY
                    controllerChanged)
-    Q_PROPERTY(QQuickItem* thanosTarget READ thanosTarget WRITE setThanosTarget
-                   NOTIFY thanosTargetChanged)
 
 public:
     explicit ClipListItem(QQuickItem* parent = nullptr);
@@ -31,9 +29,6 @@ public:
 
     QObject* controller() const { return controller_.data(); }
     void setController(QObject* controller);
-
-    QQuickItem* thanosTarget() const { return thanosTarget_.data(); }
-    void setThanosTarget(QQuickItem* target);
 
     ClipboardHistoryModel* model() const { return model_; }
 
@@ -43,11 +38,8 @@ public:
 
 signals:
     void controllerChanged();
-    void thanosTargetChanged();
     void fullPreviewRequested(const QString& imageDataUrl);
     void saveImageRequested(int index);
-    void snapRequested(const QImage& image, const QRectF& rect,
-                       const QString& clipId);
 
 protected:
     void paint(QPainter* painter) override;
@@ -119,7 +111,6 @@ protected:
     void restartScrollbarFade();
 
     QPointer<QObject> controller_;
-    QPointer<QQuickItem> thanosTarget_;
     ClipboardHistoryModel* model_ = nullptr;
 
     std::vector<std::unique_ptr<ClipElement>> elements_;

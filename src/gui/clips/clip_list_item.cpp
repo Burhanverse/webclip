@@ -72,12 +72,6 @@ void ClipListItem::setController(QObject* controller) {
     }
 }
 
-void ClipListItem::setThanosTarget(QQuickItem* target) {
-    if (thanosTarget_ == target) return;
-    thanosTarget_ = target;
-    emit thanosTargetChanged();
-}
-
 void ClipListItem::componentComplete() {
     QQuickPaintedItem::componentComplete();
 
@@ -662,18 +656,7 @@ QString ClipListItem::firstLinkOf(ClipElement* el) const {
 }
 
 void ClipListItem::handleDelete(ClipElement* el) {
-    auto* ctrl = typedController(controller_);
-    if (!ctrl) return;
-    if (ctrl->thanosSnapEnabled() && thanosTarget_) {
-        const QImage snap = el->snapshotBubble(contentsScale());
-        const QPointF topLeft =
-            mapToItem(thanosTarget_.data(), el->bubbleRect().topLeft());
-        emit snapRequested(snap,
-                           QRectF(topLeft, el->bubbleRect().size()),
-                           el->clipId());
-    } else {
-        model_->removeClipById(el->clipId());
-    }
+    model_->removeClipById(el->clipId());
 }
 
 void ClipListItem::selectWordAt(ClipElement* el, int position) {
