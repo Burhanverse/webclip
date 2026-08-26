@@ -82,6 +82,15 @@ webclip --host <phone-ip> --code <pairing-code> [options]
 
 ---
 
+## Platform Notes
+
+- **Linux (Wayland)**: Requires `wl-clipboard` (`wl-copy` / `wl-paste`). The AppImage bundles these helpers when they are present at build time.
+- **Linux (X11)**: Requires `xclip` or `xsel`. Rounded transparent window corners require a running compositor.
+- **GNOME**: The system tray icon requires the *AppIndicator* extension. Tray balloon notifications may be unavailable without a notification daemon.
+- **Windows**: Image clipboard interop uses GDI+ to convert between PNG and DIB formats, so images copy and paste correctly with both modern and legacy applications. Toast notifications from the portable build may require installing via the setup executable.
+
+---
+
 ## License
 
 This project is licensed under the [GNU General Public License v3.0](LICENSE) (GPL-3.0).

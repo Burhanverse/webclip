@@ -15,39 +15,33 @@ jobs:
   build-linux:
     name: Build Linux
     runs-on: ubuntu-latest
+    container:
+      image: rockylinux:10
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
       - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
+          dnf install -y dnf-plugins-core epel-release && \
+          dnf config-manager --set-enabled crb && \
+          dnf install -y \
+            git \
+            gcc-c++ \
+            make \
             cmake \
             ninja-build \
-            libcurl4-openssl-dev \
-            qt6-base-dev \
-            qt6-declarative-dev \
-            qt6-tools-dev \
-            libqt6svg6-dev \
-            qt6-wayland \
-            libqt6waylandclient6 \
-            qml6-module-qtquick \
-            qml6-module-qtquick-controls \
-            qml6-module-qtquick-layouts \
-            qml6-module-qtquick-templates \
-            qml6-module-qtquick-window \
-            qml6-module-qtquick-shapes \
-            qml6-module-qtquick-dialogs \
-            qml6-module-qtqml-workerscript \
-            qml6-module-qtqml-models \
-            qml6-module-qt-labs-platform \
-            qml6-module-qt-labs-settings \
-            qt6-image-formats-plugins \
+            libcurl-devel \
+            wget \
+            qt6-qtbase-devel \
+            qt6-qtdeclarative-devel \
+            qt6-qtsvg-devel \
+            qt6-qttools-devel \
+            qt6-qtwayland \
+            qt6-qtimageformats \
             wl-clipboard \
             xclip
+
+      - name: Checkout repository
+        uses: actions/checkout@v6
 
       - name: Configure CMake
         run: |
@@ -86,10 +80,19 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Setup MSVC environment
+      - name: Setup MSVC
         uses: Eden-CI/msvc-dev-cmd@master
+
+      - name: Determine project version
+        shell: pwsh
+        run: |
+          $match = Select-String -Path "src/version.hpp" -Pattern 'VERSION_STRING\s*=\s*"([^"]+)"'
+          if (-not $match) { Write-Error "Could not parse VERSION_STRING from src/version.hpp"; exit 1 }
+          $version = $match.Matches[0].Groups[1].Value
+          Write-Host "Detected project version: $version"
+          "PROJECT_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Install Qt 6
         uses: jurplel/install-qt-action@v4.3.1
@@ -166,7 +169,7 @@ jobs:
               choco install innosetup --no-progress -y
               $env:PATH += ";C:\Program Files (x86)\Inno Setup 6"
           }
-          iscc.exe /DMyAppVersion="1.0.0" packaging/setup.iss
+          iscc.exe /DMyAppVersion="$env:PROJECT_VERSION" packaging/setup.iss
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v6
@@ -199,13 +202,7 @@ jobs:
 
       - name: Prepare release notes
         run: |
-          if [ -f "patches-bundle.json" ]; then
-            NOTES=$(jq -r '.description // empty' patches-bundle.json 2>/dev/null || true)
-          fi
-          if [ -z "$NOTES" ]; then
-            NOTES="Release $GITHUB_REF_NAME"
-          fi
-          echo "$NOTES" > release-notes.md
+          echo "Release ${GITHUB_REF_NAME}" > release-notes.md
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2

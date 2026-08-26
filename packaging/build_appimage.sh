@@ -114,6 +114,17 @@ if [ -n "$FOUND_QML_DIR" ]; then
 fi
 export EXTRA_QT_PLUGINS="svg;platforms;wayland-graphics-integration-client;wayland-shell-integration;wayland-decoration-client;imageformats"
 
+HELPER_DEPLOY_ARGS=()
+for helper in wl-copy wl-paste xclip xsel; do
+    helper_path="$(command -v "$helper" 2>/dev/null || true)"
+    if [ -n "$helper_path" ]; then
+        HELPER_DEPLOY_ARGS+=(-e "$helper_path")
+        echo "Bundling clipboard helper: $helper ($helper_path)"
+    else
+        echo "Warning: clipboard helper '$helper' not found on system, it will not be bundled."
+    fi
+done
+
 # Clean previous AppDir
 rm -rf AppDir
 
@@ -121,6 +132,7 @@ echo "Running linuxdeploy with Qt plugin..."
 ./linuxdeploy-x86_64.AppImage \
     --appdir AppDir \
     -e build/webclip \
+    "${HELPER_DEPLOY_ARGS[@]}" \
     -d packaging/webclip.desktop \
     -i src/gui/resources/icons/webclip.svg \
     --plugin qt

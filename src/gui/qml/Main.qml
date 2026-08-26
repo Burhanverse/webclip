@@ -24,6 +24,26 @@ Window {
         property alias y: window.y
     }
 
+    Component.onCompleted: ensureOnScreen()
+
+    function ensureOnScreen() {
+        var screens = Qt.application.screens
+        if (!screens || screens.length === 0)
+            return
+        for (var i = 0; i < screens.length; i++) {
+            var s = screens[i]
+            var overlapLeft = Math.max(window.x, s.virtualX)
+            var overlapTop = Math.max(window.y, s.virtualY)
+            var overlapRight = Math.min(window.x + window.width, s.virtualX + s.width)
+            var overlapBottom = Math.min(window.y + window.height, s.virtualY + s.height)
+            if (overlapRight > overlapLeft && overlapBottom > overlapTop)
+                return
+        }
+        var primary = screens[0]
+        window.x = primary.virtualX + Math.round((primary.width - window.width) / 2)
+        window.y = primary.virtualY + Math.round((primary.height - window.height) / 2)
+    }
+
     onClosing: (close) => {
         close.accepted = false;
         window.hide();

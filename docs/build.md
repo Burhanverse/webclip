@@ -44,6 +44,17 @@ sudo dnf install gcc-c++ cmake ninja-build libcurl-devel \
   wl-clipboard xclip
 ```
 
+**Rocky Linux / AlmaLinux / RHEL (9, 10):**
+```bash
+sudo dnf install -y dnf-plugins-core epel-release
+sudo dnf config-manager --set-enabled crb
+sudo dnf install gcc-c++ make cmake ninja-build libcurl-devel wget \
+  qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtsvg-devel \
+  qt6-qttools-devel qt6-qtwayland qt6-qtimageformats \
+  wl-clipboard xclip
+```
+Note: `ninja-build` lives in the CRB repository and `wl-clipboard` / `xclip` in EPEL, so both must be enabled.
+
 ---
 
 ### 2. Compile
@@ -138,3 +149,39 @@ iscc.exe /DMyAppVersion="1.2.0" packaging\setup.iss
 ```
 
 This outputs `webclip-setup-x64.exe`.
+
+---
+
+## Cross-compiling from Linux (MinGW-w64, experimental)
+
+The CMake configuration is fully toolchain-agnostic, so the Windows binary can also be cross-compiled from a Linux host using MinGW-w64. The repository ships a ready-made toolchain file at `packaging/mingw-w64-x86_64.toolchain.cmake`.
+
+### 1. Prerequisites
+
+- **MinGW-w64 toolchain**: `sudo apt install mingw-w64` (Debian/Ubuntu) or `sudo pacman -S mingw-w64-gcc` (Arch)
+- **libcurl for MinGW**: either via vcpkg (`vcpkg install curl:x64-mingw-dynamic`) or MXE (`mxe-x86_64-w64-mingw32.static-curl`)
+- **Qt 6 MinGW build**: install the `win64_mingw` desktop kit with the Qt Online Installer (e.g. to `~/Qt/6.8.0/mingw_64`). A Linux-hosted Qt MinGW build is not required — Qt's Windows binaries work directly for cross-compilation.
+
+### 2. Configure & Compile
+
+```bash
+cmake -B build-mingw -G Ninja \
+  -DCMAKE_TOOLCHAIN_FILE=packaging/mingw-w64-x86_64.toolchain.cmake \
+  -DCMAKE_PREFIX_PATH="$HOME/Qt/6.8.0/mingw_64" \
+  -DCMAKE_BUILD_TYPE=Release
+
+cmake --build build-mingw --parallel
+```
+
+With vcpkg, add `-DVCPKG_TARGET_TRIPLET=x64-mingw-dynamic` and point `CMAKE_TOOLCHAIN_FILE` at vcpkg instead (vcpkg's toolchain file can chain-load the MinGW one via `VCPKG_CHAINLOAD_TOOLCHAIN_FILE`).
+
+The output binary is placed at `build-mingw/webclip.exe`.
+
+### 3. Deploying runtime dependencies
+
+Cross-built executables still need `windeployqt` for bundling Qt DLLs/QML modules:
+
+- Run the `windeployqt.exe` that ships inside the same Qt MinGW kit (under wine), or
+- copy `build-mingw/webclip.exe` together with libcurl DLLs to a Windows machine and run `windeployqt` there.
+
+For production releases, prefer the native Windows CI job (GitHub Actions runner), which handles deployment, dependency validation, and installer creation automatically.

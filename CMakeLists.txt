@@ -48,6 +48,9 @@ if(WIN32)
         ws2_32
         user32
         psapi
+        gdi32
+        gdiplus
+        ole32
     )
 endif()
 
