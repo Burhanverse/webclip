@@ -164,11 +164,7 @@ void HeaderBar::paintEvent(QPaintEvent* /*e*/) {
     auto* theme = webclip::MD3Theme::instance();
 
     const QRectF avatarRect(16, 10, 38, 38);
-    p.setPen(Qt::NoPen);
-    p.setBrush(theme->primaryContainer());
-    p.drawEllipse(avatarRect);
-
-    IconLoader::paint(p, QStringLiteral("android"), QRectF(25, 19, 20, 20), theme->onPrimaryContainer());
+    IconLoader::paint(p, QStringLiteral("webclip"), avatarRect);
 
     const QRectF dotRect(44, 38, 10, 10);
     QColor dotColor;

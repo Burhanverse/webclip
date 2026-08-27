@@ -440,7 +440,7 @@ void SettingsDialog::setupContent() {
         aboutCard_,
         webclip::I18n::instance()->tr(QStringLiteral("settings.about.app_name")),
         webclip::I18n::instance()->tr(QStringLiteral("settings.about.app_subtitle")),
-        QStringLiteral("smartphone"),
+        QStringLiteral("webclip"),
         verText
     );
 

@@ -139,12 +139,17 @@ void CardRow::paintEvent(QPaintEvent* /*e*/) {
     paintRipple(p, 0, 0, &ripCol);
 
     // 4. Content (Icon + Title + Subtitle)
-    int leftX = 14;
+    int leftX = (iconName_ == QLatin1String("webclip")) ? 16 : 14;
     if (!iconName_.isEmpty()) {
-        const int iconSize = 20;
+        const int iconSize = (iconName_ == QLatin1String("webclip")) ? 40 : 20;
         const int iconY = (height() - iconSize) / 2;
-        IconLoader::paint(p, iconName_, QRectF(leftX, iconY, iconSize, iconSize), theme->onSurfaceVariant());
-        leftX += iconSize + 12;
+        if (iconName_ == QLatin1String("webclip")) {
+            IconLoader::paint(p, iconName_, QRectF(leftX, iconY, iconSize, iconSize));
+            leftX += iconSize + 14;
+        } else {
+            IconLoader::paint(p, iconName_, QRectF(leftX, iconY, iconSize, iconSize), theme->onSurfaceVariant());
+            leftX += iconSize + 12;
+        }
     }
 
     const int maxTextW = std::max(40, width() - leftX - trailingPadding_);
