@@ -102,7 +102,15 @@ static QColor contrastTextColor(const QColor& bg) {
 QColor MD3Theme::primary() const {
     QColor seed = activeSeedColor();
     if (usesDirectSeedColor()) {
-        return seed;
+        float h = seed.hslHueF() >= 0.0f ? seed.hslHueF() : 0.0f;
+        float s = seed.hslSaturationF();
+        if (isPitchBlack()) {
+            return QColor::fromHslF(h, qBound(0.60f, s, 0.98f), 0.72f);
+        } else if (isDark()) {
+            return QColor::fromHslF(h, qBound(0.45f, s, 0.90f), 0.76f);
+        } else {
+            return QColor::fromHslF(h, qBound(0.55f, s, 0.95f), 0.44f);
+        }
     }
     if (isPitchBlack()) {
         return QColor::fromHslF(seed.hslHueF(), qBound(0.60f, seed.hslSaturationF(), 0.98f), 0.72f);
@@ -116,7 +124,7 @@ QColor MD3Theme::primary() const {
 QColor MD3Theme::onPrimary() const {
     QColor seed = activeSeedColor();
     if (usesDirectSeedColor()) {
-        return contrastTextColor(seed);
+        return contrastTextColor(primary());
     }
     return isDark() ? QColor::fromHslF(seed.hslHueF(), 0.70f, 0.20f) : QColor("#FFFFFF");
 }
