@@ -4,26 +4,17 @@
 #include <QString>
 #include <QHash>
 #include <QStringList>
-#include <QtQml/qqmlregistration.h>
-#include <QQmlEngine>
-#include <QJSEngine>
 
 namespace webclip {
 
 class I18n : public QObject {
     Q_OBJECT
-    QML_ELEMENT
-    QML_SINGLETON
 
     Q_PROPERTY(QString currentLanguage READ currentLanguage WRITE setLanguage NOTIFY languageChanged)
     Q_PROPERTY(QStringList availableLanguages READ availableLanguages CONSTANT)
 
 public:
     explicit I18n(QObject* parent = nullptr);
-
-    static I18n* create(QQmlEngine*, QJSEngine*) {
-        return instance();
-    }
 
     static I18n* instance();
 

@@ -101,7 +101,7 @@ void TrayIconManager::setupMenu() {
     updateTrayMenu();
 }
 
-void TrayIconManager::setMainWindow(QQuickWindow* window) {
+void TrayIconManager::setMainWindow(QWidget* window) {
     mainWindow_ = window;
 }
 
@@ -120,7 +120,7 @@ void TrayIconManager::showFirstMinimizeNotification() {
 void TrayIconManager::toggleWindowVisibility() {
     if (!mainWindow_) return;
 
-    if (mainWindow_->isVisible() && mainWindow_->isActive()) {
+    if (mainWindow_->isVisible() && mainWindow_->isActiveWindow()) {
         mainWindow_->hide();
     } else {
         showWindow();
@@ -132,7 +132,7 @@ void TrayIconManager::showWindow() {
 
     mainWindow_->show();
     mainWindow_->raise();
-    mainWindow_->requestActivate();
+    mainWindow_->activateWindow();
 }
 
 void TrayIconManager::hideWindow() {

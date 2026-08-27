@@ -3,7 +3,6 @@
 #include <QAbstractListModel>
 #include <QDateTime>
 #include <QList>
-#include <QtQml/qqmlregistration.h>
 
 namespace webclip {
 
@@ -50,7 +49,6 @@ struct ClipItem {
 
 class ClipboardHistoryModel : public QAbstractListModel {
     Q_OBJECT
-    QML_ELEMENT
     Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
 
 public:

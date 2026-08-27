@@ -4,7 +4,7 @@
 #include <QSystemTrayIcon>
 #include <QMenu>
 #include <QAction>
-#include <QQuickWindow>
+#include <QWidget>
 #include <QPointer>
 
 namespace webclip {
@@ -18,7 +18,7 @@ public:
     explicit TrayIconManager(WebClipController* controller, QObject* parent = nullptr);
     ~TrayIconManager() override;
 
-    void setMainWindow(QQuickWindow* window);
+    void setMainWindow(QWidget* window);
     void showFirstMinimizeNotification();
 
 public slots:
@@ -35,7 +35,7 @@ private:
     void setupMenu();
 
     WebClipController* controller_{nullptr};
-    QPointer<QQuickWindow> mainWindow_;
+    QPointer<QWidget> mainWindow_;
     QSystemTrayIcon* trayIcon_{nullptr};
     QMenu* trayMenu_{nullptr};
 

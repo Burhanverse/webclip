@@ -87,6 +87,8 @@ QFont createFont(int pixelSize, QFont::Weight weight, bool italic, bool monospac
         f.setPixelSize(pixelSize);
         f.setWeight(weight);
         f.setItalic(italic);
+        f.setHintingPreference(QFont::PreferNoHinting);
+        f.setStyleStrategy(QFont::PreferAntialias);
         return f;
     }
 
@@ -97,6 +99,8 @@ QFont createFont(int pixelSize, QFont::Weight weight, bool italic, bool monospac
     f.setPixelSize(pixelSize);
     f.setWeight(weight);
     f.setItalic(italic);
+    f.setHintingPreference(QFont::PreferNoHinting);
+    f.setStyleStrategy(QFont::PreferAntialias);
     return f;
 }
 

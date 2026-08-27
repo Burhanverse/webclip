@@ -1,7 +1,4 @@
 #include <QApplication>
-#include <QQmlApplicationEngine>
-#include <QQuickStyle>
-#include <QQuickWindow>
 #include <QFont>
 #include <QFontDatabase>
 #include <QIcon>
@@ -21,8 +18,6 @@
 #include <fcntl.h>
 #include <csignal>
 #endif
-
-#include "util/icon_image_provider.hpp"
 #include "util/tray_icon_manager.hpp"
 #include "util/style_core_font.hpp"
 #include "theme/md3_theme.hpp"
@@ -30,6 +25,9 @@
 #include "util/cli.hpp"
 #include "sync/sync_manager.hpp"
 #include "version.hpp"
+#include "ui/gallery/component_gallery_window.hpp"
+#include "ui/main_window.hpp"
+#include <QtWidgets/QStyleFactory>
 #ifdef __linux__
 #include <malloc.h>
 #include <QStandardPaths>
@@ -326,7 +324,12 @@ int main(int argc, char* argv[]) {
     HeapSetInformation(GetProcessHeap(), HeapCompatibilityInformation, &lfhFlag, sizeof(lfhFlag));
 #endif
 
+    QGuiApplication::setHighDpiScaleFactorRoundingPolicy(
+        Qt::HighDpiScaleFactorRoundingPolicy::PassThrough
+    );
+
     QApplication app(argc, argv);
+    app.setStyle(QStyleFactory::create(QStringLiteral("Fusion")));
     app.setQuitOnLastWindowClosed(false);
     app.setApplicationDisplayName(QString::fromUtf8(webclip::APP_DISPLAY_NAME.data(), webclip::APP_DISPLAY_NAME.size()));
 
@@ -335,7 +338,14 @@ int main(int argc, char* argv[]) {
 
     app.setWindowIcon(QIcon(QStringLiteral(":/qt/qml/src/gui/resources/icons/webclip.svg")));
 
-    QQuickStyle::setStyle("Basic");
+    for (int i = 1; i < argc; ++i) {
+        if (std::strcmp(argv[i], "--test-widgets") == 0) {
+            app.setQuitOnLastWindowClosed(true);
+            auto* gallery = new Ui::ComponentGalleryWindow();
+            gallery->show();
+            return app.exec();
+        }
+    }
 
 #if defined(__linux__) || defined(__APPLE__)
 
@@ -380,48 +390,11 @@ int main(int argc, char* argv[]) {
         webclip::MD3Theme::instance()->setThemeMode(persisted.value("themeMode", 0).toInt());
     }
 
-    QQmlApplicationEngine engine;
-    engine.addImageProvider(QStringLiteral("icon"), new webclip::IconImageProvider());
+    auto* controller = new webclip::WebClipController(&app);
+    auto* mainWindow = new Ui::MainWindow(nullptr, controller);
+    auto trayManager = std::make_unique<webclip::TrayIconManager>(controller);
+    trayManager->setMainWindow(mainWindow);
 
-    QObject::connect(
-        &engine,
-        &QQmlApplicationEngine::objectCreationFailed,
-        &app,
-        []() { QCoreApplication::exit(-1); },
-        Qt::QueuedConnection
-    );
-
-    std::unique_ptr<webclip::TrayIconManager> trayManager;
-
-    QObject::connect(
-        &engine,
-        &QQmlApplicationEngine::objectCreated,
-        [&trayManager, &engine](QObject* obj, const QUrl&) {
-            auto* window = qobject_cast<QQuickWindow*>(obj);
-            if (window) {
-                auto* controller = window->findChild<webclip::WebClipController*>(QStringLiteral("webClipController"));
-                trayManager = std::make_unique<webclip::TrayIconManager>(controller);
-                trayManager->setMainWindow(window);
-
-                QObject::connect(window, &QQuickWindow::visibleChanged, [window, &engine]() {
-                    if (!window->isVisible()) {
-                        window->releaseResources();
-                        engine.collectGarbage();
-#if defined(__linux__)
-                        malloc_trim(0);
-#elif defined(_WIN32)
-                        _heapmin();
-                        HeapCompact(GetProcessHeap(), 0);
-                        SetProcessWorkingSetSize(GetCurrentProcess(), static_cast<SIZE_T>(-1), static_cast<SIZE_T>(-1));
-#endif
-                    }
-                });
-            }
-        }
-    );
-
-    const QUrl url(QStringLiteral("qrc:/qt/qml/src/gui/qml/Main.qml"));
-    engine.load(url);
-
+    mainWindow->show();
     return app.exec();
 }

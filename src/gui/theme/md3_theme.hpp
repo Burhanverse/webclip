@@ -3,16 +3,11 @@
 #include <QObject>
 #include <QColor>
 #include <QFont>
-#include <QtQml/qqmlregistration.h>
-#include <QQmlEngine>
-#include <QJSEngine>
 
 namespace webclip {
 
 class MD3Theme : public QObject {
     Q_OBJECT
-    QML_ELEMENT
-    QML_SINGLETON
 
     Q_PROPERTY(int themeMode READ themeMode WRITE setThemeMode NOTIFY themeModeChanged)
     Q_PROPERTY(bool isDark READ isDark NOTIFY isDarkChanged)
@@ -76,10 +71,6 @@ class MD3Theme : public QObject {
 
 public:
     explicit MD3Theme(QObject* parent = nullptr);
-
-    static MD3Theme* create(QQmlEngine*, QJSEngine*) {
-        return instance();
-    }
 
     static MD3Theme* instance();
 

@@ -16,7 +16,17 @@ class QPainter;
 
 namespace webclip {
 
-class ClipListItem;
+class ClipboardHistoryModel;
+class WebClipController;
+
+class IClipViewHost {
+public:
+    virtual ~IClipViewHost() = default;
+    virtual QObject* asQObject() = 0;
+    virtual ClipboardHistoryModel* model() const = 0;
+    virtual WebClipController* controller() const = 0;
+    virtual void onElementImageDecoded(const QString& clipId, const QString& sourceKey, const QImage& image) = 0;
+};
 
 void clearClipElementCaches();
 
@@ -34,7 +44,7 @@ public:
         ExpandChip,
     };
 
-    explicit ClipElement(ClipListItem* owner);
+    explicit ClipElement(IClipViewHost* owner);
 
     int y() const { return y_; }
     void setY(int y) { y_ = y; }
@@ -107,7 +117,7 @@ private:
     void updateButtonRects(qreal contentX, qreal contentW, qreal metaTop);
     qreal actionsPillWidth() const;
 
-    ClipListItem* owner_ = nullptr;
+    IClipViewHost* owner_ = nullptr;
     int row_ = 0;
     int y_ = 0;
     int height_ = 0;

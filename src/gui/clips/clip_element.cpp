@@ -18,7 +18,6 @@
 #include "../theme/md3_theme.hpp"
 #include "../util/i18n.hpp"
 #include "bubble_corners.hpp"
-#include "clip_list_item.hpp"
 
 namespace webclip {
 
@@ -148,7 +147,7 @@ void clearClipElementCaches() {
     iconCache().clear();
 }
 
-ClipElement::ClipElement(ClipListItem* owner) : owner_(owner) {}
+ClipElement::ClipElement(IClipViewHost* owner) : owner_(owner) {}
 
 bool ClipElement::isLongText() const {
     if (isImage_) return false;
@@ -365,7 +364,7 @@ int ClipElement::resizeGetHeight(int containerWidth) {
 }
 
 void ClipElement::updateButtonsVisibility() {
-    auto* ctrl = qobject_cast<WebClipController*>(owner_->controller());
+    auto* ctrl = owner_ ? owner_->controller() : nullptr;
     connectedFlag_ = ctrl && ctrl->connected();
     buttons_.clear();
     if (hasUrl_ && !isImage_) buttons_.push_back({Zone::BtnLink, QRectF(), true});
@@ -580,20 +579,22 @@ void ClipElement::ensureImageLoaded() {
     if (!isImage_ || imageState_ != ImageEmpty || imageDataUrl_.isEmpty()) return;
     imageState_ = ImageLoading;
 
-    const QPointer<ClipListItem> guard(owner_);
+    const QPointer<QObject> guard(owner_ ? owner_->asQObject() : nullptr);
+    IClipViewHost* ownerPtr = owner_;
     const QString clipId = id_;
     const QString key = imageStateKey_;
     const QSize native = nativeDims_;
 
-    QThreadPool::globalInstance()->start([guard, clipId, key, native]() {
+    QThreadPool::globalInstance()->start([guard, ownerPtr, clipId, key, native]() {
         const QImage img = decodeScaledImage(key, native);
         if (!guard) return;
         QMetaObject::invokeMethod(
             guard.data(),
-            [guard, clipId, key, img]() {
-                if (guard) guard->onElementImageDecoded(clipId, key, img);
+            [guard, ownerPtr, clipId, key, img]() {
+                if (guard && ownerPtr) ownerPtr->onElementImageDecoded(clipId, key, img);
             },
-            Qt::QueuedConnection);
+            Qt::QueuedConnection
+        );
     });
 }
 

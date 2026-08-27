@@ -14,7 +14,6 @@
 #include <mutex>
 #include <deque>
 #include <unordered_set>
-#include <QtQml/qqmlregistration.h>
 #include "../models/clipboard_history_model.hpp"
 #include "../../clipboard/clipboard.hpp"
 #include "../../net/http_client.hpp"
@@ -24,7 +23,6 @@ namespace webclip {
 
 class WebClipController : public QObject {
     Q_OBJECT
-    QML_ELEMENT
 
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
     Q_PROPERTY(bool connecting READ connecting NOTIFY connectingChanged)

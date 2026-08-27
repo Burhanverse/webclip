@@ -10,7 +10,7 @@ set(CMAKE_AUTOUIC ON)
 
 find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
-find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Quick Qml QuickControls2 Svg Widgets)
+find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Svg Widgets)
 
 if(QT_KNOWN_POLICY_QTP0004)
     qt_policy(SET QTP0004 NEW)
@@ -68,6 +68,13 @@ endif()
 target_include_directories(webclip PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gui
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/ui
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/ui/basic
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/ui/md3
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/ui/chrome
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/ui/dialogs
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/ui/gallery
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/ui/clips
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/models
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/controllers
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/clips
@@ -76,25 +83,9 @@ target_include_directories(webclip PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/gui/util
 )
 
-qt_add_qml_module(webclip
-    URI WebClip
-    VERSION 1.0
-    RESOURCE_PREFIX "/qt/qml"
-    NO_RESOURCE_TARGET_PATH
-    QML_FILES
-        src/gui/qml/Main.qml
-        src/gui/qml/components/MD3Icon.qml
-        src/gui/qml/components/MD3Button.qml
-        src/gui/qml/components/MD3IconButton.qml
-        src/gui/qml/components/MD3Card.qml
-        src/gui/qml/components/MD3Badge.qml
-        src/gui/qml/components/MD3TextField.qml
-        src/gui/qml/components/MD3Switch.qml
-        src/gui/qml/components/MD3ColorPickerDialog.qml
-        src/gui/qml/components/MD3SettingsDialog.qml
-        src/gui/qml/components/MD3SmoothScroll.qml
-        src/gui/qml/pages/ClipsPage.qml
-    RESOURCES
+qt_add_resources(webclip "webclip_resources"
+    PREFIX "/qt/qml"
+    FILES
         src/gui/resources/fonts/GoogleSansFlexRegular.ttf
         src/gui/resources/fonts/GoogleSansFlexMedium.ttf
         src/gui/resources/fonts/GoogleSansItalic.ttf
@@ -133,42 +124,79 @@ qt_add_qml_module(webclip
         src/gui/resources/icons/sun.svg
         src/gui/resources/icons/sync.svg
         src/gui/resources/icons/view_agenda.svg
-    SOURCES
-        src/gui/theme/md3_theme.hpp
-        src/gui/theme/md3_theme.cpp
-        src/gui/models/clipboard_history_model.hpp
-        src/gui/models/clipboard_history_model.cpp
-        src/gui/controllers/webclip_controller.hpp
-        src/gui/controllers/webclip_controller.cpp
-        src/gui/clips/bubble_corners.hpp
-        src/gui/clips/bubble_corners.cpp
-        src/gui/clips/clip_text_layout.hpp
-        src/gui/clips/clip_text_layout.cpp
-        src/gui/clips/clip_element.hpp
-        src/gui/clips/clip_element.cpp
-        src/gui/clips/clip_list_item.hpp
-        src/gui/clips/clip_list_item.cpp
-        src/gui/util/icon_image_provider.hpp
-        src/gui/util/icon_image_provider.cpp
-        src/gui/util/i18n.hpp
-        src/gui/util/i18n.cpp
-        src/gui/util/tray_icon_manager.hpp
-        src/gui/util/tray_icon_manager.cpp
-        src/gui/util/style_core_font.hpp
-        src/gui/util/style_core_font.cpp
-        src/gui/util/md3_kinetic_scroller.hpp
-        src/gui/util/md3_kinetic_scroller.cpp
 )
 
-
+target_sources(webclip PRIVATE
+    src/gui/theme/md3_theme.hpp
+    src/gui/theme/md3_theme.cpp
+    src/gui/models/clipboard_history_model.hpp
+    src/gui/models/clipboard_history_model.cpp
+    src/gui/controllers/webclip_controller.hpp
+    src/gui/controllers/webclip_controller.cpp
+    src/gui/clips/bubble_corners.hpp
+    src/gui/clips/bubble_corners.cpp
+    src/gui/clips/clip_text_layout.hpp
+    src/gui/clips/clip_text_layout.cpp
+    src/gui/clips/clip_element.hpp
+    src/gui/clips/clip_element.cpp
+    src/gui/util/i18n.hpp
+    src/gui/util/i18n.cpp
+    src/gui/util/tray_icon_manager.hpp
+    src/gui/util/tray_icon_manager.cpp
+    src/gui/util/style_core_font.hpp
+    src/gui/util/style_core_font.cpp
+    src/gui/ui/basic/rpl_lite.hpp
+    src/gui/ui/basic/animation.hpp
+    src/gui/ui/basic/animation.cpp
+    src/gui/ui/basic/painter_helpers.hpp
+    src/gui/ui/basic/rp_widget.hpp
+    src/gui/ui/basic/rp_widget.cpp
+    src/gui/ui/basic/ripple_animation.hpp
+    src/gui/ui/basic/ripple_animation.cpp
+    src/gui/ui/basic/ripple_button.hpp
+    src/gui/ui/basic/ripple_button.cpp
+    src/gui/ui/md3/icon_loader.hpp
+    src/gui/ui/md3/icon_loader.cpp
+    src/gui/ui/md3/md3_switch.hpp
+    src/gui/ui/md3/md3_switch.cpp
+    src/gui/ui/md3/md3_button.hpp
+    src/gui/ui/md3/md3_button.cpp
+    src/gui/ui/md3/md3_icon_button.hpp
+    src/gui/ui/md3/md3_icon_button.cpp
+    src/gui/ui/md3/md3_badge.hpp
+    src/gui/ui/md3/md3_badge.cpp
+    src/gui/ui/md3/md3_text_field.hpp
+    src/gui/ui/md3/md3_text_field.cpp
+    src/gui/ui/md3/md3_card.hpp
+    src/gui/ui/md3/md3_card.cpp
+    src/gui/ui/md3/md3_slider.hpp
+    src/gui/ui/md3/md3_slider.cpp
+    src/gui/ui/gallery/component_gallery_window.hpp
+    src/gui/ui/gallery/component_gallery_window.cpp
+    src/gui/ui/chrome/header_bar.hpp
+    src/gui/ui/chrome/header_bar.cpp
+    src/gui/ui/chrome/input_dock.hpp
+    src/gui/ui/chrome/input_dock.cpp
+    src/gui/ui/chrome/toast_widget.hpp
+    src/gui/ui/chrome/toast_widget.cpp
+    src/gui/ui/chrome/popup_menu.hpp
+    src/gui/ui/chrome/popup_menu.cpp
+    src/gui/ui/dialogs/image_preview_modal.hpp
+    src/gui/ui/dialogs/image_preview_modal.cpp
+    src/gui/ui/dialogs/color_picker_dialog.hpp
+    src/gui/ui/dialogs/color_picker_dialog.cpp
+    src/gui/ui/dialogs/settings_dialog.hpp
+    src/gui/ui/dialogs/settings_dialog.cpp
+    src/gui/ui/clips/clip_widget.hpp
+    src/gui/ui/clips/clip_widget.cpp
+    src/gui/ui/main_window.hpp
+    src/gui/ui/main_window.cpp
+)
 
 target_link_libraries(webclip PRIVATE
     webclip_core
     Qt6::Core
     Qt6::Gui
-    Qt6::Quick
-    Qt6::Qml
-    Qt6::QuickControls2
     Qt6::Svg
     Qt6::Widgets
 )
