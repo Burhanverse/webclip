@@ -143,69 +143,42 @@ void clearBubblePixmapCache() {
 
 void paintBubble(QPainter* p, const QRectF& rectIncludingTail, qreal radius,
                  const QColor& color, BubbleTail tail, qreal dpr) {
+    Q_UNUSED(dpr);
     if (rectIncludingTail.width() <= 0 || rectIncludingTail.height() <= 0) return;
 
-    const CornerPixmaps& corners = bubbleCornerPixmaps(radius, color, dpr);
-    const qreal r = qMax<qreal>(1.0, corners.corners[0].width() / dpr);
-    const qreal left = rectIncludingTail.left();
-    const qreal right = rectIncludingTail.right();
-    const qreal bottom = rectIncludingTail.bottom();
-
     QRectF body = rectIncludingTail;
-    QPointF tailPos = rectIncludingTail.topLeft();
-    bool squareBL = false;
-    bool squareBR = false;
+    if (tail == BubbleTail::Right) {
+        body.setRight(rectIncludingTail.right() - kTailWidth);
+    } else if (tail == BubbleTail::Left) {
+        body.setLeft(rectIncludingTail.left() + kTailWidth);
+    }
+
+    QPainterPath path;
+    path.addRoundedRect(body, radius, radius);
 
     if (tail == BubbleTail::Right) {
-        body.setRight(right - kTailWidth);
-        tailPos = QPointF(right - kTailWidth, bottom - kTailHeight);
-        squareBR = true;
+        const qreal bx = body.right();
+        const qreal by = body.bottom();
+        QPainterPath tailPath;
+        tailPath.moveTo(bx - radius, by);
+        tailPath.lineTo(rectIncludingTail.right(), by);
+        tailPath.cubicTo(rectIncludingTail.right() - 4.0, by - 4.0, bx, by - 12.0, bx, by - 14.0);
+        tailPath.closeSubpath();
+        path = path.united(tailPath);
     } else if (tail == BubbleTail::Left) {
-        body.setLeft(left + kTailWidth);
-        tailPos = QPointF(left, bottom - kTailHeight);
-        squareBL = true;
+        const qreal bx = body.left();
+        const qreal by = body.bottom();
+        QPainterPath tailPath;
+        tailPath.moveTo(bx + radius, by);
+        tailPath.lineTo(rectIncludingTail.left(), by);
+        tailPath.cubicTo(rectIncludingTail.left() + 4.0, by - 4.0, bx, by - 12.0, bx, by - 14.0);
+        tailPath.closeSubpath();
+        path = path.united(tailPath);
     }
 
-    const qreal cx1 = body.left() + r;
-    const qreal cx2 = body.right() - r;
-    const qreal cy1 = body.top() + r;
-    const qreal cy2 = body.bottom() - r;
-
-    p->fillRect(QRectF(body.left(), cy1 - 0.5, body.width(),
-                       qMax(0.0, cy2 - cy1 + 1.0)),
-                color);
-    p->fillRect(QRectF(cx1 - 0.5, body.top(), qMax(0.0, cx2 - cx1 + 1.0),
-                       qMax(0.0, cy1 - body.top())),
-                color);
-    p->fillRect(QRectF(cx1 - 0.5, cy2, qMax(0.0, cx2 - cx1 + 1.0),
-                       qMax(0.0, body.bottom() - cy2)),
-                color);
-
-    const auto drawPiece = [&](const QPixmap& pm, const QRectF& at) {
-        p->drawPixmap(
-            QRectF(at.left(), at.top(), pm.width() / dpr, pm.height() / dpr),
-            pm, QRectF(0, 0, pm.width(), pm.height()));
-    };
-
-    drawPiece(corners.corners[kTopLeft], QRectF(body.left(), body.top(), r, r));
-    drawPiece(corners.corners[kTopRight], QRectF(cx2, body.top(), r, r));
-    if (squareBL) {
-        p->fillRect(QRectF(body.left() - 0.5, cy2, r + 0.5, r), color);
-    } else {
-        drawPiece(corners.corners[kBottomLeft],
-                  QRectF(body.left(), cy2, r, r));
-    }
-    if (squareBR) {
-        p->fillRect(QRectF(cx2, cy2, r + 0.5, r), color);
-    } else {
-        drawPiece(corners.corners[kBottomRight],
-                  QRectF(cx2, cy2, r, r));
-    }
-
-    if (tail != BubbleTail::None) {
-        const QPixmap& tailPm = bubbleTailPixmap(tail, color, dpr);
-        drawPiece(tailPm, QRectF(tailPos, QSizeF(kTailWidth, kTailHeight)));
-    }
+    p->setPen(Qt::NoPen);
+    p->setBrush(color);
+    p->drawPath(path);
 }
 
 }  // namespace webclip

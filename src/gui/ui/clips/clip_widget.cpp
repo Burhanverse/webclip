@@ -1,6 +1,8 @@
 #include "clip_widget.hpp"
 #include "../basic/painter_helpers.hpp"
+#include "../md3/icon_loader.hpp"
 #include "../../theme/md3_theme.hpp"
+#include "../../util/i18n.hpp"
 #include "../../models/clipboard_history_model.hpp"
 #include "../../controllers/webclip_controller.hpp"
 #include "../../clips/bubble_corners.hpp"
@@ -22,8 +24,8 @@ ClipWidget::ClipWidget(
     webclip::ClipboardHistoryModel* model
 )
     : RpWidget(parent)
-    , controller_(controller)
-    , model_(model) {
+    , controller_(nullptr)
+    , model_(nullptr) {
     setFocusPolicy(Qt::ClickFocus);
     setMouseTracking(true);
     setCursor(Qt::ArrowCursor);
@@ -40,11 +42,11 @@ ClipWidget::ClipWidget(
             scrollbarTargetOpacity_ = 0.0;
         }
         if (std::abs(scrollbarOpacity_ - scrollbarTargetOpacity_) > 0.01) {
-            scrollbarOpacity_ += (scrollbarTargetOpacity_ - scrollbarOpacity_) * 0.15;
+            scrollbarOpacity_ += (scrollbarTargetOpacity_ - scrollbarOpacity_) * 0.20;
             update();
         } else {
             scrollbarOpacity_ = scrollbarTargetOpacity_;
-            if (scrollbarOpacity_ == 0.0) {
+            if (scrollbarOpacity_ == 0.0 || scrollbarOpacity_ == 1.0) {
                 scrollbarFadeTimer_.stop();
             }
         }
@@ -59,11 +61,11 @@ ClipWidget::ClipWidget(
         update();
     });
 
-    if (controller_) {
-        setController(controller_);
+    if (controller) {
+        setController(controller);
     }
-    if (model_) {
-        setModel(model_);
+    if (model) {
+        setModel(model);
     }
 }
 
@@ -76,7 +78,9 @@ ClipWidget::~ClipWidget() {
 }
 
 void ClipWidget::setController(webclip::WebClipController* controller) {
-    if (controller_ == controller) return;
+    if (controller_ && controller_ != controller) {
+        controller_->disconnect(this);
+    }
     controller_ = controller;
 
     if (controller_) {
@@ -88,15 +92,14 @@ void ClipWidget::setController(webclip::WebClipController* controller) {
             applyScroll(scrollY_);
             update();
         });
-        if (!model_ && controller_->clipModel()) {
+        if (controller_->clipModel()) {
             setModel(controller_->clipModel());
         }
     }
 }
 
 void ClipWidget::setModel(webclip::ClipboardHistoryModel* model) {
-    if (model_ == model) return;
-    if (model_) {
+    if (model_ && model_ != model) {
         model_->disconnect(this);
     }
     model_ = model;
@@ -107,6 +110,7 @@ void ClipWidget::setModel(webclip::ClipboardHistoryModel* model) {
 void ClipWidget::attachModel() {
     if (!model_) return;
 
+    model_->disconnect(this);
     connect(model_, &QAbstractItemModel::rowsInserted, this, &ClipWidget::onRowsInserted);
     connect(model_, &QAbstractItemModel::rowsRemoved, this, &ClipWidget::onRowsRemoved);
     connect(model_, &QAbstractItemModel::dataChanged, this, &ClipWidget::onDataChanged);
@@ -338,11 +342,11 @@ void ClipWidget::tickAnimations() {
 
     if (animState_ == Anim::Wheel) {
         const double diff = animTarget_ - scrollY_;
-        if (std::abs(diff) < 1.0) {
+        if (std::abs(diff) < 0.5) {
             applyScroll(animTarget_, true);
             stopAnimations();
         } else {
-            applyScroll(static_cast<int>(std::round(scrollY_ + diff * std::min(1.0, dt * 15.0))), true);
+            applyScroll(static_cast<int>(std::round(scrollY_ + diff * std::min(1.0, dt * 25.0))), true);
         }
     } else if (animState_ == Anim::Flick) {
         applyScroll(static_cast<int>(std::round(scrollY_ - flickVelocity_ * dt)), false);
@@ -356,12 +360,14 @@ void ClipWidget::tickAnimations() {
         }
     } else if (animState_ == Anim::Settle) {
         const double diff = animTarget_ - scrollY_;
-        if (std::abs(diff) < 1.0) {
+        if (std::abs(diff) < 0.5) {
             applyScroll(animTarget_, true);
             stopAnimations();
         } else {
-            applyScroll(static_cast<int>(std::round(scrollY_ + diff * std::min(1.0, dt * 18.0))), false);
+            applyScroll(static_cast<int>(std::round(scrollY_ + diff * std::min(1.0, dt * 25.0))), false);
         }
+    } else {
+        stopAnimations();
     }
 }
 
@@ -528,9 +534,13 @@ void ClipWidget::resizeEvent(QResizeEvent* e) {
 }
 
 void ClipWidget::wheelEvent(QWheelEvent* e) {
-    stopAnimations();
     const int delta = e->angleDelta().y();
-    animTarget_ = std::clamp(scrollY_ - delta, 0, maxScroll());
+    if (delta == 0) return;
+
+    if (animState_ != Anim::Wheel) {
+        animTarget_ = scrollY_;
+    }
+    animTarget_ = std::clamp(animTarget_ - delta, 0, maxScroll());
     startWheelAnimation();
     restartScrollbarFade();
 }
@@ -642,6 +652,33 @@ void ClipWidget::paintEvent(QPaintEvent* /*e*/) {
 
     QPainter p(this);
     PainterHighQualityEnabler hq(p);
+
+    if (elements_.empty()) {
+        auto* theme = webclip::MD3Theme::instance();
+        const int cx = width() / 2;
+        const int cy = height() / 2 - 20;
+
+        // 56x56 primary container circle
+        const QRectF avatarRect(cx - 28, cy - 40, 56, 56);
+        p.setPen(Qt::NoPen);
+        p.setBrush(theme->primaryContainer());
+        p.drawEllipse(avatarRect);
+
+        IconLoader::paint(p, QStringLiteral("phone"), QRectF(cx - 13, cy - 25, 26, 26), theme->onPrimaryContainer());
+
+        // Empty title
+        p.setFont(theme->titleSmall());
+        p.setPen(theme->onSurface());
+        const QString emptyTitle = webclip::I18n::instance()->tr(QStringLiteral("chat.empty_title"));
+        p.drawText(QRectF(16, cy + 28, width() - 32, 24), Qt::AlignCenter, emptyTitle);
+
+        // Empty subtitle
+        p.setFont(theme->bodySmall());
+        p.setPen(theme->onSurfaceVariant());
+        const QString emptySub = webclip::I18n::instance()->tr(QStringLiteral("chat.empty_subtitle"));
+        p.drawText(QRectF(16, cy + 52, width() - 32, 20), Qt::AlignCenter, emptySub);
+        return;
+    }
 
     const int vh = height();
     const int topBound = scrollY_;

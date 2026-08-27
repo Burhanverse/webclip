@@ -16,6 +16,7 @@
 #include "../controllers/webclip_controller.hpp"
 #include "../models/clipboard_history_model.hpp"
 #include "../theme/md3_theme.hpp"
+#include "../ui/md3/icon_loader.hpp"
 #include "../util/i18n.hpp"
 #include "bubble_corners.hpp"
 
@@ -28,65 +29,16 @@ constexpr qreal kTailSpace = 6.0;
 constexpr qreal kContentHPad = 12.0;
 constexpr qreal kVPad = 8.0;
 constexpr qreal kSectionSpacing = 4.0;
-constexpr qreal kImageMaxH = 360.0;
-constexpr qreal kMetaRowHeight = 24.0;
+constexpr qreal kMetaRowHeight = 22.0;
+constexpr qreal kButtonSize = 22.0;
+constexpr qreal kIconSize = 14.0;
+constexpr qreal kButtonSpacing = 4.0;
 constexpr qreal kChipHeight = 24.0;
-constexpr qreal kButtonSize = 20.0;
-constexpr qreal kButtonSpacing = 2.0;
-constexpr qreal kIconSize = 13.0;
+constexpr qreal kImageMaxH = 260.0;
 constexpr qreal kCollapsedTextHeight = 85.0;
 
-struct IconKey {
-    QString name;
-    quint32 argb;
-    int sizePx;
-    qreal dpr;
-    bool operator==(const IconKey& o) const {
-        return sizePx == o.sizePx && dpr == o.dpr && argb == o.argb &&
-               name == o.name;
-    }
-};
-
-using ::qHash;
-
-size_t qHash(const IconKey& k, size_t seed = 0) {
-    return qHash(k.name, qHash(k.argb, qHash(k.sizePx, qHash(static_cast<quint32>(qRound64(k.dpr * 64.0)), seed))));
-}
-
-QHash<IconKey, QPixmap>& iconCache() {
-    static QHash<IconKey, QPixmap> cache;
-    return cache;
-}
-
-const QPixmap& iconPixmap(const QString& name, const QColor& color, qreal dpr) {
-    const int px = qCeil(kIconSize * dpr);
-    IconKey key{name, color.rgba(), px, dpr};
-    auto it = iconCache().find(key);
-    if (it != iconCache().end()) return it.value();
-
-    QPixmap pm(px, px);
-    pm.fill(Qt::transparent);
-    QPainter p(&pm);
-    p.setRenderHint(QPainter::Antialiasing, true);
-    p.setRenderHint(QPainter::SmoothPixmapTransform, true);
-
-    const QString candidates[] = {
-        QStringLiteral(":/qt/qml/src/gui/resources/icons/%1.svg").arg(name),
-        QStringLiteral(":/src/gui/resources/icons/%1.svg").arg(name),
-    };
-    for (const QString& path : candidates) {
-        QSvgRenderer renderer(path);
-        if (renderer.isValid()) {
-            renderer.render(&p, QRectF(0, 0, kIconSize, kIconSize));
-            break;
-        }
-    }
-    if (color.alpha() > 0) {
-        p.setCompositionMode(QPainter::CompositionMode_SourceIn);
-        p.fillRect(QRectF(0, 0, kIconSize, kIconSize), color);
-    }
-    p.end();
-    return iconCache().insert(key, pm).value();
+QPixmap iconPixmap(const QString& name, const QColor& color, qreal dpr) {
+    return Ui::IconLoader::loadPixmap(name, static_cast<int>(kIconSize), color, dpr);
 }
 
 QString actionIconName(ClipElement::Zone zone) {
@@ -144,7 +96,7 @@ QImage decodeScaledImage(const QString& sourceUrl, const QSize& native) {
 }  // namespace
 
 void clearClipElementCaches() {
-    iconCache().clear();
+    Ui::IconLoader::clearCache();
 }
 
 ClipElement::ClipElement(IClipViewHost* owner) : owner_(owner) {}
@@ -182,10 +134,6 @@ void ClipElement::refreshContent() {
     imageDataUrl_ = item->imageData;
     nativeDims_ = QSize(item->imgWidth, item->imgHeight);
 
-    const auto links = ClipTextLayout::detectLinks(headText_);
-    hasUrl_ = !links.isEmpty();
-    firstUrl_ = hasUrl_ ? links.first().url : QString();
-
     fullTextLoaded_ = false;
     fullTextCache_.clear();
     expanded_ = false;
@@ -193,6 +141,9 @@ void ClipElement::refreshContent() {
     imageStateKey_ = isImage_ ? imageDataUrl_ : QString();
     imageScaled_ = QImage();
     rebuildText();
+
+    hasUrl_ = !text_.links().isEmpty();
+    firstUrl_ = hasUrl_ ? text_.links().first().url : QString();
 }
 
 void ClipElement::rebuildText() {
@@ -536,9 +487,10 @@ ClipElement::Hit ClipElement::hitTest(QPointF localPos, int containerWidth) cons
     }
     if (!isImage_ && textAreaRect_.contains(localPos)) {
         hit.zone = Zone::Text;
-        const QPointF rel = localPos - textAreaRect_.topLeft();
-        hit.url = text_.urlAt(rel, lastWrapWidth_);
-        hit.textPosition = text_.positionAt(rel, lastWrapWidth_);
+        if (!text_.links().isEmpty()) {
+            const QPointF rel = localPos - textAreaRect_.topLeft();
+            hit.url = text_.urlAt(rel, lastWrapWidth_);
+        }
         return hit;
     }
     return hit;
