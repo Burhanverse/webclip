@@ -257,6 +257,14 @@ void WebClipController::setInsecure(bool insecure) {
     }
 }
 
+void WebClipController::setAutoConnect(bool autoConnect) {
+    if (autoConnect_ != autoConnect) {
+        autoConnect_ = autoConnect;
+        saveSettings();
+        emit autoConnectChanged();
+    }
+}
+
 void WebClipController::setAutoSync(bool autoSync) {
     if (autoSync_ != autoSync) {
         autoSync_ = autoSync;
@@ -346,6 +354,13 @@ void WebClipController::sanitizeHostInput() {
     emit portChanged();
     emit useHttpsChanged();
     emit insecureChanged();
+}
+
+void WebClipController::autoConnectOnStartup() {
+    if (!autoConnect_) return;
+    if (connected_ || connecting_) return;
+    if (host_.trimmed().isEmpty() || code_.trimmed().isEmpty()) return;
+    connectToPortal();
 }
 
 void WebClipController::connectToPortal() {
@@ -1181,6 +1196,7 @@ void WebClipController::saveSettings() {
     s.setValue("useHttps", useHttps_);
     s.setValue("insecure", insecure_);
     s.setValue("autoSync", autoSync_);
+    s.setValue("autoConnect", autoConnect_);
     s.setValue("pollInterval", pollInterval_);
     s.setValue("themeMode", themeMode_);
     s.setValue("accentPreset", accentPreset_);
@@ -1195,6 +1211,7 @@ void WebClipController::loadSettings() {
     useHttps_ = s.value("useHttps", false).toBool();
     insecure_ = s.value("insecure", true).toBool();
     autoSync_ = s.value("autoSync", true).toBool();
+    autoConnect_ = s.value("autoConnect", false).toBool();
     pollInterval_ = s.value("pollInterval", 1.0).toDouble();
     themeMode_ = s.value("themeMode", 0).toInt();
     accentPreset_ = s.value("accentPreset", "purple").toString();

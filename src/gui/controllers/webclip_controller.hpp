@@ -31,6 +31,7 @@ class WebClipController : public QObject {
     Q_PROPERTY(QString code READ code WRITE setCode NOTIFY codeChanged)
     Q_PROPERTY(bool useHttps READ useHttps WRITE setUseHttps NOTIFY useHttpsChanged)
     Q_PROPERTY(bool insecure READ insecure WRITE setInsecure NOTIFY insecureChanged)
+    Q_PROPERTY(bool autoConnect READ autoConnect WRITE setAutoConnect NOTIFY autoConnectChanged)
     Q_PROPERTY(bool autoSync READ autoSync WRITE setAutoSync NOTIFY autoSyncChanged)
     Q_PROPERTY(double pollInterval READ pollInterval WRITE setPollInterval NOTIFY pollIntervalChanged)
     Q_PROPERTY(QString clipboardBackend READ clipboardBackend CONSTANT)
@@ -52,6 +53,7 @@ public:
     QString code() const { return code_; }
     bool useHttps() const { return useHttps_; }
     bool insecure() const { return insecure_; }
+    bool autoConnect() const { return autoConnect_; }
     bool autoSync() const { return autoSync_; }
     double pollInterval() const { return pollInterval_; }
     QString clipboardBackend() const;
@@ -69,6 +71,7 @@ public:
     void setCode(const QString& code);
     void setUseHttps(bool useHttps);
     void setInsecure(bool insecure);
+    void setAutoConnect(bool autoConnect);
     void setAutoSync(bool autoSync);
     void setPollInterval(double interval);
     Q_INVOKABLE void setThemeMode(int mode);
@@ -78,6 +81,7 @@ public:
     Q_INVOKABLE void connectToPortal();
     Q_INVOKABLE void disconnectFromPortal();
     Q_INVOKABLE void toggleConnection();
+    Q_INVOKABLE void autoConnectOnStartup();
     Q_INVOKABLE bool pushClipboard(const QString& text, const QString& clipId = "");
     Q_INVOKABLE bool pushImage(const QString& filePathOrDataUrl);
     Q_INVOKABLE bool pushImageBytes(const QByteArray& bytes, const QString& mimeType = "image/png", const QString& clipId = "");
@@ -97,6 +101,7 @@ signals:
     void codeChanged();
     void useHttpsChanged();
     void insecureChanged();
+    void autoConnectChanged();
     void autoSyncChanged();
     void pollIntervalChanged();
     void themeModeChanged();
@@ -129,6 +134,7 @@ private:
     QString code_ = "";
     bool useHttps_ = false;
     bool insecure_ = true;
+    bool autoConnect_ = false;
     bool autoSync_ = true;
     double pollInterval_ = 1.0;
     int themeMode_ = 0;

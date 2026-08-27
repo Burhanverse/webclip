@@ -31,7 +31,9 @@
       "code_placeholder": "4-digit code",
       "btn_connect": "Connect",
       "btn_connecting": "Connecting...",
-      "btn_disconnect": "Disconnect"
+      "btn_disconnect": "Disconnect",
+      "autoconnect_title": "Auto-Connect on Startup",
+      "autoconnect_subtitle": "Automatically connect using saved settings"
     },
     "security": {
       "section_title": "Security & Network",

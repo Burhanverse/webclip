@@ -216,6 +216,21 @@ void SettingsDialog::setupContent() {
     connCard->addRow(connRow);
     mainLayout_->addWidget(connCard);
 
+    // Auto-connect on startup toggle
+    auto* startupCard = new CardContainer(scrollContent_);
+    autoConnectRow_ = new CardToggleRow(
+        startupCard,
+        webclip::I18n::instance()->tr(QStringLiteral("settings.connection.autoconnect_title")),
+        webclip::I18n::instance()->tr(QStringLiteral("settings.connection.autoconnect_subtitle")),
+        QStringLiteral("link"),
+        false
+    );
+    connect(autoConnectRow_, &CardToggleRow::toggled, this, [this](bool val) {
+        if (controller_) controller_->setAutoConnect(val);
+    });
+    startupCard->addRow(autoConnectRow_);
+    mainLayout_->addWidget(startupCard);
+
     // ==========================================
     // 2. Security Section
     // ==========================================
@@ -499,6 +514,7 @@ void SettingsDialog::setController(webclip::WebClipController* controller) {
     httpsRow_->setChecked(controller_->useHttps(), anim::type::instant);
     insecureRow_->setChecked(controller_->insecure(), anim::type::instant);
     autoSyncRow_->setChecked(controller_->autoSync(), anim::type::instant);
+    autoConnectRow_->setChecked(controller_->autoConnect(), anim::type::instant);
 
     if (pollSlider_) {
         pollSlider_->setValue(controller_->pollInterval());
@@ -543,6 +559,12 @@ void SettingsDialog::setController(webclip::WebClipController* controller) {
     connect(controller_, &webclip::WebClipController::autoSyncChanged, this, [this] {
         if (controller_ && autoSyncRow_) {
             autoSyncRow_->setChecked(controller_->autoSync(), anim::type::instant);
+        }
+    });
+
+    connect(controller_, &webclip::WebClipController::autoConnectChanged, this, [this] {
+        if (controller_ && autoConnectRow_) {
+            autoConnectRow_->setChecked(controller_->autoConnect(), anim::type::instant);
         }
     });
 

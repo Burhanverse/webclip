@@ -68,6 +68,7 @@ private:
     Md3TextField* portInput_ = nullptr;
     Md3TextField* pinInput_ = nullptr;
     Md3Button* connectBtn_ = nullptr;
+    CardToggleRow* autoConnectRow_ = nullptr;
 
     // Security
     CardContainer* securityCard_ = nullptr;

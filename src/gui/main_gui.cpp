@@ -395,5 +395,8 @@ int main(int argc, char* argv[]) {
     trayManager->setMainWindow(mainWindow);
 
     mainWindow->show();
+
+    QTimer::singleShot(0, controller, &webclip::WebClipController::autoConnectOnStartup);
+
     return app.exec();
 }
