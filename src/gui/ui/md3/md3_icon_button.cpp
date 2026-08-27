@@ -83,7 +83,12 @@ void Md3IconButton::paintEvent(QPaintEvent* /*e*/) {
     if (customBgColor_ != Qt::transparent) {
         p.setPen(Qt::NoPen);
         p.setBrush(customBgColor_);
-        p.drawEllipse(btnRect);
+        if (roundSquare_) {
+            const qreal r = qMin(width(), height()) / 4.0;
+            p.drawRoundedRect(btnRect, r, r);
+        } else {
+            p.drawEllipse(btnRect);
+        }
     }
 
     // 2. State layer
@@ -91,7 +96,12 @@ void Md3IconButton::paintEvent(QPaintEvent* /*e*/) {
         const int stateAlpha = isDown() ? 36 : 20; // 0.14 vs 0.08
         p.setPen(Qt::NoPen);
         p.setBrush(QColor(color.red(), color.green(), color.blue(), stateAlpha));
-        p.drawEllipse(btnRect);
+        if (roundSquare_) {
+            const qreal r = qMin(width(), height()) / 4.0;
+            p.drawRoundedRect(btnRect, r, r);
+        } else {
+            p.drawEllipse(btnRect);
+        }
     }
 
     // 3. Ripple
@@ -106,6 +116,9 @@ void Md3IconButton::paintEvent(QPaintEvent* /*e*/) {
 }
 
 QImage Md3IconButton::prepareRippleMask() const {
+    if (roundSquare_) {
+        return RippleAnimation::RoundRectMask(size(), qMin(width(), height()) / 4);
+    }
     return RippleAnimation::EllipseMask(size());
 }
 

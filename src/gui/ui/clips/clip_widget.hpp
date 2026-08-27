@@ -34,13 +34,13 @@ public:
     void setController(webclip::WebClipController* controller);
     void setModel(webclip::ClipboardHistoryModel* model);
 
-    [[nodiscard]] int currentScrollY() const noexcept { return scrollY_; }
-
     void onElementImageDecoded(
         const QString& clipId,
         const QString& sourceKey,
         const QImage& image
     ) override;
+
+    bool applyConnectedRelayout();
 
 signals:
     void fullPreviewRequested(const QString& imageDataUrl);
@@ -107,6 +107,7 @@ private:
     bool scrollbarContains(const QPointF& pos) const;
     QRectF scrollbarThumbRect() const;
     void restartScrollbarFade();
+    void renderContent(QPainter& p, const QRect& dirtyRect);
 
     webclip::WebClipController* controller_ = nullptr;
     webclip::ClipboardHistoryModel* model_ = nullptr;
@@ -117,6 +118,7 @@ private:
     int scrollY_ = 0;
     int viewportHeightCached_ = 0;
     bool stickBottom_ = true;
+    bool lastConnected_ = false;
 
     static constexpr int kSpacing = 10;
     static constexpr int kTopMargin = 12;
@@ -127,6 +129,8 @@ private:
     Anim animState_ = Anim::None;
     int animTarget_ = 0;
     double flickVelocity_ = 0.0;
+    int animStartY_ = 0;
+    double wheelElapsed_ = 0.0;
     QElapsedTimer animClock_;
 
     Gesture gesture_ = Gesture::None;

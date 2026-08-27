@@ -18,6 +18,7 @@
 
 namespace Ui {
 
+
 ClipWidget::ClipWidget(
     QWidget* parent,
     webclip::WebClipController* controller,
@@ -31,7 +32,7 @@ ClipWidget::ClipWidget(
     setCursor(Qt::ArrowCursor);
 
     animationTimer_.setInterval(16);
-    animationTimer_.setTimerType(Qt::CoarseTimer);
+    animationTimer_.setTimerType(Qt::PreciseTimer);
     connect(&animationTimer_, &QTimer::timeout, this, &ClipWidget::tickAnimations);
 
     scrollbarFadeTimer_.setInterval(16);
@@ -56,6 +57,9 @@ ClipWidget::ClipWidget(
     connect(theme, &webclip::MD3Theme::themeChanged, this, [this] {
         webclip::clearBubblePixmapCache();
         webclip::clearClipElementCaches();
+        for (auto& el : elements_) {
+            el->refreshTheme();
+        }
         layoutAll();
         applyScroll(scrollY_);
         update();
@@ -85,17 +89,32 @@ void ClipWidget::setController(webclip::WebClipController* controller) {
 
     if (controller_) {
         connect(controller_, &webclip::WebClipController::connectedChanged, this, [this] {
-            for (auto& el : elements_) {
-                el->setPendingResize(true);
-            }
-            layoutAll();
-            applyScroll(scrollY_);
-            update();
+            applyConnectedRelayout();
         });
         if (controller_->clipModel()) {
             setModel(controller_->clipModel());
         }
     }
+}
+
+bool ClipWidget::applyConnectedRelayout() {
+    if (!controller_) return false;
+    const bool connected = controller_->connected();
+    if (connected == lastConnected_) return false;
+    lastConnected_ = connected;
+
+    bool anyAffected = false;
+    for (auto& el : elements_) {
+        if (el->isFromPhone()) continue;
+        el->setPendingResize(true);
+        anyAffected = true;
+    }
+    if (!anyAffected) return false;
+
+    layoutAll();
+    applyScroll(scrollY_);
+    update();
+    return true;
 }
 
 void ClipWidget::setModel(webclip::ClipboardHistoryModel* model) {
@@ -288,13 +307,20 @@ webclip::ClipElement* ClipWidget::elementAt(int y) const {
 
 void ClipWidget::applyScroll(int newY, bool clampHard) {
     const int ms = maxScroll();
+    const int prevY = scrollY_;
     if (clampHard) {
         scrollY_ = std::clamp(newY, 0, ms);
     } else {
         scrollY_ = newY;
     }
     stickBottom_ = (scrollY_ >= ms);
-    update();
+
+    const int dy = scrollY_ - prevY;
+    if (dy != 0 && isVisible()) {
+        scroll(0, dy);
+    } else {
+        update();
+    }
 }
 
 void ClipWidget::scrollToBottom(bool instant) {
@@ -317,6 +343,8 @@ void ClipWidget::stopAnimations() {
 }
 
 void ClipWidget::startWheelAnimation() {
+    animStartY_ = scrollY_;
+    wheelElapsed_ = 0.0;
     animState_ = Anim::Wheel;
     animClock_.restart();
     if (!animationTimer_.isActive()) animationTimer_.start();
@@ -340,13 +368,24 @@ void ClipWidget::tickAnimations() {
     const double dt = animClock_.restart() / 1000.0;
     if (dt <= 0.0 || dt > 0.1) return;
 
+    if (animState_ == Anim::None) {
+        animationTimer_.stop();
+        return;
+    }
+
     if (animState_ == Anim::Wheel) {
-        const double diff = animTarget_ - scrollY_;
-        if (std::abs(diff) < 0.5) {
+        const double kWheelDuration = 0.20;
+        wheelElapsed_ += dt;
+        double t = wheelElapsed_ / kWheelDuration;
+        if (t >= 1.0) {
             applyScroll(animTarget_, true);
-            stopAnimations();
+            animState_ = Anim::None;
+            animationTimer_.stop();
         } else {
-            applyScroll(static_cast<int>(std::round(scrollY_ + diff * std::min(1.0, dt * 25.0))), true);
+            const double e = 1.0 - std::pow(1.0 - t, 3.0); // ease-out cubic
+            const int pos = static_cast<int>(
+                std::round(animStartY_ + (animTarget_ - animStartY_) * e));
+            applyScroll(pos, false);
         }
     } else if (animState_ == Anim::Flick) {
         applyScroll(static_cast<int>(std::round(scrollY_ - flickVelocity_ * dt)), false);
@@ -537,10 +576,14 @@ void ClipWidget::wheelEvent(QWheelEvent* e) {
     const int delta = e->angleDelta().y();
     if (delta == 0) return;
 
+    if (animState_ == Anim::Flick || animState_ == Anim::Settle) {
+        stopAnimations();
+    }
     if (animState_ != Anim::Wheel) {
         animTarget_ = scrollY_;
     }
     animTarget_ = std::clamp(animTarget_ - delta, 0, maxScroll());
+
     startWheelAnimation();
     restartScrollbarFade();
 }
@@ -647,7 +690,7 @@ void ClipWidget::keyPressEvent(QKeyEvent* e) {
     }
 }
 
-void ClipWidget::paintEvent(QPaintEvent* /*e*/) {
+void ClipWidget::paintEvent(QPaintEvent* e) {
     if (width() <= 0 || height() <= 0) return;
 
     QPainter p(this);
@@ -658,7 +701,6 @@ void ClipWidget::paintEvent(QPaintEvent* /*e*/) {
         const int cx = width() / 2;
         const int cy = height() / 2 - 20;
 
-        // 56x56 primary container circle
         const QRectF avatarRect(cx - 28, cy - 40, 56, 56);
         p.setPen(Qt::NoPen);
         p.setBrush(theme->primaryContainer());
@@ -666,23 +708,29 @@ void ClipWidget::paintEvent(QPaintEvent* /*e*/) {
 
         IconLoader::paint(p, QStringLiteral("phone"), QRectF(cx - 13, cy - 25, 26, 26), theme->onPrimaryContainer());
 
-        // Empty title
         p.setFont(theme->titleSmall());
         p.setPen(theme->onSurface());
         const QString emptyTitle = webclip::I18n::instance()->tr(QStringLiteral("chat.empty_title"));
         p.drawText(QRectF(16, cy + 28, width() - 32, 24), Qt::AlignCenter, emptyTitle);
 
-        // Empty subtitle
         p.setFont(theme->bodySmall());
         p.setPen(theme->onSurfaceVariant());
         const QString emptySub = webclip::I18n::instance()->tr(QStringLiteral("chat.empty_subtitle"));
         p.drawText(QRectF(16, cy + 52, width() - 32, 20), Qt::AlignCenter, emptySub);
-        return;
+    } else {
+        const QRect dirtyRect = e->region().boundingRect();
+        renderContent(p, dirtyRect);
     }
 
+    evictDistantImages();
+}
+
+void ClipWidget::renderContent(QPainter& p, const QRect& dirtyRect) {
     const int vh = height();
     const int topBound = scrollY_;
     const int bottomBound = scrollY_ + vh;
+
+    const QRect dirty = dirtyRect.intersected(QRect(0, 0, width(), vh));
 
     p.save();
     p.translate(0, -scrollY_);
@@ -691,6 +739,12 @@ void ClipWidget::paintEvent(QPaintEvent* /*e*/) {
         const int elTop = el->y();
         const int elBottom = elTop + el->height();
         if (elBottom < topBound || elTop > bottomBound) continue;
+
+        const int elScreenY = elTop - scrollY_;
+        if (!dirty.isEmpty() &&
+            (elScreenY + el->height() <= dirty.top() || elScreenY >= dirty.bottom())) {
+            continue;
+        }
 
         if (el->pendingResize() || el->height() <= 0) {
             el->resizeGetHeight(width());
@@ -710,7 +764,6 @@ void ClipWidget::paintEvent(QPaintEvent* /*e*/) {
 
     p.restore();
     paintScrollbar(&p);
-    evictDistantImages();
 }
 
 } // namespace Ui

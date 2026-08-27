@@ -171,8 +171,6 @@ target_sources(webclip PRIVATE
     src/gui/ui/md3/md3_card.cpp
     src/gui/ui/md3/md3_slider.hpp
     src/gui/ui/md3/md3_slider.cpp
-    src/gui/ui/gallery/component_gallery_window.hpp
-    src/gui/ui/gallery/component_gallery_window.cpp
     src/gui/ui/chrome/header_bar.hpp
     src/gui/ui/chrome/header_bar.cpp
     src/gui/ui/chrome/input_dock.hpp

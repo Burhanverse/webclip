@@ -4,6 +4,7 @@
 #include <QFont>
 #include <QFontMetricsF>
 #include <QImage>
+#include <QPixmap>
 #include <QRectF>
 #include <QSizeF>
 #include <QString>
@@ -55,9 +56,12 @@ public:
     int row() const { return row_; }
     void setRow(int row) { row_ = row; }
 
+    bool isFromPhone() const { return fromPhone_; }
+
     int resizeGetHeight(int containerWidth);
 
     void refreshContent();
+    void refreshTheme();
     QString clipId() const { return id_; }
     bool isImage() const { return isImage_; }
 
@@ -165,7 +169,7 @@ private:
     enum ImageState { ImageEmpty, ImageLoading, ImageReady, ImageFailed };
     QString imageStateKey_;
     ImageState imageState_ = ImageEmpty;
-    QImage imageScaled_;
+    QPixmap imageScaled_;
 
     Zone hoverZone_ = Zone::None;
     bool pressed_ = false;

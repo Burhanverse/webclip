@@ -31,6 +31,14 @@ public:
     }
     void setCustomBgColor(const QColor& color);
 
+    [[nodiscard]] bool roundSquare() const noexcept { return roundSquare_; }
+    void setRoundSquare(bool on) {
+        if (roundSquare_ != on) {
+            roundSquare_ = on;
+            update();
+        }
+    }
+
     void setButtonSize(int buttonSize);
     void setIconSize(int iconSize);
 
@@ -52,6 +60,7 @@ private:
     QColor customBgColor_ = Qt::transparent;
     int buttonSize_ = 40;
     int iconSize_ = 20;
+    bool roundSquare_ = false;
 
     QColor effectiveIconColor() const;
 };

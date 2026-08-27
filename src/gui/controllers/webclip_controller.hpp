@@ -111,6 +111,17 @@ private slots:
     void onClipboardDataChanged();
 
 private:
+    struct PollReadResult {
+        bool ok = false;
+        bool hasImage = false;
+        std::vector<uint8_t> image;
+        std::string mime = "image/png";
+        std::string text;
+    };
+    void handleNativeImage(ClipboardImage img);
+    void handleNativeText(QString text);
+    void processPollReadResult(PollReadResult result);
+
     bool connected_ = false;
     bool connecting_ = false;
     QString host_ = "192.168.1.50";

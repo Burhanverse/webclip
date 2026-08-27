@@ -15,7 +15,7 @@ InputDock::InputDock(QWidget* parent, webclip::WebClipController* controller)
     setFixedHeight(64);
 
     attachBtn_ = new Md3IconButton(this, QStringLiteral("image"), 44, 22);
-    attachBtn_->setIconColor(webclip::MD3Theme::instance()->primary());
+    attachBtn_->setRoundSquare(true);
     attachBtn_->addClickHandler([this] {
         emit attachImageRequested();
     });
@@ -64,11 +64,16 @@ InputDock::InputDock(QWidget* parent, webclip::WebClipController* controller)
 
     connect(webclip::MD3Theme::instance(), &webclip::MD3Theme::themeChanged, this, [this] {
         auto* theme = webclip::MD3Theme::instance();
-        attachBtn_->setIconColor(theme->primary());
+        attachBtn_->setCustomBgColor(theme->primaryContainer());
+        attachBtn_->setIconColor(theme->onPrimaryContainer());
         pasteBtn_->setIconColor(theme->onSurfaceVariant());
         updateSendButtonState();
         update();
     });
+
+    auto* theme = webclip::MD3Theme::instance();
+    attachBtn_->setCustomBgColor(theme->primaryContainer());
+    attachBtn_->setIconColor(theme->onPrimaryContainer());
 }
 
 InputDock::~InputDock() = default;

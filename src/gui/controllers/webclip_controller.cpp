@@ -723,36 +723,35 @@ void WebClipController::onClipboardDataChanged() {
     }
 
     if (nativeClipboard_ && nativeClipboard_->has_image()) {
-        ClipboardImage local_img = nativeClipboard_->get_image();
-        if (local_img.valid && !local_img.data.empty()) {
-            QByteArray ba(reinterpret_cast<const char*>(local_img.data.data()), static_cast<int>(local_img.data.size()));
-            QString hash = computeImageHash(ba);
-            QString pixelFp = computePixelFingerprint(ba);
+        handleNativeImage(nativeClipboard_->get_image());
+        return;
+    }
 
-            if (shouldSuppressImage(hash, pixelFp, nowMs, 2000)) {
-                return;
-            }
-
-            {
-                std::lock_guard<std::mutex> guard(syncLock_);
-                lastLocalImgHash_ = hash;
-                lastLocalPixelFp_ = pixelFp;
-                lastImgTimeMs_ = nowMs;
-            }
-
-            pushImageBytes(ba, QString::fromStdString(local_img.mime_type.empty() ? "image/png" : local_img.mime_type));
-            return;
+    if (nativeClipboard_) {
+        const std::string t = nativeClipboard_->get_text();
+        if (!t.empty()) {
+            handleNativeText(QString::fromStdString(t));
         }
     }
+}
 
-    QString current;
-    if (QGuiApplication::clipboard()) {
-        current = QGuiApplication::clipboard()->text(QClipboard::Clipboard);
-    }
-    if (current.isEmpty() && nativeClipboard_) {
-        current = QString::fromStdString(nativeClipboard_->get_text());
+void WebClipController::handleNativeImage(ClipboardImage img) {
+    if (!img.valid || img.data.empty()) return;
+    int64_t nowMs = QDateTime::currentMSecsSinceEpoch();
+    QByteArray ba(reinterpret_cast<const char*>(img.data.data()), static_cast<int>(img.data.size()));
+    QString hash = computeImageHash(ba);
+    QString pixelFp = computePixelFingerprint(ba);
+
+    if (shouldSuppressImage(hash, pixelFp, nowMs, 2000)) {
+        return;
     }
 
+    markImageApplied(hash, pixelFp, nowMs);
+    pushImageBytes(ba, QString::fromStdString(img.mime_type.empty() ? "image/png" : img.mime_type));
+}
+
+void WebClipController::handleNativeText(QString current) {
+    int64_t nowMs = QDateTime::currentMSecsSinceEpoch();
     if (current.trimmed().isEmpty()) return;
 
     QByteArray rawBytes = current.toUtf8();
@@ -772,13 +771,7 @@ void WebClipController::onClipboardDataChanged() {
                 return;
             }
 
-            {
-                std::lock_guard<std::mutex> guard(syncLock_);
-                lastLocalImgHash_ = hash;
-                lastLocalPixelFp_ = pixelFp;
-                lastImgTimeMs_ = nowMs;
-            }
-
+            markImageApplied(hash, pixelFp, nowMs);
             pushImageBytes(rawBytes, mime);
             return;
         }
@@ -788,17 +781,54 @@ void WebClipController::onClipboardDataChanged() {
         return;
     }
 
-    {
-        std::lock_guard<std::mutex> guard(syncLock_);
-        lastLocalText_ = current;
-        lastTextTimeMs_ = nowMs;
-    }
-
+    markTextApplied(current, nowMs);
     pushClipboard(current);
 }
 
 void WebClipController::onPollTimer() {
-    onClipboardDataChanged();
+    if (!connected_ || !autoSync_) return;
+
+    QPointer<WebClipController> self(this);
+    std::thread([self]() {
+        auto cb = webclip::create_clipboard();
+        if (!cb) return;
+        PollReadResult r;
+        if (cb->has_image()) {
+            ClipboardImage img = cb->get_image();
+            if (img.valid && !img.data.empty()) {
+                r.ok = true;
+                r.hasImage = true;
+                r.image = std::move(img.data);
+                r.mime = img.mime_type.empty() ? "image/png" : img.mime_type;
+                QMetaObject::invokeMethod(self.data(), [self, r]() {
+                    if (self) self->processPollReadResult(std::move(r));
+                });
+                return;
+            }
+        }
+        std::string t = cb->get_text();
+        if (!t.empty()) {
+            r.ok = true;
+            r.text = std::move(t);
+        }
+        QMetaObject::invokeMethod(self.data(), [self, r]() {
+            if (self) self->processPollReadResult(std::move(r));
+        });
+    }).detach();
+}
+
+void WebClipController::processPollReadResult(PollReadResult result) {
+    if (!connected_ || !autoSync_) return;
+    if (!result.ok) return;
+    if (result.hasImage) {
+        ClipboardImage img;
+        img.data = std::move(result.image);
+        img.mime_type = std::move(result.mime);
+        img.valid = true;
+        handleNativeImage(std::move(img));
+    } else if (!result.text.empty()) {
+        handleNativeText(QString::fromStdString(result.text));
+    }
 }
 
 bool WebClipController::pushClipboard(const QString& text, const QString& clipId) {

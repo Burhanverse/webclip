@@ -57,14 +57,26 @@ QColor overlayColor(bool darkBase, qreal alphaFraction) {
                     : QColor(0, 0, 0, qRound(alphaFraction * 255));
 }
 
-void drawRoundedImage(QPainter* p, const QImage& img, const QRectF& rect,
+void drawRoundedImage(QPainter* p, const QPixmap& img, const QRectF& rect,
                       qreal radius) {
     QPainterPath clipPath;
     clipPath.addRoundedRect(rect, radius, radius);
     p->save();
-    p->setRenderHint(QPainter::SmoothPixmapTransform, true);
+    const QSizeF target = rect.size();
+    const qreal dpr = img.devicePixelRatio();
+    const QSizeF src = dpr > 0.0
+        ? QSizeF(img.width() / dpr, img.height() / dpr)
+        : QSizeF(img.width(), img.height());
+    // Only enable expensive smooth filtering when the cached pixmap is actually
+    // rescaled vs the target; skip it for identical (pixel-aligned) blits.
+    static const bool g_forceSmooth = qEnvironmentVariableIsSet("WEBCLIP_FORCE_SMOOTH");
+    if (g_forceSmooth ||
+        target.width() != src.width() || target.height() != src.height()) {
+        p->setRenderHint(QPainter::SmoothPixmapTransform, true);
+    }
     p->setClipPath(clipPath);
-    p->drawImage(rect, img);
+    p->drawPixmap(rect.toAlignedRect(), img,
+                  QRect(0, 0, img.width(), img.height()));
     p->restore();
 }
 
@@ -139,7 +151,7 @@ void ClipElement::refreshContent() {
     expanded_ = false;
     imageState_ = ImageEmpty;
     imageStateKey_ = isImage_ ? imageDataUrl_ : QString();
-    imageScaled_ = QImage();
+    imageScaled_ = QPixmap();
     rebuildText();
 
     hasUrl_ = !text_.links().isEmpty();
@@ -153,8 +165,7 @@ void ClipElement::rebuildText() {
 
     textColor_ =
         fromPhone_ ? theme->onSecondaryContainer() : theme->onPrimaryContainer();
-    linkColor_ = fromPhone_ ? theme->primary()
-                            : QColor(theme->isDark() ? "#8AB4F8" : "#1A73E8");
+    linkColor_ = theme->primary();
     bubbleColor_ =
         fromPhone_ ? theme->secondaryContainer() : theme->primaryContainer();
 
@@ -164,6 +175,10 @@ void ClipElement::rebuildText() {
     }
     const QString& body = expanded_ ? fullTextCache_ : headText_;
     text_.setText(body, bodyFont_, textColor_, linkColor_);
+}
+
+void ClipElement::refreshTheme() {
+    rebuildText();
 }
 
 qreal ClipElement::actionsPillWidth() const {
@@ -555,7 +570,8 @@ bool ClipElement::setImageResult(const QString& sourceKey, const QImage& image) 
     if (image.isNull()) {
         imageState_ = ImageFailed;
     } else {
-        imageScaled_ = image;
+        imageScaled_ = QPixmap::fromImage(image);
+        imageScaled_.setDevicePixelRatio(image.devicePixelRatio());
         imageState_ = ImageReady;
         if (nativeDims_.isEmpty()) {
             pendingResize_ = true;
@@ -567,7 +583,7 @@ bool ClipElement::setImageResult(const QString& sourceKey, const QImage& image) 
 
 void ClipElement::releaseImage() {
     if (imageState_ == ImageReady) {
-        imageScaled_ = QImage();
+        imageScaled_ = QPixmap();
         imageState_ = ImageEmpty;
     }
 }
