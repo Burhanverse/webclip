@@ -32,6 +32,7 @@ public:
     void setController(webclip::WebClipController* controller);
     void open();
     void hideAnimated();
+    ColorPickerDialog* colorPicker() const { return colorPicker_; }
 
 protected:
     void paintEvent(QPaintEvent* e) override;
