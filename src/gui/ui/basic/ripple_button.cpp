@@ -68,18 +68,20 @@ void RippleButton::leaveEvent(QEvent* e) {
 }
 
 void RippleButton::mousePressEvent(QMouseEvent* e) {
-    RpWidget::mousePressEvent(e);
     if (e->button() == Qt::LeftButton && !isDisabled()) {
+        e->accept();
         isDown_ = true;
         ensureRipple();
         ripple_->add(prepareRippleStartPosition());
         update();
+        return;
     }
+    RpWidget::mousePressEvent(e);
 }
 
 void RippleButton::mouseReleaseEvent(QMouseEvent* e) {
-    RpWidget::mouseReleaseEvent(e);
     if (e->button() == Qt::LeftButton && isDown_) {
+        e->accept();
         isDown_ = false;
         if (ripple_) {
             ripple_->lastStop();
@@ -93,7 +95,9 @@ void RippleButton::mouseReleaseEvent(QMouseEvent* e) {
                 }
             }
         }
+        return;
     }
+    RpWidget::mouseReleaseEvent(e);
 }
 
 void RippleButton::changeEvent(QEvent* e) {

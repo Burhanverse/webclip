@@ -36,6 +36,8 @@ HeaderBar::HeaderBar(QWidget* parent, webclip::WebClipController* controller)
         emit openSettingsRequested();
     });
 
+    updateLayout();
+
     if (controller_) {
         setController(controller_);
     }
@@ -83,7 +85,6 @@ void HeaderBar::updateButtons() {
     if (!controller_) return;
     auto* theme = webclip::MD3Theme::instance();
 
-    // Sync button icon & color
     if (controller_->connected()) {
         syncBtn_->setIconName(QStringLiteral("sync"));
         syncBtn_->setIconColor(theme->primary());
@@ -92,18 +93,17 @@ void HeaderBar::updateButtons() {
         syncBtn_->setIconColor(theme->onSurfaceVariant());
     }
 
-    // Theme button icon
     switch (controller_->themeMode()) {
-    case 0: // Auto / System
+    case 0:
         themeBtn_->setIconName(QStringLiteral("sync"));
         break;
-    case 1: // Light
+    case 1:
         themeBtn_->setIconName(QStringLiteral("light_mode"));
         break;
-    case 2: // Dark
+    case 2:
         themeBtn_->setIconName(QStringLiteral("dark_mode"));
         break;
-    case 3: // Pitch Black
+    case 3:
         themeBtn_->setIconName(QStringLiteral("moon"));
         break;
     default:
@@ -126,24 +126,31 @@ void HeaderBar::updateLayout() {
     const int y = (height() - btnSize) / 2;
 
     int rightX = width() - rightMargin - btnSize;
-    settingsBtn_->move(rightX, y);
+    settingsBtn_->setGeometry(rightX, y, btnSize, btnSize);
     rightX -= (btnSize + spacing);
-    themeBtn_->move(rightX, y);
+    themeBtn_->setGeometry(rightX, y, btnSize, btnSize);
     rightX -= (btnSize + spacing);
-    syncBtn_->move(rightX, y);
+    syncBtn_->setGeometry(rightX, y, btnSize, btnSize);
 }
 
 void HeaderBar::mousePressEvent(QMouseEvent* e) {
     if (e->button() == Qt::LeftButton) {
-        // Check if user clicked the status text to toggle connection
-        const QRect statusRect(66, 28, 120, 20);
-        if (statusRect.contains(e->pos()) && controller_) {
+        if (settingsBtn_->geometry().contains(e->pos()) ||
+            themeBtn_->geometry().contains(e->pos()) ||
+            syncBtn_->geometry().contains(e->pos())) {
+            e->accept();
+            return;
+        }
+
+        const QRect connArea(16, 6, 200, 46);
+        if (connArea.contains(e->pos()) && controller_) {
+            e->accept();
             controller_->toggleConnection();
             return;
         }
 
-        // Otherwise initiate window move
         if (window() && window()->windowHandle()) {
+            e->accept();
             window()->windowHandle()->startSystemMove();
             return;
         }
@@ -156,19 +163,13 @@ void HeaderBar::paintEvent(QPaintEvent* /*e*/) {
     PainterHighQualityEnabler hq(p);
     auto* theme = webclip::MD3Theme::instance();
 
-    // 1. Background
-    p.fillRect(rect(), theme->surface());
-
-    // 2. Avatar Container (38x38 circle at x=16, y=10)
     const QRectF avatarRect(16, 10, 38, 38);
     p.setPen(Qt::NoPen);
     p.setBrush(theme->primaryContainer());
     p.drawEllipse(avatarRect);
 
-    // Android device icon centered
     IconLoader::paint(p, QStringLiteral("android"), QRectF(25, 19, 20, 20), theme->onPrimaryContainer());
 
-    // 3. Status Dot (10x10 circle at bottom-right of avatar)
     const QRectF dotRect(44, 38, 10, 10);
     QColor dotColor;
     if (controller_ && controller_->connected()) {
@@ -190,12 +191,10 @@ void HeaderBar::paintEvent(QPaintEvent* /*e*/) {
         p.drawEllipse(dotRect);
     }
 
-    // 4. Header Title ("WebClip")
     p.setFont(theme->titleSmall());
     p.setPen(theme->onSurface());
     p.drawText(QPointF(66, 24), webclip::I18n::instance()->tr(QStringLiteral("app.header_title")));
 
-    // 5. Connection Status Subtitle
     QString statusText;
     QColor statusColor;
     if (controller_ && controller_->connected()) {
@@ -213,7 +212,6 @@ void HeaderBar::paintEvent(QPaintEvent* /*e*/) {
     p.setPen(statusColor);
     p.drawText(QPointF(66, 42), statusText);
 
-    // 6. Bottom 1px Divider
     p.setPen(theme->outlineVariant());
     p.drawLine(0, height() - 1, width(), height() - 1);
 }

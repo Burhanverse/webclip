@@ -26,6 +26,10 @@ public:
         return QSize(320, 58);
     }
 
+    [[nodiscard]] Md3IconButton* syncButton() const noexcept { return syncBtn_; }
+    [[nodiscard]] Md3IconButton* themeButton() const noexcept { return themeBtn_; }
+    [[nodiscard]] Md3IconButton* settingsButton() const noexcept { return settingsBtn_; }
+
 signals:
     void openSettingsRequested();
 

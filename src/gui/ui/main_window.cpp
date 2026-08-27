@@ -139,11 +139,6 @@ void MainWindow::updateLayout() {
 }
 
 void MainWindow::mousePressEvent(QMouseEvent* e) {
-    if (e->button() == Qt::LeftButton) {
-        if (e->pos().y() < 58 && windowHandle()) {
-            windowHandle()->startSystemMove();
-        }
-    }
     QMainWindow::mousePressEvent(e);
 }
 
@@ -156,11 +151,11 @@ void MainWindow::paintEvent(QPaintEvent* /*e*/) {
     PainterHighQualityEnabler hq(p);
     auto* theme = webclip::MD3Theme::instance();
 
-    // 28px rounded window container
-    const QRectF r(0.5, 0.5, width() - 1.0, height() - 1.0);
-    p.setPen(QPen(theme->outlineVariant(), 1.0));
+    // 18px rounded window container without outer outline
+    const QRectF r(0.0, 0.0, width(), height());
+    p.setPen(Qt::NoPen);
     p.setBrush(theme->surface());
-    p.drawRoundedRect(r, 28.0, 28.0);
+    p.drawRoundedRect(r, 18.0, 18.0);
 }
 
 } // namespace Ui

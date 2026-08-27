@@ -165,6 +165,7 @@ void Simple::start(
     int durationMs,
     anim::transition transition
 ) {
+    finishedCallback_ = nullptr;
     callback_ = std::move(callback);
     from_ = from;
     to_ = to;
@@ -188,6 +189,7 @@ void Simple::start(
     int durationMs,
     anim::transition transition
 ) {
+    finishedCallback_ = nullptr;
     start(
         [cb = std::move(callback)](double) {
             if (cb) cb();
@@ -222,7 +224,9 @@ bool Simple::tick(qint64 nowMs) {
             callback_(current_);
         }
         if (finishedCallback_) {
-            finishedCallback_();
+            auto onFinished = std::move(finishedCallback_);
+            finishedCallback_ = nullptr;
+            onFinished();
         }
         return false;
     }

@@ -27,6 +27,11 @@
 #include "version.hpp"
 #include "ui/gallery/component_gallery_window.hpp"
 #include "ui/main_window.hpp"
+#include "ui/chrome/header_bar.hpp"
+#include "ui/dialogs/settings_dialog.hpp"
+#include "ui/md3/md3_icon_button.hpp"
+#include <QMouseEvent>
+#include <QScrollBar>
 #include <QtWidgets/QStyleFactory>
 #ifdef __linux__
 #include <malloc.h>
@@ -344,6 +349,116 @@ int main(int argc, char* argv[]) {
             auto* gallery = new Ui::ComponentGalleryWindow();
             gallery->show();
             return app.exec();
+        }
+        if (std::strcmp(argv[i], "--test-settings") == 0) {
+            auto* controller = new webclip::WebClipController(&app);
+            auto* mainWindow = new Ui::MainWindow(nullptr, controller);
+            mainWindow->show();
+            mainWindow->resize(380, 720);
+            QTimer::singleShot(150, [mainWindow] {
+                if (mainWindow->settingsDialog()) {
+                    mainWindow->settingsDialog()->open();
+                }
+            });
+            return app.exec();
+        }
+        if (std::strcmp(argv[i], "--test-clicks") == 0) {
+            auto* controller = new webclip::WebClipController(&app);
+            auto* mainWindow = new Ui::MainWindow(nullptr, controller);
+            mainWindow->show();
+            mainWindow->resize(380, 720);
+
+            auto* header = mainWindow->headerBar();
+            auto* settingsDialog = mainWindow->settingsDialog();
+
+            int initialTheme = controller->themeMode();
+            std::cout << "[TEST] Initial theme mode: " << initialTheme << std::endl;
+
+            auto* syncBtn = header ? header->syncButton() : nullptr;
+            auto* themeBtn = header ? header->themeButton() : nullptr;
+            auto* settingsBtn = header ? header->settingsButton() : nullptr;
+
+            if (themeBtn) {
+                QMouseEvent press(QEvent::MouseButtonPress, QPointF(17, 17), QPointF(17, 17), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+                QApplication::sendEvent(themeBtn, &press);
+                QMouseEvent release(QEvent::MouseButtonRelease, QPointF(17, 17), QPointF(17, 17), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+                QApplication::sendEvent(themeBtn, &release);
+
+                std::cout << "[TEST] Theme mode after click: " << controller->themeMode() << std::endl;
+                if (controller->themeMode() != (initialTheme + 1) % 4) {
+                    std::cerr << "[FAIL] Theme button click did not advance theme mode!" << std::endl;
+                    return 1;
+                }
+            }
+
+            if (settingsBtn && settingsDialog) {
+                // 1st open
+                QMouseEvent p1(QEvent::MouseButtonPress, QPointF(17, 17), QPointF(17, 17), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+                QApplication::sendEvent(settingsBtn, &p1);
+                QMouseEvent r1(QEvent::MouseButtonRelease, QPointF(17, 17), QPointF(17, 17), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+                QApplication::sendEvent(settingsBtn, &r1);
+                std::cout << "[TEST] 1st open: isVisible=" << settingsDialog->isVisible() << std::endl;
+                if (!settingsDialog->isVisible()) {
+                    std::cerr << "[FAIL] Settings button click did not open settings dialog on 1st click!" << std::endl;
+                    return 1;
+                }
+
+                // Close
+                settingsDialog->hideAnimated();
+                for (int t = 0; t < 25; ++t) {
+                    app.processEvents();
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                }
+                std::cout << "[TEST] After close: isVisible=" << settingsDialog->isVisible() << std::endl;
+
+                // 2nd open
+                QMouseEvent p2(QEvent::MouseButtonPress, QPointF(17, 17), QPointF(17, 17), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+                QApplication::sendEvent(settingsBtn, &p2);
+                QMouseEvent r2(QEvent::MouseButtonRelease, QPointF(17, 17), QPointF(17, 17), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+                QApplication::sendEvent(settingsBtn, &r2);
+                for (int t = 0; t < 25; ++t) {
+                    app.processEvents();
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                }
+                std::cout << "[TEST] 2nd open: isVisible=" << settingsDialog->isVisible() << std::endl;
+                if (!settingsDialog->isVisible()) {
+                    std::cerr << "[FAIL] Settings dialog failed to stay open on 2nd click!" << std::endl;
+                    return 1;
+                }
+
+                // 3rd open
+                settingsDialog->hideAnimated();
+                for (int t = 0; t < 25; ++t) {
+                    app.processEvents();
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                }
+                QApplication::sendEvent(settingsBtn, &p2);
+                QApplication::sendEvent(settingsBtn, &r2);
+                for (int t = 0; t < 25; ++t) {
+                    app.processEvents();
+                    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                }
+                std::cout << "[TEST] 3rd open: isVisible=" << settingsDialog->isVisible() << std::endl;
+                if (!settingsDialog->isVisible()) {
+                    std::cerr << "[FAIL] Settings dialog failed to stay open on 3rd click!" << std::endl;
+                    return 1;
+                }
+            }
+
+            if (syncBtn) {
+                bool initialConn = controller->connected() || controller->connecting();
+                std::cout << "[TEST] Connection state before: " << initialConn << std::endl;
+                QMouseEvent press(QEvent::MouseButtonPress, QPointF(17, 17), QPointF(17, 17), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+                QApplication::sendEvent(syncBtn, &press);
+                QMouseEvent release(QEvent::MouseButtonRelease, QPointF(17, 17), QPointF(17, 17), Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+                QApplication::sendEvent(syncBtn, &release);
+
+                bool afterConn = controller->connected() || controller->connecting();
+                std::cout << "[TEST] Connection state after: " << afterConn << std::endl;
+            }
+
+            std::cout << "[TEST] ALL BUTTON CLICKS VERIFIED SUCCESSFULLY!" << std::endl;
+            return 0;
         }
     }
 

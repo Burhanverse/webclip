@@ -63,6 +63,16 @@ public:
     }
     void setSegmentPosition(CardSegmentPosition pos);
 
+    [[nodiscard]] int trailingPadding() const noexcept {
+        return trailingPadding_;
+    }
+    void setTrailingPadding(int padding) {
+        if (trailingPadding_ != padding) {
+            trailingPadding_ = padding;
+            update();
+        }
+    }
+
     [[nodiscard]] QSize sizeHint() const override;
     [[nodiscard]] QSize minimumSizeHint() const override {
         return sizeHint();
@@ -75,6 +85,7 @@ protected:
     QString title_;
     QString subtitle_;
     QString iconName_;
+    int trailingPadding_ = 16;
     CardSegmentPosition segmentPosition_ = CardSegmentPosition::Single;
 };
 

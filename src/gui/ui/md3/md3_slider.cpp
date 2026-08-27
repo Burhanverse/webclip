@@ -4,6 +4,7 @@
 
 #include <QtGui/QMouseEvent>
 #include <QtGui/QPainter>
+#include <QtGui/QPainterPath>
 #include <algorithm>
 #include <cmath>
 
@@ -41,11 +42,14 @@ void Md3Slider::setSteps(int steps) {
 }
 
 void Md3Slider::updateValueFromPos(int x) {
-    const int margin = 12;
-    const int trackW = width() - 2 * margin;
-    if (trackW <= 0) return;
+    const double trackMargin = 4.0;
+    const double trackRadius = 8.0;
+    const double trackW = width() - 2.0 * trackMargin;
+    const double travelStart = trackMargin + trackRadius;
+    const double travelW = trackW - 2.0 * trackRadius;
+    if (travelW <= 0.0) return;
 
-    const double ratio = std::clamp(static_cast<double>(x - margin) / trackW, 0.0, 1.0);
+    const double ratio = std::clamp((static_cast<double>(x) - travelStart) / travelW, 0.0, 1.0);
     double newVal = min_ + ratio * (max_ - min_);
 
     if (steps_ > 1) {
@@ -84,44 +88,52 @@ void Md3Slider::paintEvent(QPaintEvent* /*e*/) {
     PainterHighQualityEnabler hq(p);
     auto* theme = webclip::MD3Theme::instance();
 
-    const int margin = 12;
-    const int trackH = 16;
-    const int trackY = (height() - trackH) / 2;
-    const int trackW = width() - 2 * margin;
-    const double ratio = (max_ > min_) ? std::clamp((value_ - min_) / (max_ - min_), 0.0, 1.0) : 0.0;
-    const double thumbX = margin + ratio * trackW;
+    const double trackMargin = 4.0;
+    const double trackH = 16.0;
+    const double trackRadius = 8.0;
+    const double trackY = (height() - trackH) / 2.0;
+    const double trackW = width() - 2.0 * trackMargin;
+    const QRectF trackRect(trackMargin, trackY, trackW, trackH);
 
-    // 1. Inactive track (right side)
+    const double travelStart = trackMargin + trackRadius;
+    const double travelW = trackW - 2.0 * trackRadius;
+    const double ratio = (max_ > min_) ? std::clamp((value_ - min_) / (max_ - min_), 0.0, 1.0) : 0.0;
+    const double thumbX = travelStart + ratio * travelW;
+
     p.setPen(Qt::NoPen);
     p.setBrush(theme->secondaryContainer());
-    p.drawRoundedRect(QRectF(margin, trackY, trackW, trackH), 8.0, 8.0);
+    p.drawRoundedRect(trackRect, trackRadius, trackRadius);
 
-    // 2. Active track (left side)
-    if (thumbX > margin) {
+    if (thumbX > trackMargin) {
+        p.save();
+        QPainterPath clip;
+        clip.addRoundedRect(trackRect, trackRadius, trackRadius);
+        p.setClipPath(clip);
         p.setBrush(theme->primary());
-        p.drawRoundedRect(QRectF(margin, trackY, thumbX - margin, trackH), 8.0, 8.0);
+        p.drawRect(QRectF(trackMargin, trackY, thumbX - trackMargin, trackH));
+        p.restore();
     }
 
-    // 3. Discrete notches
     if (steps_ > 1) {
-        p.setBrush(theme->onSecondaryContainer());
         for (int i = 0; i < steps_; ++i) {
             const double dotRatio = static_cast<double>(i) / (steps_ - 1);
-            const double dotX = margin + dotRatio * trackW;
-            // Draw 4px dot
-            p.drawEllipse(QPointF(dotX, height() / 2.0), 2.0, 2.0);
+            const double dotX = travelStart + dotRatio * travelW;
+            if (std::abs(dotX - thumbX) < 6.0) continue;
+            const bool isActive = (dotX <= thumbX);
+            p.setBrush(isActive ? theme->onPrimary() : theme->onSecondaryContainer());
+            p.drawEllipse(QPointF(dotX, height() / 2.0), 1.75, 1.75);
         }
     }
 
-    // 4. Thumb handle (4px wide bar, height 44px, radius 2px per MD3 spec)
-    const int thumbW = 4;
-    const int thumbH = 28;
-    const int thumbY = (height() - thumbH) / 2;
+    const double thumbW = 6.0;
+    const double thumbH = 26.0;
+    const double thumbY = (height() - thumbH) / 2.0;
     const QRectF thumbRect(thumbX - thumbW / 2.0, thumbY, thumbW, thumbH);
 
+    const QColor thumbCol = isDown_ ? theme->onPrimary() : (theme->isDark() ? QColor(QStringLiteral("#FFFFFF")) : theme->onSurface());
     p.setPen(Qt::NoPen);
-    p.setBrush(theme->primary());
-    p.drawRoundedRect(thumbRect, 2.0, 2.0);
+    p.setBrush(thumbCol);
+    p.drawRoundedRect(thumbRect, 3.0, 3.0);
 }
 
 } // namespace Ui

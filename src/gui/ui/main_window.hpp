@@ -29,6 +29,10 @@ public:
 
     void setController(webclip::WebClipController* controller);
     void showToast(const QString& message, bool isError = false);
+    void showFirstMinimizeNotification();
+
+    [[nodiscard]] HeaderBar* headerBar() const noexcept { return headerBar_; }
+    [[nodiscard]] SettingsDialog* settingsDialog() const noexcept { return settingsDialog_; }
 
 protected:
     void paintEvent(QPaintEvent* e) override;

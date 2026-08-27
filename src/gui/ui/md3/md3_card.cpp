@@ -70,7 +70,7 @@ CardRow::CardRow(
     , title_(title)
     , subtitle_(subtitle)
     , iconName_(iconName) {
-    setFixedHeight(subtitle_.isEmpty() ? 56 : 68);
+    setFixedHeight(subtitle_.isEmpty() ? 56 : 72);
 }
 
 CardRow::~CardRow() = default;
@@ -85,7 +85,7 @@ void CardRow::setTitle(const QString& title) {
 void CardRow::setSubtitle(const QString& subtitle) {
     if (subtitle_ != subtitle) {
         subtitle_ = subtitle;
-        setFixedHeight(subtitle_.isEmpty() ? 56 : 68);
+        setFixedHeight(subtitle_.isEmpty() ? 56 : 72);
         updateGeometry();
         update();
     }
@@ -106,7 +106,7 @@ void CardRow::setSegmentPosition(CardSegmentPosition pos) {
 }
 
 QSize CardRow::sizeHint() const {
-    return QSize(340, subtitle_.isEmpty() ? 56 : 68);
+    return QSize(340, subtitle_.isEmpty() ? 56 : 72);
 }
 
 QImage CardRow::prepareRippleMask() const {
@@ -139,29 +139,35 @@ void CardRow::paintEvent(QPaintEvent* /*e*/) {
     paintRipple(p, 0, 0, &ripCol);
 
     // 4. Content (Icon + Title + Subtitle)
-    int leftX = 16;
+    int leftX = 14;
     if (!iconName_.isEmpty()) {
-        const int iconSize = 24;
+        const int iconSize = 20;
         const int iconY = (height() - iconSize) / 2;
         IconLoader::paint(p, iconName_, QRectF(leftX, iconY, iconSize, iconSize), theme->onSurfaceVariant());
-        leftX += iconSize + 16;
+        leftX += iconSize + 12;
     }
+
+    const int maxTextW = std::max(40, width() - leftX - trailingPadding_);
 
     if (subtitle_.isEmpty()) {
         p.setFont(theme->bodyLarge());
         p.setPen(theme->onSurface());
         const QFontMetrics fm(p.font());
         const int textY = (height() - fm.height()) / 2 + fm.ascent();
-        p.drawText(QPointF(leftX, textY), title_);
+        const QString elidedTitle = fm.elidedText(title_, Qt::ElideRight, maxTextW);
+        p.drawText(QPointF(leftX, textY), elidedTitle);
     } else {
         p.setFont(theme->bodyLarge());
         p.setPen(theme->onSurface());
         const QFontMetrics fm(p.font());
-        p.drawText(QPointF(leftX, 26), title_);
+        const QString elidedTitle = fm.elidedText(title_, Qt::ElideRight, maxTextW);
+        p.drawText(QPointF(leftX, 28), elidedTitle);
 
-        p.setFont(theme->bodyMedium());
+        p.setFont(theme->bodySmall());
         p.setPen(theme->onSurfaceVariant());
-        p.drawText(QPointF(leftX, 48), subtitle_);
+        const QFontMetrics fmSub(p.font());
+        const QString elidedSub = fmSub.elidedText(subtitle_, Qt::ElideRight, maxTextW);
+        p.drawText(QPointF(leftX, 50), elidedSub);
     }
 }
 
@@ -173,6 +179,7 @@ CardToggleRow::CardToggleRow(
     bool checked
 )
     : CardRow(parent, title, subtitle, iconName) {
+    setTrailingPadding(70);
     switch_ = new Md3Switch(this, checked);
     connect(switch_, &Md3Switch::toggled, this, &CardToggleRow::toggled);
 
@@ -192,7 +199,7 @@ void CardToggleRow::setChecked(bool checked, anim::type animated) {
 void CardToggleRow::resizeEvent(QResizeEvent* e) {
     CardRow::resizeEvent(e);
     if (switch_) {
-        switch_->move(width() - 16 - switch_->width(), (height() - switch_->height()) / 2);
+        switch_->move(width() - 14 - switch_->width(), (height() - switch_->height()) / 2);
     }
 }
 
@@ -205,13 +212,14 @@ CardButtonRow::CardButtonRow(
 )
     : CardRow(parent, title, subtitle, iconName)
     , trailingValue_(trailingValue) {
+    setTrailingValue(trailingValue);
 }
 
 void CardButtonRow::setTrailingValue(const QString& val) {
-    if (trailingValue_ != val) {
-        trailingValue_ = val;
-        update();
-    }
+    trailingValue_ = val;
+    const QFontMetrics fm(webclip::MD3Theme::instance()->bodySmall());
+    setTrailingPadding(trailingValue_.isEmpty() ? 16 : (fm.horizontalAdvance(trailingValue_) + 24));
+    update();
 }
 
 void CardButtonRow::paintEvent(QPaintEvent* e) {
@@ -224,7 +232,7 @@ void CardButtonRow::paintEvent(QPaintEvent* e) {
     // Draw trailing chevron / value
     const int rightX = width() - 16;
     if (!trailingValue_.isEmpty()) {
-        p.setFont(theme->bodyMedium());
+        p.setFont(theme->bodySmall());
         p.setPen(theme->onSurfaceVariant());
         const QFontMetrics fm(p.font());
         const int valW = fm.horizontalAdvance(trailingValue_);

@@ -61,6 +61,14 @@ InputDock::InputDock(QWidget* parent, webclip::WebClipController* controller)
     } else {
         updateSendButtonState();
     }
+
+    connect(webclip::MD3Theme::instance(), &webclip::MD3Theme::themeChanged, this, [this] {
+        auto* theme = webclip::MD3Theme::instance();
+        attachBtn_->setIconColor(theme->primary());
+        pasteBtn_->setIconColor(theme->onSurfaceVariant());
+        updateSendButtonState();
+        update();
+    });
 }
 
 InputDock::~InputDock() = default;
@@ -85,17 +93,14 @@ void InputDock::clear() {
 
 void InputDock::updateSendButtonState() {
     auto* theme = webclip::MD3Theme::instance();
-    const bool canSend = !lineEdit_->text().trimmed().isEmpty() && (!controller_ || controller_->connected());
+    const bool canSend = !lineEdit_->text().trimmed().isEmpty();
 
     if (canSend) {
-        sendBtn_->setEnabled(true);
         sendBtn_->setCustomBgColor(theme->primary());
         sendBtn_->setIconColor(theme->onPrimary());
     } else {
-        sendBtn_->setEnabled(false);
-        const QColor disabledBg = theme->isDark() ? QColor(QStringLiteral("#2A2533")) : QColor(QStringLiteral("#F2ECF4"));
-        sendBtn_->setCustomBgColor(disabledBg);
-        sendBtn_->setIconColor(theme->onSurfaceVariant());
+        sendBtn_->setCustomBgColor(theme->primaryContainer());
+        sendBtn_->setIconColor(theme->onPrimaryContainer());
     }
     update();
 }

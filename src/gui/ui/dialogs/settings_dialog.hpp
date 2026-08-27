@@ -6,15 +6,21 @@
 #include "../md3/md3_icon_button.hpp"
 #include "../md3/md3_card.hpp"
 #include "../md3/md3_text_field.hpp"
+#include "../md3/md3_slider.hpp"
 #include "color_picker_dialog.hpp"
 
 #include <QtWidgets/QScrollArea>
+#include <QtWidgets/QLabel>
+#include <QtWidgets/QVBoxLayout>
+#include <vector>
 
 namespace webclip {
 class WebClipController;
 }
 
 namespace Ui {
+
+class AccentPill;
 
 class SettingsDialog : public RpWidget {
     Q_OBJECT
@@ -36,7 +42,12 @@ protected:
 private:
     void setupContent();
     void updateThemeSelection();
+    void updateAccentSelection();
+    void updateConnectionButton();
+    void onThemeChanged();
     void updateLayout();
+
+    QLabel* createSectionHeader(const QString& text);
 
     webclip::WebClipController* controller_ = nullptr;
     double progress_ = 0.0;
@@ -47,15 +58,47 @@ private:
     Md3IconButton* closeBtn_ = nullptr;
     QScrollArea* scrollArea_ = nullptr;
     QWidget* scrollContent_ = nullptr;
+    QVBoxLayout* mainLayout_ = nullptr;
 
+    std::vector<QLabel*> sectionHeaders_;
+
+    // Connection
     Md3TextField* hostInput_ = nullptr;
+    Md3TextField* portInput_ = nullptr;
     Md3TextField* pinInput_ = nullptr;
-    CardToggleRow* autoConnectRow_ = nullptr;
+    Md3Button* connectBtn_ = nullptr;
 
+    // Security
+    CardContainer* securityCard_ = nullptr;
+    CardToggleRow* httpsRow_ = nullptr;
+    CardToggleRow* insecureRow_ = nullptr;
+
+    // Sync
+    CardContainer* syncCard_ = nullptr;
+    CardToggleRow* autoSyncRow_ = nullptr;
+    CardContainer* pollingCard_ = nullptr;
+    QLabel* pollingLabel_ = nullptr;
+    Md3IconButton* resetPollBtn_ = nullptr;
+    Md3Slider* pollSlider_ = nullptr;
+
+    // Appearance
     Md3Button* themeAutoBtn_ = nullptr;
     Md3Button* themeLightBtn_ = nullptr;
     Md3Button* themeDarkBtn_ = nullptr;
     Md3Button* themePitchBtn_ = nullptr;
+
+    std::vector<AccentPill*> accentPills_;
+    AccentPill* customAccentPill_ = nullptr;
+
+    Md3Button* clearHistoryBtn_ = nullptr;
+
+    // About
+    CardContainer* aboutCard_ = nullptr;
+    CardButtonRow* appRow_ = nullptr;
+    CardButtonRow* qtRow_ = nullptr;
+    CardButtonRow* engineRow_ = nullptr;
+    CardButtonRow* licenseRow_ = nullptr;
+    Md3Button* githubBtn_ = nullptr;
 
     ColorPickerDialog* colorPicker_ = nullptr;
 };

@@ -1,19 +1,110 @@
 #include "settings_dialog.hpp"
 #include "../basic/painter_helpers.hpp"
 #include "../md3/icon_loader.hpp"
-#include "../md3/md3_badge.hpp"
 #include "../../theme/md3_theme.hpp"
 #include "../../util/i18n.hpp"
 #include "../../controllers/webclip_controller.hpp"
+#include "../../models/clipboard_history_model.hpp"
 
+#include <QtGui/QPainter>
+#include <QtGui/QPainterPath>
 #include <QtGui/QKeyEvent>
 #include <QtGui/QMouseEvent>
-#include <QtGui/QPainter>
 #include <QtWidgets/QHBoxLayout>
-#include <QtWidgets/QLabel>
 #include <QtWidgets/QVBoxLayout>
+#include <QtWidgets/QGraphicsDropShadowEffect>
 
 namespace Ui {
+
+class AccentPill : public RippleButton {
+public:
+    AccentPill(
+        QWidget* parent,
+        const QString& name,
+        const QString& label,
+        const QColor& color,
+        bool isCustom = false
+    )
+        : RippleButton(parent)
+        , name_(name)
+        , label_(label)
+        , color_(color)
+        , isCustom_(isCustom) {
+        setFixedHeight(32);
+        setFont(webclip::MD3Theme::instance()->labelSmall());
+    }
+
+    [[nodiscard]] QString name() const noexcept { return name_; }
+
+    void setSelected(bool sel) {
+        if (selected_ != sel) {
+            selected_ = sel;
+            update();
+        }
+    }
+
+    void setCustomColor(const QColor& c) {
+        color_ = c;
+        update();
+    }
+
+    [[nodiscard]] QSize sizeHint() const override {
+        const QFontMetrics fm(font());
+        const int textW = fm.horizontalAdvance(label_);
+        return QSize(textW + 36, 32);
+    }
+
+protected:
+    void paintEvent(QPaintEvent* /*e*/) override {
+        QPainter p(this);
+        PainterHighQualityEnabler hq(p);
+        auto* theme = webclip::MD3Theme::instance();
+
+        const QRectF r(0.5, 0.5, width() - 1.0, height() - 1.0);
+        const QColor bg = selected_ ? theme->primary() : theme->surfaceContainerHigh();
+        const QColor textCol = selected_ ? theme->onPrimary() : theme->onSurface();
+
+        p.setPen(selected_ ? Qt::NoPen : QPen(theme->outlineVariant(), 1.0));
+        p.setBrush(bg);
+        p.drawRoundedRect(r, 16.0, 16.0);
+
+        // State layer & ripple
+        if (!isDisabled() && (isOver() || isDown())) {
+            const int stateAlpha = isDown() ? 36 : 20;
+            p.setPen(Qt::NoPen);
+            p.setBrush(QColor(textCol.red(), textCol.green(), textCol.blue(), stateAlpha));
+            p.drawRoundedRect(r, 16.0, 16.0);
+        }
+        paintRipple(p, 0, 0, &textCol);
+
+        // Icon or Color dot
+        if (isCustom_) {
+            IconLoader::paint(p, QStringLiteral("palette"), QRectF(10, 8, 16, 16), textCol);
+        } else {
+            p.setPen(Qt::NoPen);
+            p.setBrush(color_);
+            p.drawEllipse(QRectF(11, 10, 12, 12));
+        }
+
+        // Text label
+        p.setFont(font());
+        p.setPen(textCol);
+        const QFontMetrics fm(font());
+        const int textY = (height() - fm.height()) / 2 + fm.ascent();
+        p.drawText(QPointF(30, textY), label_);
+    }
+
+    QImage prepareRippleMask() const override {
+        return RippleAnimation::RoundRectMask(size(), 16);
+    }
+
+private:
+    QString name_;
+    QString label_;
+    QColor color_;
+    bool isCustom_ = false;
+    bool selected_ = false;
+};
 
 SettingsDialog::SettingsDialog(QWidget* parent, webclip::WebClipController* controller)
     : RpWidget(parent)
@@ -22,7 +113,6 @@ SettingsDialog::SettingsDialog(QWidget* parent, webclip::WebClipController* cont
     setFocusPolicy(Qt::StrongFocus);
 
     sheet_ = new QWidget(this);
-
     headerBar_ = new QWidget(sheet_);
     headerBar_->setFixedHeight(56);
 
@@ -32,11 +122,27 @@ SettingsDialog::SettingsDialog(QWidget* parent, webclip::WebClipController* cont
     });
 
     scrollArea_ = new QScrollArea(sheet_);
-    scrollArea_->setWidgetResizable(true);
     scrollArea_->setFrameShape(QFrame::NoFrame);
+    scrollArea_->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    scrollArea_->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+    scrollArea_->setWidgetResizable(true);
+    scrollArea_->setStyleSheet(QStringLiteral(
+        "QScrollArea { background: transparent; border: none; }"
+        "QScrollBar:vertical { width: 6px; background: transparent; margin: 0; }"
+        "QScrollBar::handle:vertical { background: rgba(128, 128, 128, 0.4); border-radius: 3px; min-height: 24px; }"
+        "QScrollBar::handle:vertical:hover { background: rgba(128, 128, 128, 0.7); }"
+        "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
+        "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }"
+    ));
+    scrollArea_->viewport()->setStyleSheet(QStringLiteral("background: transparent; border: none;"));
 
-    scrollContent_ = new QWidget();
+    scrollContent_ = new QWidget(scrollArea_);
+    scrollContent_->setStyleSheet(QStringLiteral("background: transparent;"));
     scrollArea_->setWidget(scrollContent_);
+
+    mainLayout_ = new QVBoxLayout(scrollContent_);
+    mainLayout_->setContentsMargins(16, 12, 16, 28);
+    mainLayout_->setSpacing(16);
 
     colorPicker_ = new ColorPickerDialog(this);
     connect(colorPicker_, &ColorPickerDialog::colorSelected, this, [this](const QColor& c) {
@@ -44,102 +150,342 @@ SettingsDialog::SettingsDialog(QWidget* parent, webclip::WebClipController* cont
             controller_->setCustomColor(c);
             controller_->setAccentPreset(QStringLiteral("custom"));
         }
+        if (customAccentPill_) {
+            customAccentPill_->setCustomColor(c);
+        }
+        updateAccentSelection();
     });
 
     setupContent();
+
     if (controller_) {
         setController(controller_);
     }
+
+    connect(webclip::MD3Theme::instance(), &webclip::MD3Theme::themeChanged, this, &SettingsDialog::onThemeChanged);
 }
 
 SettingsDialog::~SettingsDialog() = default;
 
+QLabel* SettingsDialog::createSectionHeader(const QString& text) {
+    auto* theme = webclip::MD3Theme::instance();
+    auto* lbl = new QLabel(text, scrollContent_);
+    lbl->setFont(theme->labelLarge());
+    lbl->setStyleSheet(QStringLiteral("color: %1; font-weight: bold; background: transparent; margin-top: 8px; margin-bottom: 2px;").arg(theme->primary().name()));
+    sectionHeaders_.push_back(lbl);
+    return lbl;
+}
+
 void SettingsDialog::setupContent() {
     auto* theme = webclip::MD3Theme::instance();
-    auto* mainLayout = new QVBoxLayout(scrollContent_);
-    mainLayout->setContentsMargins(16, 12, 16, 24);
-    mainLayout->setSpacing(20);
 
-    auto addSectionTitle = [&](const QString& title) {
-        auto* lbl = new QLabel(title);
-        lbl->setFont(theme->titleSmall());
-        lbl->setStyleSheet(QStringLiteral("color: %1; margin-top: 4px;").arg(theme->primary().name()));
-        mainLayout->addWidget(lbl);
-    };
-
+    // ==========================================
     // 1. Connection Section
-    addSectionTitle(webclip::I18n::instance()->tr(QStringLiteral("settings.connection.section_title")));
+    // ==========================================
+    mainLayout_->addWidget(createSectionHeader(webclip::I18n::instance()->tr(QStringLiteral("settings.connection.section_title"))));
+
     auto* connCard = new CardContainer(scrollContent_);
+    auto* connRow = new CardRow(connCard, QString(), QString());
+    connRow->setFixedHeight(128);
+    auto* connBox = new QVBoxLayout(connRow);
+    connBox->setContentsMargins(14, 12, 14, 12);
+    connBox->setSpacing(10);
 
-    hostInput_ = new Md3TextField(connCard, QStringLiteral("Server Host"), QStringLiteral("123.45.67.89:8080"));
-    pinInput_ = new Md3TextField(connCard, QStringLiteral("PIN Code"), QStringLiteral("4-digit PIN"));
-    pinInput_->setEchoMode(QLineEdit::Password);
+    auto* row1 = new QHBoxLayout();
+    row1->setSpacing(8);
+    hostInput_ = new Md3TextField(connRow, webclip::I18n::instance()->tr(QStringLiteral("settings.connection.host_label")), QStringLiteral("192.168.1.100"));
+    portInput_ = new Md3TextField(connRow, webclip::I18n::instance()->tr(QStringLiteral("settings.connection.port_label")), QStringLiteral("8080"));
+    portInput_->setFixedWidth(85);
+    row1->addWidget(hostInput_, 1);
+    row1->addWidget(portInput_, 0);
+    connBox->addLayout(row1);
 
-    autoConnectRow_ = new CardToggleRow(
-        connCard,
-        QStringLiteral("Auto Sync"),
-        QStringLiteral("Automatically push clipboard updates"),
+    auto* row2 = new QHBoxLayout();
+    row2->setSpacing(8);
+    pinInput_ = new Md3TextField(connRow, webclip::I18n::instance()->tr(QStringLiteral("settings.connection.code_label")), QStringLiteral("4-digit code"));
+    connectBtn_ = new Md3Button(connRow, webclip::I18n::instance()->tr(QStringLiteral("settings.connection.btn_connect")), ButtonVariant::Filled);
+    connectBtn_->setFixedHeight(44);
+    connectBtn_->setIconName(QStringLiteral("sync"));
+    connectBtn_->addClickHandler([this] {
+        if (controller_) controller_->toggleConnection();
+    });
+    row2->addWidget(pinInput_, 1);
+    row2->addWidget(connectBtn_, 0);
+    connBox->addLayout(row2);
+
+    connCard->addRow(connRow);
+    mainLayout_->addWidget(connCard);
+
+    // ==========================================
+    // 2. Security Section
+    // ==========================================
+    mainLayout_->addWidget(createSectionHeader(webclip::I18n::instance()->tr(QStringLiteral("settings.security.section_title"))));
+    securityCard_ = new CardContainer(scrollContent_);
+
+    httpsRow_ = new CardToggleRow(
+        securityCard_,
+        webclip::I18n::instance()->tr(QStringLiteral("settings.security.https_title")),
+        webclip::I18n::instance()->tr(QStringLiteral("settings.security.https_subtitle")),
+        QStringLiteral("link"),
+        false
+    );
+    connect(httpsRow_, &CardToggleRow::toggled, this, [this](bool val) {
+        if (controller_) controller_->setUseHttps(val);
+    });
+
+    insecureRow_ = new CardToggleRow(
+        securityCard_,
+        webclip::I18n::instance()->tr(QStringLiteral("settings.security.ssl_title")),
+        webclip::I18n::instance()->tr(QStringLiteral("settings.security.ssl_subtitle")),
+        QStringLiteral("link_off"),
+        true
+    );
+    connect(insecureRow_, &CardToggleRow::toggled, this, [this](bool val) {
+        if (controller_) controller_->setInsecure(val);
+    });
+
+    securityCard_->addRow(httpsRow_);
+    securityCard_->addRow(insecureRow_);
+    mainLayout_->addWidget(securityCard_);
+
+    // ==========================================
+    // 3. Synchronization Section
+    // ==========================================
+    mainLayout_->addWidget(createSectionHeader(webclip::I18n::instance()->tr(QStringLiteral("settings.sync.section_title"))));
+    syncCard_ = new CardContainer(scrollContent_);
+
+    autoSyncRow_ = new CardToggleRow(
+        syncCard_,
+        webclip::I18n::instance()->tr(QStringLiteral("settings.sync.autosync_title")),
+        webclip::I18n::instance()->tr(QStringLiteral("settings.sync.autosync_subtitle")),
         QStringLiteral("sync"),
         true
     );
-    connect(autoConnectRow_, &CardToggleRow::toggled, this, [this](bool val) {
+    connect(autoSyncRow_, &CardToggleRow::toggled, this, [this](bool val) {
         if (controller_) controller_->setAutoSync(val);
     });
+    syncCard_->addRow(autoSyncRow_);
+    mainLayout_->addWidget(syncCard_);
 
-    connCard->addRow(autoConnectRow_);
-    mainLayout->addWidget(hostInput_);
-    mainLayout->addWidget(pinInput_);
-    mainLayout->addWidget(connCard);
+    // Polling Interval Card
+    pollingCard_ = new CardContainer(scrollContent_);
+    auto* pollRow = new CardRow(pollingCard_, QString(), QString());
+    pollRow->setFixedHeight(86);
+    auto* pollRowLayout = new QVBoxLayout(pollRow);
+    pollRowLayout->setContentsMargins(16, 10, 16, 12);
+    pollRowLayout->setSpacing(8);
 
-    // 2. Appearance Section
-    addSectionTitle(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.section_title")));
+    auto* pollHeader = new QHBoxLayout();
+    pollingLabel_ = new QLabel(pollRow);
+    pollingLabel_->setFont(theme->bodyMedium());
+    pollingLabel_->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurface().name()));
+    pollingLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.sync.polling_title")) + QStringLiteral(": 1.0s"));
 
-    auto* themeBox = new QHBoxLayout();
-    themeAutoBtn_ = new Md3Button(scrollContent_, QStringLiteral("Auto"), ButtonVariant::Tonal);
-    themeLightBtn_ = new Md3Button(scrollContent_, QStringLiteral("Light"), ButtonVariant::Tonal);
-    themeDarkBtn_ = new Md3Button(scrollContent_, QStringLiteral("Dark"), ButtonVariant::Tonal);
-    themePitchBtn_ = new Md3Button(scrollContent_, QStringLiteral("Black"), ButtonVariant::Tonal);
+    resetPollBtn_ = new Md3IconButton(pollRow, QStringLiteral("sync"), 26, 16);
+    resetPollBtn_->addClickHandler([this] {
+        if (controller_) controller_->setPollInterval(1.0);
+    });
+
+    pollHeader->addWidget(pollingLabel_, 1);
+    pollHeader->addWidget(resetPollBtn_, 0);
+    pollRowLayout->addLayout(pollHeader);
+
+    pollSlider_ = new Md3Slider(pollRow);
+    pollSlider_->setFixedHeight(32);
+    pollSlider_->setRange(0.5, 5.0);
+    pollSlider_->setSteps(9);
+    pollSlider_->setValue(1.0);
+    connect(pollSlider_, &Md3Slider::valueChanged, this, [this](double val) {
+        if (controller_) controller_->setPollInterval(val);
+        if (pollingLabel_) {
+            pollingLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.sync.polling_title")) + QStringLiteral(": ") + QString::number(val, 'f', 1) + QStringLiteral("s"));
+        }
+    });
+    pollRowLayout->addWidget(pollSlider_);
+
+    pollingCard_->addRow(pollRow);
+    mainLayout_->addWidget(pollingCard_);
+
+    // ==========================================
+    // 4. Appearance Section
+    // ==========================================
+    mainLayout_->addWidget(createSectionHeader(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.section_title"))));
+
+    auto* themeCard = new CardContainer(scrollContent_);
+    auto* themeRow = new CardRow(themeCard, QString(), QString());
+    themeRow->setFixedHeight(86);
+    auto* themeRowLayout = new QVBoxLayout(themeRow);
+    themeRowLayout->setContentsMargins(16, 12, 16, 12);
+    themeRowLayout->setSpacing(8);
+
+    auto* themeTitle = new QLabel(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.theme_mode")), themeRow);
+    themeTitle->setFont(theme->bodyMedium());
+    themeTitle->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurface().name()));
+    themeRowLayout->addWidget(themeTitle);
+
+    auto* modeBox = new QHBoxLayout();
+    modeBox->setSpacing(6);
+    themeAutoBtn_ = new Md3Button(themeRow, webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.mode_system")), ButtonVariant::Tonal);
+    themeLightBtn_ = new Md3Button(themeRow, webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.mode_light")), ButtonVariant::Tonal);
+    themeDarkBtn_ = new Md3Button(themeRow, webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.mode_dark")), ButtonVariant::Tonal);
+    themePitchBtn_ = new Md3Button(themeRow, webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.mode_pitch_black")), ButtonVariant::Tonal);
+
+    themeAutoBtn_->setFixedHeight(34);
+    themeLightBtn_->setFixedHeight(34);
+    themeDarkBtn_->setFixedHeight(34);
+    themePitchBtn_->setFixedHeight(34);
 
     themeAutoBtn_->addClickHandler([this] { if (controller_) controller_->setThemeMode(0); updateThemeSelection(); });
     themeLightBtn_->addClickHandler([this] { if (controller_) controller_->setThemeMode(1); updateThemeSelection(); });
     themeDarkBtn_->addClickHandler([this] { if (controller_) controller_->setThemeMode(2); updateThemeSelection(); });
     themePitchBtn_->addClickHandler([this] { if (controller_) controller_->setThemeMode(3); updateThemeSelection(); });
 
-    themeBox->addWidget(themeAutoBtn_);
-    themeBox->addWidget(themeLightBtn_);
-    themeBox->addWidget(themeDarkBtn_);
-    themeBox->addWidget(themePitchBtn_);
-    mainLayout->addLayout(themeBox);
+    modeBox->addWidget(themeAutoBtn_, 1);
+    modeBox->addWidget(themeLightBtn_, 1);
+    modeBox->addWidget(themeDarkBtn_, 1);
+    modeBox->addWidget(themePitchBtn_, 1);
+    themeRowLayout->addLayout(modeBox);
 
-    auto* clearHistoryBtn = new Md3Button(
+    themeCard->addRow(themeRow);
+    mainLayout_->addWidget(themeCard);
+
+    // Accent Color Card
+    auto* accentCard = new CardContainer(scrollContent_);
+    auto* accentRow = new CardRow(accentCard, QString(), QString());
+    accentRow->setFixedHeight(116);
+    auto* accentLayout = new QVBoxLayout(accentRow);
+    accentLayout->setContentsMargins(16, 12, 16, 14);
+    accentLayout->setSpacing(8);
+
+    auto* accentLabel = new QLabel(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.accent_color")), accentRow);
+    accentLabel->setFont(theme->bodyMedium());
+    accentLabel->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurface().name()));
+    accentLayout->addWidget(accentLabel);
+
+    auto* flowLayout1 = new QHBoxLayout();
+    flowLayout1->setSpacing(6);
+
+    const struct { QString name; QString label; QColor col; } presets[] = {
+        { QStringLiteral("purple"), QStringLiteral("Purple"), QColor(QStringLiteral("#6750A4")) },
+        { QStringLiteral("blue"), QStringLiteral("Blue"), QColor(QStringLiteral("#2196F3")) },
+        { QStringLiteral("teal"), QStringLiteral("Teal"), QColor(QStringLiteral("#009688")) },
+        { QStringLiteral("green"), QStringLiteral("Green"), QColor(QStringLiteral("#4CAF50")) },
+        { QStringLiteral("orange"), QStringLiteral("Orange"), QColor(QStringLiteral("#FF9800")) },
+        { QStringLiteral("red"), QStringLiteral("Red"), QColor(QStringLiteral("#F44336")) },
+        { QStringLiteral("pink"), QStringLiteral("Pink"), QColor(QStringLiteral("#E91E63")) }
+    };
+
+    auto* flowLayout2 = new QHBoxLayout();
+    flowLayout2->setSpacing(6);
+
+    int idx = 0;
+    for (const auto& p : presets) {
+        auto* pill = new AccentPill(accentRow, p.name, p.label, p.col, false);
+        pill->addClickHandler([this, name = p.name] {
+            if (controller_) controller_->setAccentPreset(name);
+            updateAccentSelection();
+        });
+        accentPills_.push_back(pill);
+        if (idx < 4) {
+            flowLayout1->addWidget(pill);
+        } else {
+            flowLayout2->addWidget(pill);
+        }
+        idx++;
+    }
+
+    customAccentPill_ = new AccentPill(
+        accentRow,
+        QStringLiteral("custom"),
+        webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.accent_custom")),
+        controller_ ? controller_->customColor() : QColor(QStringLiteral("#6750A4")),
+        true
+    );
+    customAccentPill_->addClickHandler([this] {
+        if (controller_) {
+            controller_->setAccentPreset(QStringLiteral("custom"));
+            colorPicker_->openWithColor(controller_->customColor());
+        }
+        updateAccentSelection();
+    });
+    flowLayout2->addWidget(customAccentPill_);
+
+    accentLayout->addLayout(flowLayout1);
+    accentLayout->addLayout(flowLayout2);
+    accentCard->addRow(accentRow);
+    mainLayout_->addWidget(accentCard);
+
+    // Clear History Button
+    clearHistoryBtn_ = new Md3Button(
         scrollContent_,
         webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.btn_clear_history")),
         ButtonVariant::Outlined
     );
-    clearHistoryBtn->setIconName(QStringLiteral("delete"));
-    clearHistoryBtn->addClickHandler([this] {
+    clearHistoryBtn_->setIconName(QStringLiteral("delete"));
+    clearHistoryBtn_->addClickHandler([this] {
         if (controller_ && controller_->clipModel()) {
             controller_->clipModel()->clear();
         }
     });
-    mainLayout->addWidget(clearHistoryBtn);
+    mainLayout_->addWidget(clearHistoryBtn_);
 
-    // 3. About Section
-    addSectionTitle(webclip::I18n::instance()->tr(QStringLiteral("settings.about.section_title")));
-    auto* aboutCard = new CardContainer(scrollContent_);
+    // ==========================================
+    // 5. About WebClip Section
+    // ==========================================
+    mainLayout_->addWidget(createSectionHeader(webclip::I18n::instance()->tr(QStringLiteral("settings.about.section_title"))));
+    aboutCard_ = new CardContainer(scrollContent_);
 
     const QString verText = controller_ ? QStringLiteral("v") + controller_->appVersion() : QStringLiteral("v1.3.0");
-    auto* appRow = new CardButtonRow(aboutCard, QStringLiteral("WebClip Sync"), QStringLiteral("Cross-platform clipboard utility"), QStringLiteral("webclip"), verText);
-    auto* gitRow = new CardButtonRow(aboutCard, QStringLiteral("GitHub Repository"), QStringLiteral("Open source code & releases"), QStringLiteral("link"), QStringLiteral("github.com"));
-    gitRow->addClickHandler([this] {
+    appRow_ = new CardButtonRow(
+        aboutCard_,
+        webclip::I18n::instance()->tr(QStringLiteral("settings.about.app_name")),
+        webclip::I18n::instance()->tr(QStringLiteral("settings.about.app_subtitle")),
+        QStringLiteral("smartphone"),
+        verText
+    );
+
+    qtRow_ = new CardButtonRow(
+        aboutCard_,
+        webclip::I18n::instance()->tr(QStringLiteral("settings.about.qt_runtime")),
+        QString(),
+        QString(),
+        controller_ ? (QStringLiteral("Qt ") + controller_->qtVersion()) : QStringLiteral("Qt 6.8")
+    );
+
+    engineRow_ = new CardButtonRow(
+        aboutCard_,
+        webclip::I18n::instance()->tr(QStringLiteral("settings.about.engine")),
+        QString(),
+        QString(),
+        controller_ ? controller_->clipboardBackend() : QStringLiteral("Native C++")
+    );
+
+    licenseRow_ = new CardButtonRow(
+        aboutCard_,
+        webclip::I18n::instance()->tr(QStringLiteral("settings.about.license")),
+        QString(),
+        QString(),
+        webclip::I18n::instance()->tr(QStringLiteral("settings.about.license_val"))
+    );
+
+    aboutCard_->addRow(appRow_);
+    aboutCard_->addRow(qtRow_);
+    aboutCard_->addRow(engineRow_);
+    aboutCard_->addRow(licenseRow_);
+    mainLayout_->addWidget(aboutCard_);
+
+    githubBtn_ = new Md3Button(
+        scrollContent_,
+        webclip::I18n::instance()->tr(QStringLiteral("settings.about.btn_github")),
+        ButtonVariant::Tonal
+    );
+    githubBtn_->setIconName(QStringLiteral("link"));
+    githubBtn_->addClickHandler([this] {
         if (controller_) controller_->openUrl(QStringLiteral("https://github.com/burhanverse/webclip"));
     });
+    mainLayout_->addWidget(githubBtn_);
 
-    aboutCard->addRow(appRow);
-    aboutCard->addRow(gitRow);
-    mainLayout->addWidget(aboutCard);
-
-    mainLayout->addStretch();
+    mainLayout_->addStretch();
 }
 
 void SettingsDialog::setController(webclip::WebClipController* controller) {
@@ -147,28 +493,118 @@ void SettingsDialog::setController(webclip::WebClipController* controller) {
     if (!controller_) return;
 
     hostInput_->setText(controller_->host());
+    portInput_->setText(QString::number(controller_->port()));
     pinInput_->setText(controller_->code());
-    autoConnectRow_->setChecked(controller_->autoSync(), anim::type::instant);
+
+    httpsRow_->setChecked(controller_->useHttps(), anim::type::instant);
+    insecureRow_->setChecked(controller_->insecure(), anim::type::instant);
+    autoSyncRow_->setChecked(controller_->autoSync(), anim::type::instant);
+
+    if (pollSlider_) {
+        pollSlider_->setValue(controller_->pollInterval());
+    }
+    if (pollingLabel_) {
+        pollingLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.sync.polling_title")) + QStringLiteral(": ") + QString::number(controller_->pollInterval(), 'f', 1) + QStringLiteral("s"));
+    }
 
     connect(hostInput_, &Md3TextField::textChanged, this, [this](const QString& h) {
         if (controller_) controller_->setHost(h);
+    });
+    connect(portInput_, &Md3TextField::textChanged, this, [this](const QString& p) {
+        bool ok = false;
+        const int port = p.toInt(&ok);
+        if (ok && controller_) controller_->setPort(port);
     });
     connect(pinInput_, &Md3TextField::textChanged, this, [this](const QString& p) {
         if (controller_) controller_->setCode(p);
     });
 
+    connect(controller_, &webclip::WebClipController::connectedChanged, this, &SettingsDialog::updateConnectionButton);
+    connect(controller_, &webclip::WebClipController::connectingChanged, this, &SettingsDialog::updateConnectionButton);
+
     connect(controller_, &webclip::WebClipController::themeModeChanged, this, &SettingsDialog::updateThemeSelection);
+    connect(controller_, &webclip::WebClipController::accentPresetChanged, this, &SettingsDialog::updateAccentSelection);
+    connect(controller_, &webclip::WebClipController::customColorChanged, this, [this] {
+        if (customAccentPill_ && controller_) {
+            customAccentPill_->setCustomColor(controller_->customColor());
+        }
+        updateAccentSelection();
+    });
+
+    connect(controller_, &webclip::WebClipController::pollIntervalChanged, this, [this] {
+        if (controller_ && pollSlider_) {
+            pollSlider_->setValue(controller_->pollInterval());
+        }
+        if (controller_ && pollingLabel_) {
+            pollingLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.sync.polling_title")) + QStringLiteral(": ") + QString::number(controller_->pollInterval(), 'f', 1) + QStringLiteral("s"));
+        }
+    });
+
+    connect(controller_, &webclip::WebClipController::autoSyncChanged, this, [this] {
+        if (controller_ && autoSyncRow_) {
+            autoSyncRow_->setChecked(controller_->autoSync(), anim::type::instant);
+        }
+    });
+
     updateThemeSelection();
+    updateAccentSelection();
+    updateConnectionButton();
+}
+
+void SettingsDialog::updateConnectionButton() {
+    if (!controller_ || !connectBtn_) return;
+
+    if (controller_->connected()) {
+        connectBtn_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.connection.btn_disconnect")));
+        connectBtn_->setVariant(ButtonVariant::Tonal);
+        connectBtn_->setIconName(QStringLiteral("close"));
+    } else if (controller_->connecting()) {
+        connectBtn_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.connection.btn_connecting")));
+        connectBtn_->setVariant(ButtonVariant::Tonal);
+        connectBtn_->setIconName(QStringLiteral("sync"));
+    } else {
+        connectBtn_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.connection.btn_connect")));
+        connectBtn_->setVariant(ButtonVariant::Filled);
+        connectBtn_->setIconName(QStringLiteral("sync"));
+    }
 }
 
 void SettingsDialog::updateThemeSelection() {
     if (!controller_) return;
     const int mode = controller_->themeMode();
 
-    themeAutoBtn_->setVariant(mode == 0 ? ButtonVariant::Filled : ButtonVariant::Tonal);
-    themeLightBtn_->setVariant(mode == 1 ? ButtonVariant::Filled : ButtonVariant::Tonal);
-    themeDarkBtn_->setVariant(mode == 2 ? ButtonVariant::Filled : ButtonVariant::Tonal);
-    themePitchBtn_->setVariant(mode == 3 ? ButtonVariant::Filled : ButtonVariant::Tonal);
+    if (themeAutoBtn_) themeAutoBtn_->setVariant(mode == 0 ? ButtonVariant::Filled : ButtonVariant::Tonal);
+    if (themeLightBtn_) themeLightBtn_->setVariant(mode == 1 ? ButtonVariant::Filled : ButtonVariant::Tonal);
+    if (themeDarkBtn_) themeDarkBtn_->setVariant(mode == 2 ? ButtonVariant::Filled : ButtonVariant::Tonal);
+    if (themePitchBtn_) themePitchBtn_->setVariant(mode == 3 ? ButtonVariant::Filled : ButtonVariant::Tonal);
+}
+
+void SettingsDialog::updateAccentSelection() {
+    if (!controller_) return;
+    const QString currentPreset = controller_->accentPreset();
+
+    for (auto* pill : accentPills_) {
+        if (pill) {
+            pill->setSelected(pill->name() == currentPreset);
+        }
+    }
+    if (customAccentPill_) {
+        customAccentPill_->setSelected(currentPreset == QStringLiteral("custom"));
+    }
+}
+
+void SettingsDialog::onThemeChanged() {
+    auto* theme = webclip::MD3Theme::instance();
+    for (auto* hdr : sectionHeaders_) {
+        if (hdr) {
+            hdr->setFont(theme->labelLarge());
+            hdr->setStyleSheet(QStringLiteral("color: %1; font-weight: bold; background: transparent; margin-top: 4px;").arg(theme->primary().name()));
+        }
+    }
+    updateThemeSelection();
+    updateAccentSelection();
+    updateConnectionButton();
+    update();
 }
 
 void SettingsDialog::open() {
@@ -179,6 +615,7 @@ void SettingsDialog::open() {
     raise();
     setFocus();
 
+    anim_.setFinishedCallback(nullptr);
     anim_.start(
         [this](double progress) {
             progress_ = progress;
@@ -223,6 +660,10 @@ void SettingsDialog::updateLayout() {
     closeBtn_->move(sheet_->width() - 16 - closeBtn_->width(), (56 - closeBtn_->height()) / 2);
 
     scrollArea_->setGeometry(0, 56, sheet_->width(), sheet_->height() - 56);
+
+    if (colorPicker_) {
+        colorPicker_->setGeometry(rect());
+    }
 }
 
 void SettingsDialog::mousePressEvent(QMouseEvent* e) {
@@ -251,18 +692,12 @@ void SettingsDialog::paintEvent(QPaintEvent* /*e*/) {
     // 1. Dimmed backdrop
     p.fillRect(rect(), QColor(0, 0, 0, 115));
 
-    // 2. Sheet background with 24px rounded top corners
+    // 2. Sheet background with 28px rounded corners matching MainWindow container
     auto* theme = webclip::MD3Theme::instance();
     const QRectF sheetRect(sheet_->geometry());
 
     QPainterPath sheetPath;
-    sheetPath.moveTo(sheetRect.left(), sheetRect.bottom());
-    sheetPath.lineTo(sheetRect.left(), sheetRect.top() + 24);
-    sheetPath.arcTo(QRectF(sheetRect.left(), sheetRect.top(), 48, 48), 180, -90);
-    sheetPath.lineTo(sheetRect.right() - 24, sheetRect.top());
-    sheetPath.arcTo(QRectF(sheetRect.right() - 48, sheetRect.top(), 48, 48), 90, -90);
-    sheetPath.lineTo(sheetRect.right(), sheetRect.bottom());
-    sheetPath.closeSubpath();
+    sheetPath.addRoundedRect(sheetRect, 18.0, 18.0);
 
     p.setPen(Qt::NoPen);
     p.setBrush(theme->surface());
@@ -273,7 +708,7 @@ void SettingsDialog::paintEvent(QPaintEvent* /*e*/) {
     p.setPen(theme->onSurface());
     p.drawText(QPointF(20, sheetRect.top() + 35), webclip::I18n::instance()->tr(QStringLiteral("settings.title")));
 
-    // 4. Header bottom line
+    // 4. Header bottom divider
     p.setPen(theme->outlineVariant());
     p.drawLine(0, sheetRect.top() + 55, width(), sheetRect.top() + 55);
 }
