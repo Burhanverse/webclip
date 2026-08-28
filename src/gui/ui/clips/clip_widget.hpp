@@ -78,7 +78,7 @@ private:
     void layoutElement(int index);
     void repositionFrom(int index);
     void relayoutAll();
-    bool canLayout() const { return width() > 0 && isVisible(); }
+    int effectiveWidth() const;
     int contentHeight() const;
     int maxScroll() const;
 
@@ -123,6 +123,7 @@ private:
     bool stickBottom_ = true;
     bool lastConnected_ = false;
     bool pendingRelayout_ = true;
+    int lastValidWidth_ = 0;
 
     static constexpr int kSpacing = 10;
     static constexpr int kTopMargin = 12;

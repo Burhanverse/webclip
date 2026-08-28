@@ -212,8 +212,7 @@ void ClipWidget::onRowsInserted(const QModelIndex&, int first, int last) {
     } else {
         restoreAnchor(anchor);
     }
-    if (canLayout()) update();
-    else pendingRelayout_ = true;
+    update();
 }
 
 void ClipWidget::onRowsRemoved(const QModelIndex&, int first, int last) {
@@ -227,8 +226,7 @@ void ClipWidget::onRowsRemoved(const QModelIndex&, int first, int last) {
     } else {
         restoreAnchor(anchor);
     }
-    if (canLayout()) update();
-    else pendingRelayout_ = true;
+    update();
 }
 
 void ClipWidget::onDataChanged(const QModelIndex& topLeft, const QModelIndex& bottomRight, const QVector<int>&) {
@@ -237,12 +235,8 @@ void ClipWidget::onDataChanged(const QModelIndex& topLeft, const QModelIndex& bo
         layoutElement(r);
     }
     repositionFrom(topLeft.row());
-    if (canLayout()) {
-        applyScroll(scrollY_);
-        update();
-    } else {
-        pendingRelayout_ = true;
-    }
+    applyScroll(scrollY_);
+    update();
 }
 
 void ClipWidget::fixRowsFrom(int index) {
@@ -252,7 +246,8 @@ void ClipWidget::fixRowsFrom(int index) {
 }
 
 void ClipWidget::layoutAll() {
-    if (!canLayout()) {
+    const int w = effectiveWidth();
+    if (w <= 0) {
         pendingRelayout_ = true;
         return;
     }
@@ -265,15 +260,24 @@ void ClipWidget::layoutAll() {
 
 void ClipWidget::layoutElement(int index) {
     if (index < 0 || index >= static_cast<int>(elements_.size())) return;
-    if (!canLayout()) {
+    const int w = effectiveWidth();
+    if (w <= 0) {
         pendingRelayout_ = true;
         return;
     }
-    elements_[index]->resizeGetHeight(width());
+    elements_[index]->resizeGetHeight(w);
+}
+
+int ClipWidget::effectiveWidth() const {
+    if (isVisible() && width() > 0) {
+        return width();
+    }
+    return lastValidWidth_;
 }
 
 void ClipWidget::relayoutAll() {
-    if (!canLayout()) {
+    const int w = effectiveWidth();
+    if (w <= 0) {
         pendingRelayout_ = true;
         return;
     }
@@ -594,11 +598,17 @@ void ClipWidget::onElementImageDecoded(const QString& clipId, const QString& sou
 
 void ClipWidget::resizeEvent(QResizeEvent* e) {
     RpWidget::resizeEvent(e);
+    if (isVisible() && width() > 0) {
+        lastValidWidth_ = width();
+    }
     relayoutAll();
 }
 
 void ClipWidget::showEvent(QShowEvent* e) {
     RpWidget::showEvent(e);
+    if (isVisible() && width() > 0) {
+        lastValidWidth_ = width();
+    }
     if (pendingRelayout_) {
         relayoutAll();
     }
