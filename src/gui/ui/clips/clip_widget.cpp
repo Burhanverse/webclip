@@ -65,6 +65,11 @@ ClipWidget::ClipWidget(
         update();
     });
 
+    imageFlushTimer_ = new QTimer(this);
+    imageFlushTimer_->setSingleShot(true);
+    imageFlushTimer_->setInterval(16);
+    connect(imageFlushTimer_, &QTimer::timeout, this, &ClipWidget::flushPendingImages);
+
     if (controller) {
         setController(controller);
     }
@@ -752,12 +757,7 @@ void ClipWidget::paintEvent(QPaintEvent* e) {
     PainterHighQualityEnabler hq(p);
 
     if (elements_.empty()) {
-    imageFlushTimer_ = new QTimer(this);
-    imageFlushTimer_->setSingleShot(true);
-    imageFlushTimer_->setInterval(0);
-    connect(imageFlushTimer_, &QTimer::timeout, this, &ClipWidget::flushPendingImages);
-
-    auto* theme = webclip::MD3Theme::instance();
+        auto* theme = webclip::MD3Theme::instance();
         const int cx = width() / 2;
         const int cy = height() / 2 - 20;
 

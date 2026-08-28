@@ -738,16 +738,43 @@ void WebClipController::onClipboardDataChanged() {
         }
     }
 
-    if (nativeClipboard_ && nativeClipboard_->has_image()) {
-        handleNativeImage(nativeClipboard_->get_image());
+    QString current;
+    if (QGuiApplication::clipboard()) {
+        current = QGuiApplication::clipboard()->text(QClipboard::Clipboard);
+    }
+    if (!current.isEmpty()) {
+        handleNativeText(current);
         return;
     }
 
     if (nativeClipboard_) {
-        const std::string t = nativeClipboard_->get_text();
-        if (!t.empty()) {
-            handleNativeText(QString::fromStdString(t));
-        }
+        QPointer<WebClipController> self(this);
+        std::thread([self]() {
+            auto cb = webclip::create_clipboard();
+            if (!cb) return;
+            PollReadResult r;
+            if (cb->has_image()) {
+                ClipboardImage img = cb->get_image();
+                if (img.valid && !img.data.empty()) {
+                    r.ok = true;
+                    r.hasImage = true;
+                    r.image = std::move(img.data);
+                    r.mime = img.mime_type.empty() ? "image/png" : img.mime_type;
+                    QMetaObject::invokeMethod(self.data(), [self, r]() {
+                        if (self) self->processPollReadResult(std::move(r));
+                    });
+                    return;
+                }
+            }
+            std::string t = cb->get_text();
+            if (!t.empty()) {
+                r.ok = true;
+                r.text = std::move(t);
+            }
+            QMetaObject::invokeMethod(self.data(), [self, r]() {
+                if (self) self->processPollReadResult(std::move(r));
+            });
+        }).detach();
     }
 }
 

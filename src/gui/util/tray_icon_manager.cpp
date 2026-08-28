@@ -13,6 +13,7 @@ TrayIconManager::TrayIconManager(WebClipController* controller, QObject* parent)
     : QObject(parent)
     , controller_(controller) {
     createTrayIcon();
+    setupMenu();
 
     if (controller_) {
         connect(controller_, &WebClipController::connectedChanged, this, &TrayIconManager::updateTrayMenu);
@@ -20,10 +21,6 @@ TrayIconManager::TrayIconManager(WebClipController* controller, QObject* parent)
         connect(controller_, &WebClipController::hostChanged, this, &TrayIconManager::updateTrayMenu);
         connect(controller_, &WebClipController::portChanged, this, &TrayIconManager::updateTrayMenu);
         connect(controller_, &WebClipController::minimizedToTray, this, &TrayIconManager::showFirstMinimizeNotification);
-    }
-
-    if (!QSystemTrayIcon::isSystemTrayAvailable()) {
-        qWarning() << "System tray unavailable at startup; running without tray integration.";
     }
 }
 
@@ -35,7 +32,7 @@ TrayIconManager::~TrayIconManager() {
 }
 
 void TrayIconManager::createTrayIcon() {
-    if (trayIcon_ || !QSystemTrayIcon::isSystemTrayAvailable()) {
+    if (trayIcon_) {
         return;
     }
 
@@ -63,7 +60,6 @@ void TrayIconManager::createTrayIcon() {
     trayIcon_->setToolTip(QStringLiteral("WebClip Sync - Material You Clipboard Bridge"));
 
     connect(trayIcon_, &QSystemTrayIcon::activated, this, &TrayIconManager::onTrayActivated);
-    trayIcon_->show();
 }
 
 void TrayIconManager::setupMenu() {
@@ -104,8 +100,15 @@ void TrayIconManager::setupMenu() {
         QCoreApplication::quit();
     });
 
-    trayIcon_->setContextMenu(trayMenu_);
+    if (trayIcon_) {
+        trayIcon_->setContextMenu(trayMenu_);
+    }
+    connect(trayMenu_, &QMenu::aboutToShow, this, &TrayIconManager::updateTrayMenu);
     updateTrayMenu();
+
+    if (trayIcon_) {
+        trayIcon_->show();
+    }
 }
 
 void TrayIconManager::setMainWindow(QWidget* window) {
@@ -178,6 +181,12 @@ void TrayIconManager::onTrayActivated(QSystemTrayIcon::ActivationReason reason) 
         case QSystemTrayIcon::Trigger:
         case QSystemTrayIcon::DoubleClick:
             toggleWindowVisibility();
+            break;
+        case QSystemTrayIcon::Context:
+            if (trayMenu_) {
+                updateTrayMenu();
+                trayMenu_->popup(QCursor::pos());
+            }
             break;
         default:
             break;
