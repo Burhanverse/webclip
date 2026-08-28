@@ -7,7 +7,7 @@ cd "$REPO_DIR"
 BUILD_DIR="${BUILD_DIR:-build}"
 OUTPUT_DIR="${OUTPUT_DIR:-.}"
 ARCH="$(uname -m)"
-VERSION="1.6.0"
+VERSION="1.6.1"
 if [ -f "src/version.hpp" ]; then
     DETECTED_VERSION="$(grep -E 'VERSION_STRING\s*=' src/version.hpp | sed -E 's/.*"([^"]+)".*/\1/' || true)"
     if [ -n "$DETECTED_VERSION" ]; then

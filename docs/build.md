@@ -112,7 +112,7 @@ Compress-Archive -Path "portable\webclip" -DestinationPath "webclip-windows-x64-
 
 Requires [Inno Setup 6](https://jrsoftware.org/isinfo.php):
 ```powershell
-iscc.exe /DMyAppVersion="1.6.0" packaging\setup.iss
+iscc.exe /DMyAppVersion="1.6.1" packaging\setup.iss
 ```
 
 Outputs `webclip-setup-x64.exe`.
