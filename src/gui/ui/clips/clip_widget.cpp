@@ -112,9 +112,7 @@ bool ClipWidget::applyConnectedRelayout() {
     }
     if (!anyAffected) return false;
 
-    layoutAll();
-    applyScroll(scrollY_);
-    update();
+    relayoutAll();
     return true;
 }
 
@@ -154,9 +152,7 @@ void ClipWidget::rebuildElements() {
         el->refreshContent();
         elements_.push_back(std::move(el));
     }
-    layoutAll();
-    applyScroll(scrollY_);
-    update();
+    relayoutAll();
 }
 
 ClipWidget::Anchor ClipWidget::captureAnchor() const {
@@ -216,7 +212,8 @@ void ClipWidget::onRowsInserted(const QModelIndex&, int first, int last) {
     } else {
         restoreAnchor(anchor);
     }
-    update();
+    if (canLayout()) update();
+    else pendingRelayout_ = true;
 }
 
 void ClipWidget::onRowsRemoved(const QModelIndex&, int first, int last) {
@@ -230,7 +227,8 @@ void ClipWidget::onRowsRemoved(const QModelIndex&, int first, int last) {
     } else {
         restoreAnchor(anchor);
     }
-    update();
+    if (canLayout()) update();
+    else pendingRelayout_ = true;
 }
 
 void ClipWidget::onDataChanged(const QModelIndex& topLeft, const QModelIndex& bottomRight, const QVector<int>&) {
@@ -239,8 +237,12 @@ void ClipWidget::onDataChanged(const QModelIndex& topLeft, const QModelIndex& bo
         layoutElement(r);
     }
     repositionFrom(topLeft.row());
-    applyScroll(scrollY_);
-    update();
+    if (canLayout()) {
+        applyScroll(scrollY_);
+        update();
+    } else {
+        pendingRelayout_ = true;
+    }
 }
 
 void ClipWidget::fixRowsFrom(int index) {
@@ -250,7 +252,11 @@ void ClipWidget::fixRowsFrom(int index) {
 }
 
 void ClipWidget::layoutAll() {
-    if (width() <= 0) return;
+    if (!canLayout()) {
+        pendingRelayout_ = true;
+        return;
+    }
+    pendingRelayout_ = false;
     for (int i = 0; i < static_cast<int>(elements_.size()); ++i) {
         layoutElement(i);
     }
@@ -259,7 +265,26 @@ void ClipWidget::layoutAll() {
 
 void ClipWidget::layoutElement(int index) {
     if (index < 0 || index >= static_cast<int>(elements_.size())) return;
+    if (!canLayout()) {
+        pendingRelayout_ = true;
+        return;
+    }
     elements_[index]->resizeGetHeight(width());
+}
+
+void ClipWidget::relayoutAll() {
+    if (!canLayout()) {
+        pendingRelayout_ = true;
+        return;
+    }
+    pendingRelayout_ = false;
+    layoutAll();
+    if (stickBottom_) {
+        scrollToBottom(true);
+    } else {
+        applyScroll(scrollY_);
+    }
+    update();
 }
 
 void ClipWidget::repositionFrom(int index) {
@@ -569,8 +594,14 @@ void ClipWidget::onElementImageDecoded(const QString& clipId, const QString& sou
 
 void ClipWidget::resizeEvent(QResizeEvent* e) {
     RpWidget::resizeEvent(e);
-    layoutAll();
-    applyScroll(scrollY_);
+    relayoutAll();
+}
+
+void ClipWidget::showEvent(QShowEvent* e) {
+    RpWidget::showEvent(e);
+    if (pendingRelayout_) {
+        relayoutAll();
+    }
 }
 
 void ClipWidget::wheelEvent(QWheelEvent* e) {

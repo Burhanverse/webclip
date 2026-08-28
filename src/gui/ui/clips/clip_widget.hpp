@@ -49,6 +49,7 @@ signals:
 protected:
     void paintEvent(QPaintEvent* e) override;
     void resizeEvent(QResizeEvent* e) override;
+    void showEvent(QShowEvent* e) override;
     void wheelEvent(QWheelEvent* e) override;
     void mousePressEvent(QMouseEvent* e) override;
     void mouseMoveEvent(QMouseEvent* e) override;
@@ -76,6 +77,8 @@ private:
     void layoutAll();
     void layoutElement(int index);
     void repositionFrom(int index);
+    void relayoutAll();
+    bool canLayout() const { return width() > 0 && isVisible(); }
     int contentHeight() const;
     int maxScroll() const;
 
@@ -119,6 +122,7 @@ private:
     int viewportHeightCached_ = 0;
     bool stickBottom_ = true;
     bool lastConnected_ = false;
+    bool pendingRelayout_ = true;
 
     static constexpr int kSpacing = 10;
     static constexpr int kTopMargin = 12;
