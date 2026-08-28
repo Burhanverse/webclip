@@ -76,6 +76,8 @@ ClipWidget::ClipWidget(
 ClipWidget::~ClipWidget() {
     animationTimer_.stop();
     scrollbarFadeTimer_.stop();
+    if (imageFlushTimer_) imageFlushTimer_->stop();
+    pendingImages_.clear();
     if (model_) {
         model_->disconnect(this);
     }
@@ -588,12 +590,23 @@ void ClipWidget::paintScrollbar(QPainter* p) {
 }
 
 void ClipWidget::onElementImageDecoded(const QString& clipId, const QString& sourceKey, const QImage& image) {
-    for (auto& el : elements_) {
-        if (el->clipId() == clipId && el->setImageResult(sourceKey, image)) {
-            update();
-            break;
+    pendingImages_.push_back({clipId, sourceKey, image});
+    if (!imageFlushTimer_->isActive()) {
+        imageFlushTimer_->start();
+    }
+}
+
+void ClipWidget::flushPendingImages() {
+    if (pendingImages_.empty()) return;
+    for (const auto& p : pendingImages_) {
+        for (auto& el : elements_) {
+            if (el->clipId() == p.clipId && el->setImageResult(p.sourceKey, p.image)) {
+                break;
+            }
         }
     }
+    pendingImages_.clear();
+    update();
 }
 
 void ClipWidget::resizeEvent(QResizeEvent* e) {
@@ -739,7 +752,12 @@ void ClipWidget::paintEvent(QPaintEvent* e) {
     PainterHighQualityEnabler hq(p);
 
     if (elements_.empty()) {
-        auto* theme = webclip::MD3Theme::instance();
+    imageFlushTimer_ = new QTimer(this);
+    imageFlushTimer_->setSingleShot(true);
+    imageFlushTimer_->setInterval(0);
+    connect(imageFlushTimer_, &QTimer::timeout, this, &ClipWidget::flushPendingImages);
+
+    auto* theme = webclip::MD3Theme::instance();
         const int cx = width() / 2;
         const int cy = height() / 2 - 20;
 

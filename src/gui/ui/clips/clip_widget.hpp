@@ -5,6 +5,7 @@
 
 #include <QtCore/QElapsedTimer>
 #include <QtCore/QTimer>
+#include <QtGui/QImage>
 #include <deque>
 #include <memory>
 #include <vector>
@@ -153,6 +154,15 @@ private:
     double scrollbarTargetOpacity_ = 0.0;
     qint64 lastScrollbarInteractionMs_ = 0;
     QTimer scrollbarFadeTimer_;
+
+    struct PendingImage {
+        QString clipId;
+        QString sourceKey;
+        QImage image;
+    };
+    QTimer* imageFlushTimer_ = nullptr;
+    std::vector<PendingImage> pendingImages_;
+    void flushPendingImages();
 
     int evictionCounter_ = 0;
     int hoveredElementIndex_ = -1;
