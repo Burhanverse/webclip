@@ -178,7 +178,12 @@ void ClipElement::rebuildText() {
 }
 
 void ClipElement::refreshTheme() {
+    pendingResize_ = true;
+    laidOutWidth_ = -1;
     rebuildText();
+    if (lastWrapWidth_ > 0 && !isImage_) {
+        text_.layout(lastWrapWidth_);
+    }
 }
 
 qreal ClipElement::actionsPillWidth() const {
@@ -386,6 +391,9 @@ void ClipElement::paint(const PaintContext& context) const {
     }
 
     if (!isImage_ && textAreaRect_.isValid()) {
+        if (lastWrapWidth_ > 0) {
+            text_.layout(lastWrapWidth_);
+        }
         ClipTextLayout::DrawArgs da;
         da.painter = p;
         da.topLeft = textAreaRect_.topLeft();

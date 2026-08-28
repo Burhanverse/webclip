@@ -48,6 +48,23 @@ void ClipTextLayout::setText(const QString& rawText, const QFont& baseFont,
         linkColor_ == linkColor) {
         return;
     }
+
+    if (text_ == rawText && font_ == baseFont) {
+        textColor_ = textColor;
+        if (linkColor_ != linkColor) {
+            linkColor_ = linkColor;
+            for (const auto& par : paragraphs_) {
+                applyFormats(*par->layout, par->globalOffset);
+            }
+            if (laidOutWidth_ > 0) {
+                int oldWidth = laidOutWidth_;
+                laidOutWidth_ = -1;
+                layout(oldWidth);
+            }
+        }
+        return;
+    }
+
     text_ = rawText;
     font_ = baseFont;
     textColor_ = textColor;
@@ -109,7 +126,9 @@ void ClipTextLayout::applyFormats(QTextLayout& lay, int globalOffset) const {
 }
 
 void ClipTextLayout::layout(int wrapWidth) const {
-    if (laidOutWidth_ == wrapWidth && naturalWidth_ >= 0) return;
+    if (paragraphs_.empty()) return;
+    const bool hasLines = paragraphs_.front()->layout->lineCount() > 0;
+    if (laidOutWidth_ == wrapWidth && naturalWidth_ >= 0 && hasLines) return;
 
     QFontMetricsF fm(font_);
     qreal maxWidth = 0.0;
@@ -174,9 +193,19 @@ void ClipTextLayout::draw(const DrawArgs& args) const {
     QPainter* p = args.painter;
     if (!p || paragraphs_.empty()) return;
 
+    if (laidOutWidth_ <= 0) {
+        int wrap = args.clip.isValid() && args.clip.width() > 0
+                       ? qCeil(args.clip.width())
+                       : qCeil(naturalWidth());
+        layout(wrap > 0 ? wrap : 400);
+    }
+
     QPointF origin = args.topLeft;
     for (const auto& parPtr : paragraphs_) {
         const Paragraph& par = *parPtr;
+        if (par.layout->lineCount() == 0 && laidOutWidth_ > 0) {
+            layout(laidOutWidth_);
+        }
         const qreal advance = paragraphAdvance(par);
         const QRectF bound(origin, QSizeF(laidOutWidth_, advance));
         const bool culled =

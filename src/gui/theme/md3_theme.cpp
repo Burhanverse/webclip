@@ -94,6 +94,11 @@ bool MD3Theme::usesDirectSeedColor() const {
     return accentPreset_ == "custom" || accentPreset_.startsWith('#');
 }
 
+static inline float safeHue(const QColor& c) {
+    float h = c.hslHueF();
+    return (h >= 0.0f && h <= 1.0f) ? h : 0.0f;
+}
+
 static QColor contrastTextColor(const QColor& bg) {
     qreal lum = 0.2126 * bg.redF() + 0.7152 * bg.greenF() + 0.0722 * bg.blueF();
     return lum > 0.5 ? QColor("#1B1B1F") : QColor("#FFFFFF");
@@ -101,23 +106,23 @@ static QColor contrastTextColor(const QColor& bg) {
 
 QColor MD3Theme::primary() const {
     QColor seed = activeSeedColor();
+    const float hue = safeHue(seed);
     if (usesDirectSeedColor()) {
-        float h = seed.hslHueF() >= 0.0f ? seed.hslHueF() : 0.0f;
         float s = seed.hslSaturationF();
         if (isPitchBlack()) {
-            return QColor::fromHslF(h, qBound(0.60f, s, 0.98f), 0.72f);
+            return QColor::fromHslF(hue, qBound(0.60f, s, 0.98f), 0.72f);
         } else if (isDark()) {
-            return QColor::fromHslF(h, qBound(0.45f, s, 0.90f), 0.76f);
+            return QColor::fromHslF(hue, qBound(0.45f, s, 0.90f), 0.76f);
         } else {
-            return QColor::fromHslF(h, qBound(0.55f, s, 0.95f), 0.44f);
+            return QColor::fromHslF(hue, qBound(0.55f, s, 0.95f), 0.44f);
         }
     }
     if (isPitchBlack()) {
-        return QColor::fromHslF(seed.hslHueF(), qBound(0.60f, seed.hslSaturationF(), 0.98f), 0.72f);
+        return QColor::fromHslF(hue, qBound(0.60f, seed.hslSaturationF(), 0.98f), 0.72f);
     } else if (isDark()) {
-        return QColor::fromHslF(seed.hslHueF(), qBound(0.45f, seed.hslSaturationF(), 0.90f), 0.76f);
+        return QColor::fromHslF(hue, qBound(0.45f, seed.hslSaturationF(), 0.90f), 0.76f);
     } else {
-        return QColor::fromHslF(seed.hslHueF(), qBound(0.55f, seed.hslSaturationF(), 0.95f), 0.44f);
+        return QColor::fromHslF(hue, qBound(0.55f, seed.hslSaturationF(), 0.95f), 0.44f);
     }
 }
 
@@ -126,28 +131,28 @@ QColor MD3Theme::onPrimary() const {
     if (usesDirectSeedColor()) {
         return contrastTextColor(primary());
     }
-    return isDark() ? QColor::fromHslF(seed.hslHueF(), 0.70f, 0.20f) : QColor("#FFFFFF");
+    return isDark() ? QColor::fromHslF(safeHue(seed), 0.70f, 0.20f) : QColor("#FFFFFF");
 }
 
 QColor MD3Theme::primaryContainer() const {
     QColor seed = activeSeedColor();
+    const float hue = safeHue(seed);
     if (usesDirectSeedColor()) {
-        float h = seed.hslHueF() >= 0.0f ? seed.hslHueF() : 0.0f;
         float s = seed.hslSaturationF();
         float l = seed.lightnessF();
         if (isPitchBlack()) {
-            return QColor::fromHslF(h, s * 0.6f, qBound(0.10f, l * 0.45f, 0.22f));
+            return QColor::fromHslF(hue, s * 0.6f, qBound(0.10f, l * 0.45f, 0.22f));
         } else if (isDark()) {
-            return QColor::fromHslF(h, s * 0.7f, qBound(0.20f, l * 0.60f, 0.32f));
+            return QColor::fromHslF(hue, s * 0.7f, qBound(0.20f, l * 0.60f, 0.32f));
         }
-        return QColor::fromHslF(h, s * 0.55f, qBound(0.86f, l + 0.25f, 0.93f));
+        return QColor::fromHslF(hue, s * 0.55f, qBound(0.86f, l + 0.25f, 0.93f));
     }
     if (isPitchBlack()) {
-        return QColor::fromHslF(seed.hslHueF(), 0.60f, 0.22f);
+        return QColor::fromHslF(hue, 0.60f, 0.22f);
     } else if (isDark()) {
-        return QColor::fromHslF(seed.hslHueF(), 0.50f, 0.28f);
+        return QColor::fromHslF(hue, 0.50f, 0.28f);
     } else {
-        return QColor::fromHslF(seed.hslHueF(), 0.70f, 0.90f);
+        return QColor::fromHslF(hue, 0.70f, 0.90f);
     }
 }
 
@@ -156,50 +161,54 @@ QColor MD3Theme::onPrimaryContainer() const {
     if (usesDirectSeedColor()) {
         return contrastTextColor(primaryContainer());
     }
+    const float hue = safeHue(seed);
     if (isPitchBlack()) {
-        return QColor::fromHslF(seed.hslHueF(), 0.75f, 0.90f);
+        return QColor::fromHslF(hue, 0.75f, 0.90f);
     } else if (isDark()) {
-        return QColor::fromHslF(seed.hslHueF(), 0.65f, 0.92f);
+        return QColor::fromHslF(hue, 0.65f, 0.92f);
     } else {
-        return QColor::fromHslF(seed.hslHueF(), 0.80f, 0.18f);
+        return QColor::fromHslF(hue, 0.80f, 0.18f);
     }
 }
 
 QColor MD3Theme::secondary() const {
     QColor seed = activeSeedColor();
-    return isDark() ? QColor::fromHslF(seed.hslHueF(), 0.20f, 0.78f) : QColor::fromHslF(seed.hslHueF(), 0.25f, 0.40f);
+    const float hue = safeHue(seed);
+    return isDark() ? QColor::fromHslF(hue, 0.20f, 0.78f) : QColor::fromHslF(hue, 0.25f, 0.40f);
 }
 
 QColor MD3Theme::onSecondary() const {
     QColor seed = activeSeedColor();
-    return isDark() ? QColor::fromHslF(seed.hslHueF(), 0.20f, 0.22f) : QColor("#FFFFFF");
+    return isDark() ? QColor::fromHslF(safeHue(seed), 0.20f, 0.22f) : QColor("#FFFFFF");
 }
 
 QColor MD3Theme::secondaryContainer() const {
     QColor seed = activeSeedColor();
+    const float hue = safeHue(seed);
     if (isPitchBlack()) {
-        return QColor::fromHslF(seed.hslHueF(), qBound(0.25f, seed.hslSaturationF() * 0.45f, 0.55f), 0.12f);
+        return QColor::fromHslF(hue, qBound(0.25f, seed.hslSaturationF() * 0.45f, 0.55f), 0.12f);
     } else if (isDark()) {
-        return QColor::fromHslF(seed.hslHueF(), qBound(0.20f, seed.hslSaturationF() * 0.40f, 0.45f), 0.22f);
+        return QColor::fromHslF(hue, qBound(0.20f, seed.hslSaturationF() * 0.40f, 0.45f), 0.22f);
     } else {
-        return QColor::fromHslF(seed.hslHueF(), qBound(0.18f, seed.hslSaturationF() * 0.35f, 0.40f), 0.92f);
+        return QColor::fromHslF(hue, qBound(0.18f, seed.hslSaturationF() * 0.35f, 0.40f), 0.92f);
     }
 }
 
 QColor MD3Theme::onSecondaryContainer() const {
     QColor seed = activeSeedColor();
+    const float hue = safeHue(seed);
     if (isPitchBlack()) {
-        return QColor::fromHslF(seed.hslHueF(), 0.35f, 0.90f);
+        return QColor::fromHslF(hue, 0.35f, 0.90f);
     } else if (isDark()) {
-        return QColor::fromHslF(seed.hslHueF(), 0.30f, 0.90f);
+        return QColor::fromHslF(hue, 0.30f, 0.90f);
     } else {
-        return QColor::fromHslF(seed.hslHueF(), 0.50f, 0.18f);
+        return QColor::fromHslF(hue, 0.50f, 0.18f);
     }
 }
 
 QColor MD3Theme::tertiary() const {
     QColor seed = activeSeedColor();
-    float h = std::fmod(seed.hslHueF() + 0.15f, 1.0f);
+    float h = std::fmod(safeHue(seed) + 0.15f, 1.0f);
     return isDark() ? QColor::fromHslF(h, 0.45f, 0.80f) : QColor::fromHslF(h, 0.40f, 0.40f);
 }
 
@@ -209,13 +218,13 @@ QColor MD3Theme::onTertiary() const {
 
 QColor MD3Theme::tertiaryContainer() const {
     QColor seed = activeSeedColor();
-    float h = std::fmod(seed.hslHueF() + 0.15f, 1.0f);
+    float h = std::fmod(safeHue(seed) + 0.15f, 1.0f);
     return isDark() ? QColor::fromHslF(h, 0.35f, 0.28f) : QColor::fromHslF(h, 0.50f, 0.92f);
 }
 
 QColor MD3Theme::onTertiaryContainer() const {
     QColor seed = activeSeedColor();
-    float h = std::fmod(seed.hslHueF() + 0.15f, 1.0f);
+    float h = std::fmod(safeHue(seed) + 0.15f, 1.0f);
     return isDark() ? QColor::fromHslF(h, 0.50f, 0.92f) : QColor::fromHslF(h, 0.60f, 0.18f);
 }
 
@@ -238,7 +247,7 @@ QColor MD3Theme::onErrorContainer() const {
 QColor MD3Theme::surface() const {
     if (isPitchBlack()) return QColor("#000000");
     QColor seed = activeSeedColor();
-    float h = seed.hslHueF();
+    float h = safeHue(seed);
     float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
     return isDark() ? QColor::fromHslF(h, s, 0.08f) : QColor::fromHslF(h, s * 0.6f, 0.98f);
 }
@@ -246,7 +255,7 @@ QColor MD3Theme::surface() const {
 QColor MD3Theme::surfaceDim() const {
     if (isPitchBlack()) return QColor("#000000");
     QColor seed = activeSeedColor();
-    float h = seed.hslHueF();
+    float h = safeHue(seed);
     float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
     return isDark() ? QColor::fromHslF(h, s, 0.07f) : QColor::fromHslF(h, s, 0.87f);
 }
@@ -254,7 +263,7 @@ QColor MD3Theme::surfaceDim() const {
 QColor MD3Theme::surfaceBright() const {
     if (isPitchBlack()) return QColor("#161616");
     QColor seed = activeSeedColor();
-    float h = seed.hslHueF();
+    float h = safeHue(seed);
     float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
     return isDark() ? QColor::fromHslF(h, s, 0.22f) : QColor::fromHslF(h, s * 0.4f, 0.99f);
 }
@@ -262,7 +271,7 @@ QColor MD3Theme::surfaceBright() const {
 QColor MD3Theme::surfaceContainerLowest() const {
     if (isPitchBlack()) return QColor("#000000");
     QColor seed = activeSeedColor();
-    float h = seed.hslHueF();
+    float h = safeHue(seed);
     float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
     return isDark() ? QColor::fromHslF(h, s, 0.05f) : QColor("#FFFFFF");
 }
@@ -270,7 +279,7 @@ QColor MD3Theme::surfaceContainerLowest() const {
 QColor MD3Theme::surfaceContainerLow() const {
     if (isPitchBlack()) return QColor("#0A0A0A");
     QColor seed = activeSeedColor();
-    float h = seed.hslHueF();
+    float h = safeHue(seed);
     float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
     return isDark() ? QColor::fromHslF(h, s, 0.11f) : QColor::fromHslF(h, s, 0.95f);
 }
@@ -278,7 +287,7 @@ QColor MD3Theme::surfaceContainerLow() const {
 QColor MD3Theme::surfaceContainer() const {
     if (isPitchBlack()) return QColor("#121212");
     QColor seed = activeSeedColor();
-    float h = seed.hslHueF();
+    float h = safeHue(seed);
     float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
     return isDark() ? QColor::fromHslF(h, s, 0.14f) : QColor::fromHslF(h, s, 0.92f);
 }
@@ -286,7 +295,7 @@ QColor MD3Theme::surfaceContainer() const {
 QColor MD3Theme::surfaceContainerHigh() const {
     if (isPitchBlack()) return QColor("#181818");
     QColor seed = activeSeedColor();
-    float h = seed.hslHueF();
+    float h = safeHue(seed);
     float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
     return isDark() ? QColor::fromHslF(h, s, 0.18f) : QColor::fromHslF(h, s, 0.89f);
 }
@@ -294,7 +303,7 @@ QColor MD3Theme::surfaceContainerHigh() const {
 QColor MD3Theme::surfaceContainerHighest() const {
     if (isPitchBlack()) return QColor("#222222");
     QColor seed = activeSeedColor();
-    float h = seed.hslHueF();
+    float h = safeHue(seed);
     float s = qBound(0.03f, seed.hslSaturationF() * 0.16f, 0.10f);
     return isDark() ? QColor::fromHslF(h, s, 0.22f) : QColor::fromHslF(h, s, 0.85f);
 }
@@ -302,7 +311,7 @@ QColor MD3Theme::surfaceContainerHighest() const {
 QColor MD3Theme::onSurface() const {
     if (isPitchBlack()) return QColor("#FFFFFF");
     QColor seed = activeSeedColor();
-    float h = seed.hslHueF();
+    float h = safeHue(seed);
     float s = qBound(0.02f, seed.hslSaturationF() * 0.08f, 0.05f);
     return isDark() ? QColor::fromHslF(h, s, 0.92f) : QColor::fromHslF(h, s, 0.12f);
 }
@@ -310,7 +319,7 @@ QColor MD3Theme::onSurface() const {
 QColor MD3Theme::onSurfaceVariant() const {
     if (isPitchBlack()) return QColor("#9E9E9E");
     QColor seed = activeSeedColor();
-    float h = seed.hslHueF();
+    float h = safeHue(seed);
     float s = qBound(0.03f, seed.hslSaturationF() * 0.15f, 0.10f);
     return isDark() ? QColor::fromHslF(h, s, 0.76f) : QColor::fromHslF(h, s, 0.32f);
 }
@@ -318,7 +327,7 @@ QColor MD3Theme::onSurfaceVariant() const {
 QColor MD3Theme::outline() const {
     if (isPitchBlack()) return QColor("#383838");
     QColor seed = activeSeedColor();
-    float h = seed.hslHueF();
+    float h = safeHue(seed);
     float s = qBound(0.03f, seed.hslSaturationF() * 0.15f, 0.10f);
     return isDark() ? QColor::fromHslF(h, s, 0.55f) : QColor::fromHslF(h, s, 0.50f);
 }
@@ -326,7 +335,7 @@ QColor MD3Theme::outline() const {
 QColor MD3Theme::outlineVariant() const {
     if (isPitchBlack()) return QColor("#222222");
     QColor seed = activeSeedColor();
-    float h = seed.hslHueF();
+    float h = safeHue(seed);
     float s = qBound(0.03f, seed.hslSaturationF() * 0.15f, 0.10f);
     return isDark() ? QColor::fromHslF(h, s, 0.25f) : QColor::fromHslF(h, s, 0.82f);
 }
