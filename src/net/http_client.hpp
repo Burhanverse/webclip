@@ -7,6 +7,10 @@
 #include <atomic>
 #include "sse_parser.hpp"
 
+#include <mutex>
+
+struct curl_slist;
+
 namespace webclip {
 
 struct HttpResponse {
@@ -43,6 +47,9 @@ public:
         const std::atomic<bool>& stop_flag
     );
 
+    void lock_share() { share_mutex_.lock(); }
+    void unlock_share() { share_mutex_.unlock(); }
+
 private:
     std::string host_;
     int port_;
@@ -50,6 +57,13 @@ private:
     bool use_https_;
     bool insecure_;
     std::string client_id_;
+
+    std::string post_url_;
+    void* share_handle_ = nullptr;
+    mutable std::mutex share_mutex_;
+    std::mutex post_mutex_;
+    void* post_curl_ = nullptr;
+    struct curl_slist* post_headers_ = nullptr;
 
     std::string build_url(const std::string& path, const std::string& extra_query = "") const;
     HttpResponse post_json_body(std::string json_body, long timeout_s, long connect_timeout_s);

@@ -30,9 +30,24 @@ static int maxCachedClipImages() {
 
 static void prune_image_cache(const QString& cacheDir) {
     QDir dir(cacheDir);
+    int maxClips = maxCachedClipImages();
+    const QStringList fileList = dir.entryList(QDir::Files | QDir::NoDotAndDotDot);
+    if (fileList.size() <= maxClips) {
+        return;
+    }
     const QFileInfoList entries = dir.entryInfoList(QDir::Files | QDir::NoDotAndDotDot, QDir::Time);
-    for (int i = maxCachedClipImages(); i < entries.size(); ++i) {
+    for (int i = maxClips; i < entries.size(); ++i) {
         QFile::remove(entries.at(i).absoluteFilePath());
+    }
+}
+
+static void trigger_async_cache_prune(const QString& cacheDir) {
+    static std::atomic<int> s_writesSinceLastPrune{0};
+    if (++s_writesSinceLastPrune >= 15) {
+        s_writesSinceLastPrune.store(0);
+        std::thread([cacheDir]() {
+            prune_image_cache(cacheDir);
+        }).detach();
     }
 }
 
@@ -47,7 +62,7 @@ static QString saveImageBytesToCache(const QByteArray& bytes, const QString& mim
     if (file.open(QIODevice::WriteOnly)) {
         file.write(bytes);
         file.close();
-        prune_image_cache(cacheDir);
+        trigger_async_cache_prune(cacheDir);
         return QUrl::fromLocalFile(filePath).toString();
     }
     return QString();
@@ -81,13 +96,54 @@ void WebClipController::markClipIdHandled(const std::string& clipId) {
 }
 
 QString WebClipController::computeImageHash(const QByteArray& data) {
-    if (data.isEmpty()) return "";
+    const int64_t len = data.size();
+    if (len == 0) return "";
     uint64_t hash = 14695981039346656037ULL;
-    for (char byte : data) {
-        hash ^= static_cast<uint8_t>(byte);
-        hash *= 1099511628211ULL;
+    const uint8_t* ptr = reinterpret_cast<const uint8_t*>(data.constData());
+
+    if (len > 65536) {
+        // Fast sampled hash for large images:
+        // Sample head 8KB
+        const int64_t headLen = 8192;
+        for (int64_t i = 0; i < headLen; i += 8) {
+            uint64_t w;
+            std::memcpy(&w, ptr + i, 8);
+            hash ^= w;
+            hash *= 1099511628211ULL;
+        }
+        // Sample tail 8KB
+        const int64_t tailStart = len - 8192;
+        for (int64_t i = tailStart; i + 8 <= len; i += 8) {
+            uint64_t w;
+            std::memcpy(&w, ptr + i, 8);
+            hash ^= w;
+            hash *= 1099511628211ULL;
+        }
+        // Sample body across middle in strides
+        const int64_t midSpan = tailStart - headLen;
+        if (midSpan > 0) {
+            const int64_t step = std::max<int64_t>(8, (midSpan / 1024) & ~7ULL);
+            for (int64_t i = headLen; i + 8 <= tailStart; i += step) {
+                uint64_t w;
+                std::memcpy(&w, ptr + i, 8);
+                hash ^= w;
+                hash *= 1099511628211ULL;
+            }
+        }
+    } else {
+        int64_t i = 0;
+        for (; i + 8 <= len; i += 8) {
+            uint64_t w;
+            std::memcpy(&w, ptr + i, 8);
+            hash ^= w;
+            hash *= 1099511628211ULL;
+        }
+        for (; i < len; ++i) {
+            hash ^= ptr[i];
+            hash *= 1099511628211ULL;
+        }
     }
-    return QString::number(hash, 16) + "-" + QString::number(data.size());
+    return QString::number(hash, 16) + "-" + QString::number(len);
 }
 
 QString WebClipController::computePixelFingerprint(const QImage& img) {
@@ -134,10 +190,9 @@ bool WebClipController::shouldSuppressText(const QString& text, int64_t nowMs, i
     QString trimmed = text.trimmed();
     if (trimmed.isEmpty()) return true;
     if (trimmed == lastLocalText_.trimmed() || trimmed == lastRemoteText_.trimmed()) {
-        return true;
-    }
-    if ((nowMs - lastTextTimeMs_) < windowMs) {
-        return true;
+        if (windowMs <= 0 || (nowMs - lastTextTimeMs_) < windowMs) {
+            return true;
+        }
     }
     return false;
 }
@@ -151,14 +206,17 @@ void WebClipController::markTextApplied(const QString& text, int64_t nowMs) {
 
 bool WebClipController::shouldSuppressImage(const QString& hash, const QString& pixelFp, int64_t nowMs, int64_t windowMs) {
     std::lock_guard<std::mutex> guard(syncLock_);
+    bool match = false;
     if (!hash.isEmpty()) {
-        if (hash == lastLocalImgHash_ || hash == lastRemoteImgHash_) return true;
+        if (hash == lastLocalImgHash_ || hash == lastRemoteImgHash_) match = true;
     }
     if (!pixelFp.isEmpty()) {
-        if (pixelFp == lastLocalPixelFp_ || pixelFp == lastRemotePixelFp_) return true;
+        if (pixelFp == lastLocalPixelFp_ || pixelFp == lastRemotePixelFp_) match = true;
     }
-    if ((nowMs - lastImgTimeMs_) < windowMs) {
-        return true;
+    if (match) {
+        if (windowMs <= 0 || (nowMs - lastImgTimeMs_) < windowMs) {
+            return true;
+        }
     }
     return false;
 }
@@ -538,52 +596,76 @@ void WebClipController::startSseListener() {
                         std::string inlineData = data.take_string("data");
 
                         if (!inlineData.empty()) {
-                            QByteArray bytes;
-                            size_t commaIdx = inlineData.find(',');
-                            if (commaIdx != std::string::npos) {
-                                bytes = QByteArray::fromBase64(QByteArray::fromRawData(inlineData.data() + commaIdx + 1, static_cast<int>(inlineData.size() - commaIdx - 1)));
-                            } else {
-                                bytes = QByteArray::fromBase64(QByteArray::fromRawData(inlineData.data(), static_cast<int>(inlineData.size())));
-                            }
-                            std::string().swap(inlineData);
+                            static const bool s_perfLog = (std::getenv("WEBCLIP_PERF") != nullptr || std::getenv("WEBCLIP_DEBUG_PERF") != nullptr);
+                            auto tSseDispatch = std::chrono::steady_clock::now();
 
-                            QImage qimg;
-                            qimg.loadFromData(bytes);
-                            QString pixelFp = computePixelFingerprint(qimg);
-                            QString hash = computeImageHash(bytes);
-                            c->markImageApplied(hash, pixelFp, nowMs);
-
-                            QString fileUrl = saveImageBytesToCache(bytes, QString::fromStdString(mimeType));
-                            int byteSize = bytes.size();
-                            QString mimeQ = QString::fromStdString(mimeType);
-                            QString sourceQ = QString::fromStdString(source.empty() ? "phone" : source);
-                            QByteArray().swap(bytes);
-
-                            QMetaObject::invokeMethod(c, [self, fileUrl, qimg, mimeQ, sourceQ, byteSize]() {
+                            std::thread([self, inlineData = std::move(inlineData), mimeType = std::move(mimeType), source = std::move(source), nowMs]() mutable {
+                                auto tStart = std::chrono::steady_clock::now();
                                 WebClipController* c = self.data();
                                 if (!c) return;
-                                if (!qimg.isNull()) {
-                                    c->suppressNextLocalChange_.store(true);
-                                    if (QGuiApplication::clipboard()) {
-                                        QGuiApplication::clipboard()->setImage(qimg, QClipboard::Clipboard);
-                                    } else if (c->nativeClipboard_) {
-                                        QString localPath = QUrl(fileUrl).toLocalFile();
-                                        QFile f(localPath);
-                                        QByteArray diskBytes;
-                                        if (f.open(QIODevice::ReadOnly)) {
-                                            diskBytes = f.readAll();
-                                            f.close();
-                                        }
-                                        if (!diskBytes.isEmpty()) {
-                                            std::vector<uint8_t> stdBytes(diskBytes.begin(), diskBytes.end());
-                                            c->nativeClipboard_->set_image(stdBytes, mimeQ.toStdString());
-                                        }
-                                    }
+
+                                QByteArray bytes;
+                                size_t commaIdx = inlineData.find(',');
+                                if (commaIdx != std::string::npos) {
+                                    bytes = QByteArray::fromBase64(QByteArray::fromRawData(inlineData.data() + commaIdx + 1, static_cast<int>(inlineData.size() - commaIdx - 1)));
+                                } else {
+                                    bytes = QByteArray::fromBase64(QByteArray::fromRawData(inlineData.data(), static_cast<int>(inlineData.size())));
+                                }
+                                std::string().swap(inlineData);
+
+                                if (bytes.isEmpty()) return;
+
+                                QImage qimg;
+                                qimg.loadFromData(bytes);
+                                QString pixelFp = computePixelFingerprint(qimg);
+                                QString hash = computeImageHash(bytes);
+                                c->markImageApplied(hash, pixelFp, nowMs);
+
+                                QString fileUrl = saveImageBytesToCache(bytes, QString::fromStdString(mimeType));
+                                int byteSize = bytes.size();
+                                QString mimeQ = QString::fromStdString(mimeType);
+                                QString sourceQ = QString::fromStdString(source.empty() ? "phone" : source);
+                                QByteArray().swap(bytes);
+
+                                static const bool s_perfLog = (std::getenv("WEBCLIP_PERF") != nullptr || std::getenv("WEBCLIP_DEBUG_PERF") != nullptr);
+                                if (s_perfLog) {
+                                    auto tEnd = std::chrono::steady_clock::now();
+                                    auto durMs = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart).count();
+                                    std::cerr << "[PERF] Incoming inline image decode & cache took " << durMs << "ms (size=" << byteSize << " bytes)\n";
                                 }
 
-                                c->clipModel_.addClipImage(fileUrl, mimeQ, byteSize, sourceQ);
-                                emit c->clipReceived("[Image]", sourceQ);
-                            });
+                                QMetaObject::invokeMethod(c, [self, fileUrl, qimg = std::move(qimg), mimeQ, sourceQ, byteSize]() {
+                                    WebClipController* c = self.data();
+                                    if (!c) return;
+                                    if (!qimg.isNull()) {
+                                        c->suppressNextLocalChange_.store(true);
+                                        if (QGuiApplication::clipboard()) {
+                                            QGuiApplication::clipboard()->setImage(qimg, QClipboard::Clipboard);
+                                        } else if (c->nativeClipboard_) {
+                                            QString localPath = QUrl(fileUrl).toLocalFile();
+                                            QFile f(localPath);
+                                            QByteArray diskBytes;
+                                            if (f.open(QIODevice::ReadOnly)) {
+                                                diskBytes = f.readAll();
+                                                f.close();
+                                            }
+                                            if (!diskBytes.isEmpty()) {
+                                                std::vector<uint8_t> stdBytes(diskBytes.begin(), diskBytes.end());
+                                                c->nativeClipboard_->set_image(stdBytes, mimeQ.toStdString());
+                                            }
+                                        }
+                                    }
+
+                                    c->clipModel_.addClipImage(fileUrl, mimeQ, byteSize, sourceQ);
+                                    emit c->clipReceived("[Image]", sourceQ);
+                                });
+                            }).detach();
+
+                            if (s_perfLog) {
+                                auto tSseNow = std::chrono::steady_clock::now();
+                                auto durUs = std::chrono::duration_cast<std::chrono::microseconds>(tSseNow - tSseDispatch).count();
+                                std::cerr << "[PERF] SSE stream dispatched inline image in " << durUs << "us\n";
+                            }
                         } else {
                             std::string imageUrl = data.get_string("imageUrl");
                             std::thread([self, client, imageUrl, mimeType, source, nowMs]() {
@@ -706,32 +788,60 @@ void WebClipController::onClipboardDataChanged() {
                     mime = "image/webp";
                 } else {
                     directImg = qvariant_cast<QImage>(mimeData->imageData());
-                    if (!directImg.isNull()) {
-                        QBuffer buf(&ba);
-                        buf.open(QIODevice::WriteOnly);
-                        directImg.save(&buf, "PNG");
-                        mime = "image/png";
-                    }
                 }
 
                 if (!ba.isEmpty() || !directImg.isNull()) {
-                    QString hash = computeImageHash(ba);
-                    QString pixelFp = directImg.isNull()
-                        ? computePixelFingerprint(ba)
-                        : computePixelFingerprint(directImg);
+                    static const bool s_perfLog = (std::getenv("WEBCLIP_PERF") != nullptr || std::getenv("WEBCLIP_DEBUG_PERF") != nullptr);
+                    auto tGuiStart = std::chrono::steady_clock::now();
 
-                    if (shouldSuppressImage(hash, pixelFp, nowMs, 2000)) {
-                        return;
+                    QPointer<WebClipController> self(this);
+                    std::thread([self, ba = std::move(ba), directImg = std::move(directImg), mime = std::move(mime), nowMs]() mutable {
+                        if (!self) return;
+                        auto tBgStart = std::chrono::steady_clock::now();
+
+                        if (ba.isEmpty() && !directImg.isNull()) {
+                            QBuffer buf(&ba);
+                            buf.open(QIODevice::WriteOnly);
+                            directImg.save(&buf, "PNG");
+                            mime = "image/png";
+                        }
+                        if (ba.isEmpty()) return;
+
+                        QString hash = computeImageHash(ba);
+                        if (self->shouldSuppressImage(hash, QString(), nowMs, 2000)) {
+                            return;
+                        }
+
+                        QString pixelFp = !directImg.isNull()
+                            ? computePixelFingerprint(directImg)
+                            : computePixelFingerprint(ba);
+
+                        if (self->shouldSuppressImage(hash, pixelFp, nowMs, 2000)) {
+                            return;
+                        }
+
+                        {
+                            std::lock_guard<std::mutex> guard(self->syncLock_);
+                            self->lastLocalImgHash_ = hash;
+                            self->lastLocalPixelFp_ = pixelFp;
+                            self->lastImgTimeMs_ = nowMs;
+                        }
+
+                        static const bool s_perfLog = (std::getenv("WEBCLIP_PERF") != nullptr || std::getenv("WEBCLIP_DEBUG_PERF") != nullptr);
+                        if (s_perfLog) {
+                            auto tBgEnd = std::chrono::steady_clock::now();
+                            auto durUs = std::chrono::duration_cast<std::chrono::microseconds>(tBgEnd - tBgStart).count();
+                            std::cerr << "[PERF] Outgoing image background prep took " << durUs << "us\n";
+                        }
+
+                        self->pushImageBytes(ba, mime);
+                    }).detach();
+
+                    if (s_perfLog) {
+                        auto tGuiEnd = std::chrono::steady_clock::now();
+                        auto durUs = std::chrono::duration_cast<std::chrono::microseconds>(tGuiEnd - tGuiStart).count();
+                        std::cerr << "[PERF] onClipboardDataChanged GUI dispatch took " << durUs << "us\n";
                     }
-
-                    {
-                        std::lock_guard<std::mutex> guard(syncLock_);
-                        lastLocalImgHash_ = hash;
-                        lastLocalPixelFp_ = pixelFp;
-                        lastImgTimeMs_ = nowMs;
-                    }
-
-                    pushImageBytes(ba, mime);
                     return;
                 }
             }
@@ -781,16 +891,22 @@ void WebClipController::onClipboardDataChanged() {
 void WebClipController::handleNativeImage(ClipboardImage img) {
     if (!img.valid || img.data.empty()) return;
     int64_t nowMs = QDateTime::currentMSecsSinceEpoch();
-    QByteArray ba(reinterpret_cast<const char*>(img.data.data()), static_cast<int>(img.data.size()));
-    QString hash = computeImageHash(ba);
-    QString pixelFp = computePixelFingerprint(ba);
+    QPointer<WebClipController> self(this);
+    std::thread([self, img = std::move(img), nowMs]() {
+        if (!self) return;
+        QByteArray ba(reinterpret_cast<const char*>(img.data.data()), static_cast<int>(img.data.size()));
+        QString hash = computeImageHash(ba);
+        if (self->shouldSuppressImage(hash, QString(), nowMs, 2000)) {
+            return;
+        }
+        QString pixelFp = computePixelFingerprint(ba);
+        if (self->shouldSuppressImage(hash, pixelFp, nowMs, 2000)) {
+            return;
+        }
 
-    if (shouldSuppressImage(hash, pixelFp, nowMs, 2000)) {
-        return;
-    }
-
-    markImageApplied(hash, pixelFp, nowMs);
-    pushImageBytes(ba, QString::fromStdString(img.mime_type.empty() ? "image/png" : img.mime_type));
+        self->markImageApplied(hash, pixelFp, nowMs);
+        self->pushImageBytes(ba, QString::fromStdString(img.mime_type.empty() ? "image/png" : img.mime_type));
+    }).detach();
 }
 
 void WebClipController::handleNativeText(QString current) {
@@ -807,15 +923,21 @@ void WebClipController::handleNativeText(QString current) {
 
         if (isPng || isJpg || isGif || isWebp) {
             QString mime = isPng ? "image/png" : (isJpg ? "image/jpeg" : (isGif ? "image/gif" : "image/webp"));
-            QString hash = computeImageHash(rawBytes);
-            QString pixelFp = computePixelFingerprint(rawBytes);
+            QPointer<WebClipController> self(this);
+            std::thread([self, rawBytes = std::move(rawBytes), mime = std::move(mime), nowMs]() {
+                if (!self) return;
+                QString hash = computeImageHash(rawBytes);
+                if (self->shouldSuppressImage(hash, QString(), nowMs, 2000)) {
+                    return;
+                }
+                QString pixelFp = computePixelFingerprint(rawBytes);
+                if (self->shouldSuppressImage(hash, pixelFp, nowMs, 2000)) {
+                    return;
+                }
 
-            if (shouldSuppressImage(hash, pixelFp, nowMs, 2000)) {
-                return;
-            }
-
-            markImageApplied(hash, pixelFp, nowMs);
-            pushImageBytes(rawBytes, mime);
+                self->markImageApplied(hash, pixelFp, nowMs);
+                self->pushImageBytes(rawBytes, mime);
+            }).detach();
             return;
         }
     }
@@ -972,17 +1094,28 @@ bool WebClipController::pushImageBytes(const QByteArray& bytes, const QString& m
 
     auto client = httpClient_;
     std::string mime = mimeType.isEmpty() ? "image/png" : mimeType.toStdString();
-    QString fileUrl = saveImageBytesToCache(bytes, QString::fromStdString(mime));
     int byteSize = bytes.size();
 
     QPointer<WebClipController> self(this);
-    std::thread([self, client, bytes, mime, fileUrl, byteSize, cId]() {
+    std::thread([self, client, bytes, mime, byteSize, cId]() {
         if (!client) return;
+        auto tStart = std::chrono::steady_clock::now();
+
+        QString fileUrl = saveImageBytesToCache(bytes, QString::fromStdString(mime));
+
         HttpResponse resp = client->push_image(
             reinterpret_cast<const uint8_t*>(bytes.constData()),
             static_cast<size_t>(bytes.size()),
             mime,
             cId);
+
+        static const bool s_perfLog = (std::getenv("WEBCLIP_PERF") != nullptr || std::getenv("WEBCLIP_DEBUG_PERF") != nullptr);
+        if (s_perfLog) {
+            auto tEnd = std::chrono::steady_clock::now();
+            auto durMs = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart).count();
+            std::cerr << "[PERF] pushImageBytes background total: " << durMs << "ms (size=" << byteSize << " bytes, status=" << resp.status_code << ")\n";
+        }
+
         if (!self) return;
         QMetaObject::invokeMethod(self.data(), [self, fileUrl, byteSize, mime, resp]() {
             if (!self) return;
@@ -1019,29 +1152,33 @@ bool WebClipController::pushCurrentClipboard() {
                     mime = "image/webp";
                 } else {
                     directImg = qvariant_cast<QImage>(mimeData->imageData());
-                    if (!directImg.isNull()) {
-                        QBuffer buf(&ba);
-                        buf.open(QIODevice::WriteOnly);
-                        directImg.save(&buf, "PNG");
-                        mime = "image/png";
-                    }
                 }
                 if (!ba.isEmpty() || !directImg.isNull()) {
-                    QString hash = computeImageHash(ba);
-                    QString pixelFp = directImg.isNull()
-                        ? computePixelFingerprint(ba)
-                        : computePixelFingerprint(directImg);
+                    QPointer<WebClipController> self(this);
+                    std::thread([self, ba = std::move(ba), directImg = std::move(directImg), mime = std::move(mime), nowMs]() mutable {
+                        if (!self) return;
+                        if (ba.isEmpty() && !directImg.isNull()) {
+                            QBuffer buf(&ba);
+                            buf.open(QIODevice::WriteOnly);
+                            directImg.save(&buf, "PNG");
+                            mime = "image/png";
+                        }
+                        if (ba.isEmpty()) return;
+                        QString hash = computeImageHash(ba);
+                        if (self->shouldSuppressImage(hash, QString(), nowMs, 2000)) return;
+                        QString pixelFp = !directImg.isNull() ? computePixelFingerprint(directImg) : computePixelFingerprint(ba);
+                        if (self->shouldSuppressImage(hash, pixelFp, nowMs, 2000)) return;
 
-                    if (shouldSuppressImage(hash, pixelFp, nowMs, 2000)) return false;
+                        {
+                            std::lock_guard<std::mutex> guard(self->syncLock_);
+                            self->lastLocalImgHash_ = hash;
+                            self->lastLocalPixelFp_ = pixelFp;
+                            self->lastImgTimeMs_ = nowMs;
+                        }
 
-                    {
-                        std::lock_guard<std::mutex> guard(syncLock_);
-                        lastLocalImgHash_ = hash;
-                        lastLocalPixelFp_ = pixelFp;
-                        lastImgTimeMs_ = nowMs;
-                    }
-
-                    return pushImageBytes(ba, mime);
+                        self->pushImageBytes(ba, mime);
+                    }).detach();
+                    return true;
                 }
             }
         }
@@ -1050,20 +1187,25 @@ bool WebClipController::pushCurrentClipboard() {
     if (nativeClipboard_ && nativeClipboard_->has_image()) {
         ClipboardImage local_img = nativeClipboard_->get_image();
         if (local_img.valid && !local_img.data.empty()) {
-            QByteArray ba(reinterpret_cast<const char*>(local_img.data.data()), static_cast<int>(local_img.data.size()));
-            QString hash = computeImageHash(ba);
-            QString pixelFp = computePixelFingerprint(ba);
+            QPointer<WebClipController> self(this);
+            std::thread([self, local_img = std::move(local_img), nowMs]() {
+                if (!self) return;
+                QByteArray ba(reinterpret_cast<const char*>(local_img.data.data()), static_cast<int>(local_img.data.size()));
+                QString hash = computeImageHash(ba);
+                if (self->shouldSuppressImage(hash, QString(), nowMs, 2000)) return;
+                QString pixelFp = computePixelFingerprint(ba);
+                if (self->shouldSuppressImage(hash, pixelFp, nowMs, 2000)) return;
 
-            if (shouldSuppressImage(hash, pixelFp, nowMs, 2000)) return false;
+                {
+                    std::lock_guard<std::mutex> guard(self->syncLock_);
+                    self->lastLocalImgHash_ = hash;
+                    self->lastLocalPixelFp_ = pixelFp;
+                    self->lastImgTimeMs_ = nowMs;
+                }
 
-            {
-                std::lock_guard<std::mutex> guard(syncLock_);
-                lastLocalImgHash_ = hash;
-                lastLocalPixelFp_ = pixelFp;
-                lastImgTimeMs_ = nowMs;
-            }
-
-            return pushImageBytes(ba, QString::fromStdString(local_img.mime_type.empty() ? "image/png" : local_img.mime_type));
+                self->pushImageBytes(ba, QString::fromStdString(local_img.mime_type.empty() ? "image/png" : local_img.mime_type));
+            }).detach();
+            return true;
         }
     }
 
@@ -1086,19 +1228,24 @@ bool WebClipController::pushCurrentClipboard() {
         bool isWebp = (rawBytes.size() >= 12 && u[0] == 'R' && u[1] == 'I' && u[2] == 'F' && u[3] == 'F' && u[8] == 'W' && u[9] == 'E' && u[10] == 'B' && u[11] == 'P');
         if (isPng || isJpg || isGif || isWebp) {
             QString mime = isPng ? "image/png" : (isJpg ? "image/jpeg" : (isGif ? "image/gif" : "image/webp"));
-            QString hash = computeImageHash(rawBytes);
-            QString pixelFp = computePixelFingerprint(rawBytes);
+            QPointer<WebClipController> self(this);
+            std::thread([self, rawBytes = std::move(rawBytes), mime = std::move(mime), nowMs]() {
+                if (!self) return;
+                QString hash = computeImageHash(rawBytes);
+                if (self->shouldSuppressImage(hash, QString(), nowMs, 2000)) return;
+                QString pixelFp = computePixelFingerprint(rawBytes);
+                if (self->shouldSuppressImage(hash, pixelFp, nowMs, 2000)) return;
 
-            if (shouldSuppressImage(hash, pixelFp, nowMs, 2000)) return false;
+                {
+                    std::lock_guard<std::mutex> guard(self->syncLock_);
+                    self->lastLocalImgHash_ = hash;
+                    self->lastLocalPixelFp_ = pixelFp;
+                    self->lastImgTimeMs_ = nowMs;
+                }
 
-            {
-                std::lock_guard<std::mutex> guard(syncLock_);
-                lastLocalImgHash_ = hash;
-                lastLocalPixelFp_ = pixelFp;
-                lastImgTimeMs_ = nowMs;
-            }
-
-            return pushImageBytes(rawBytes, mime);
+                self->pushImageBytes(rawBytes, mime);
+            }).detach();
+            return true;
         }
     }
 

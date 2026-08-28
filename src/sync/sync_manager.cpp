@@ -5,6 +5,7 @@
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <cstring>
 
 namespace webclip {
 
@@ -48,10 +49,46 @@ std::string SyncManager::compute_hash(const std::vector<uint8_t>& data) {
 std::string SyncManager::compute_hash(const uint8_t* data, size_t len) {
     if (len == 0) return "";
     uint64_t hash = 14695981039346656037ULL;
-    for (size_t i = 0; i < len; ++i) {
-        hash ^= data[i];
-        hash *= 1099511628211ULL;
+
+    if (len > 65536) {
+        const size_t headLen = 8192;
+        for (size_t i = 0; i < headLen; i += 8) {
+            uint64_t w;
+            std::memcpy(&w, data + i, 8);
+            hash ^= w;
+            hash *= 1099511628211ULL;
+        }
+        const size_t tailStart = len - 8192;
+        for (size_t i = tailStart; i + 8 <= len; i += 8) {
+            uint64_t w;
+            std::memcpy(&w, data + i, 8);
+            hash ^= w;
+            hash *= 1099511628211ULL;
+        }
+        size_t midSpan = tailStart - headLen;
+        if (midSpan > 0) {
+            size_t step = std::max<size_t>(8, (midSpan / 1024) & ~7ULL);
+            for (size_t i = headLen; i + 8 <= tailStart; i += step) {
+                uint64_t w;
+                std::memcpy(&w, data + i, 8);
+                hash ^= w;
+                hash *= 1099511628211ULL;
+            }
+        }
+    } else {
+        size_t i = 0;
+        for (; i + 8 <= len; i += 8) {
+            uint64_t w;
+            std::memcpy(&w, data + i, 8);
+            hash ^= w;
+            hash *= 1099511628211ULL;
+        }
+        for (; i < len; ++i) {
+            hash ^= data[i];
+            hash *= 1099511628211ULL;
+        }
     }
+
     std::stringstream ss;
     ss << std::hex << std::setw(16) << std::setfill('0') << hash << "-" << len;
     return ss.str();

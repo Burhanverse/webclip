@@ -54,6 +54,21 @@ int progress_cb(void* clientp, curl_off_t, curl_off_t, curl_off_t, curl_off_t) {
     return 0;
 }
 
+static void share_lock_cb(CURL* handle, curl_lock_data data, curl_lock_access access, void* userptr) {
+    (void)handle;
+    (void)data;
+    (void)access;
+    auto* client = static_cast<HttpClient*>(userptr);
+    if (client) client->lock_share();
+}
+
+static void share_unlock_cb(CURL* handle, curl_lock_data data, void* userptr) {
+    (void)handle;
+    (void)data;
+    auto* client = static_cast<HttpClient*>(userptr);
+    if (client) client->unlock_share();
+}
+
 }
 
 HttpClient::HttpClient(std::string host, int port, std::string code, bool use_https, bool insecure, std::string client_id)
@@ -69,9 +84,36 @@ HttpClient::HttpClient(std::string host, int port, std::string code, bool use_ht
         return true;
     }();
     (void)curl_initialized;
+
+    post_url_ = build_url("/clipboard");
+
+    CURLSH* share = curl_share_init();
+    if (share) {
+        curl_share_setopt(share, CURLSHOPT_SHARE, CURL_LOCK_DATA_CONNECT);
+        curl_share_setopt(share, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
+        curl_share_setopt(share, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
+        curl_share_setopt(share, CURLSHOPT_LOCKFUNC, share_lock_cb);
+        curl_share_setopt(share, CURLSHOPT_UNLOCKFUNC, share_unlock_cb);
+        curl_share_setopt(share, CURLSHOPT_USERDATA, this);
+        share_handle_ = share;
+    }
 }
 
-HttpClient::~HttpClient() = default;
+HttpClient::~HttpClient() {
+    std::lock_guard<std::mutex> guard(post_mutex_);
+    if (post_curl_) {
+        curl_easy_cleanup(static_cast<CURL*>(post_curl_));
+        post_curl_ = nullptr;
+    }
+    if (post_headers_) {
+        curl_slist_free_all(post_headers_);
+        post_headers_ = nullptr;
+    }
+    if (share_handle_) {
+        curl_share_cleanup(static_cast<CURLSH*>(share_handle_));
+        share_handle_ = nullptr;
+    }
+}
 
 std::string HttpClient::get_base_url() const {
     std::string scheme = use_https_ ? "https" : "http";
@@ -100,7 +142,11 @@ HttpResponse HttpClient::get_state() {
     struct curl_slist* headers = nullptr;
     headers = curl_slist_append(headers, ("X-Pairing-Code: " + code_).c_str());
     headers = curl_slist_append(headers, "Accept: application/json");
+    headers = curl_slist_append(headers, "Connection: keep-alive");
 
+    if (share_handle_) {
+        curl_easy_setopt(curl, CURLOPT_SHARE, static_cast<CURLSH*>(share_handle_));
+    }
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT.c_str());
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -108,6 +154,9 @@ HttpResponse HttpClient::get_state() {
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp.body);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 6L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 60L);
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 30L);
 
     if (insecure_ || use_https_) {
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);
@@ -147,7 +196,11 @@ HttpResponse HttpClient::get_image(const std::string& path_or_url) {
     struct curl_slist* headers = nullptr;
     headers = curl_slist_append(headers, ("X-Pairing-Code: " + code_).c_str());
     headers = curl_slist_append(headers, "Accept: image/*, */*");
+    headers = curl_slist_append(headers, "Connection: keep-alive");
 
+    if (share_handle_) {
+        curl_easy_setopt(curl, CURLOPT_SHARE, static_cast<CURLSH*>(share_handle_));
+    }
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT.c_str());
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -155,6 +208,9 @@ HttpResponse HttpClient::get_image(const std::string& path_or_url) {
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp.binary_body);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 6L);
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 60L);
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 30L);
 
     if (insecure_ || use_https_) {
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);
@@ -263,47 +319,67 @@ HttpResponse HttpClient::push_image_data_url(const std::string& data_url, const 
 }
 
 HttpResponse HttpClient::post_json_body(std::string json_body, long timeout_s, long connect_timeout_s) {
+    std::lock_guard<std::mutex> guard(post_mutex_);
     HttpResponse resp;
-    CURL* curl = curl_easy_init();
+
+    auto t0 = std::chrono::steady_clock::now();
+
+    CURL* curl = static_cast<CURL*>(post_curl_);
     if (!curl) {
-        resp.error = "Failed to initialize CURL";
-        return resp;
+        curl = curl_easy_init();
+        if (!curl) {
+            resp.error = "Failed to initialize CURL";
+            return resp;
+        }
+        if (share_handle_) {
+            curl_easy_setopt(curl, CURLOPT_SHARE, static_cast<CURLSH*>(share_handle_));
+        }
+        if (!post_headers_) {
+            post_headers_ = curl_slist_append(post_headers_, "Content-Type: application/json; charset=utf-8");
+            post_headers_ = curl_slist_append(post_headers_, ("X-Pairing-Code: " + code_).c_str());
+            post_headers_ = curl_slist_append(post_headers_, "Accept: application/json");
+            post_headers_ = curl_slist_append(post_headers_, "Connection: keep-alive");
+        }
+        curl_easy_setopt(curl, CURLOPT_URL, post_url_.c_str());
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT.c_str());
+        curl_easy_setopt(curl, CURLOPT_POST, 1L);
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, post_headers_);
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_string_cb);
+        curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
+        curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 60L);
+        curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 30L);
+
+        if (insecure_ || use_https_) {
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);
+            curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, insecure_ ? 0L : 2L);
+        }
+        post_curl_ = curl;
     }
 
-    std::string url = build_url("/clipboard");
-
-    struct curl_slist* headers = nullptr;
-    headers = curl_slist_append(headers, "Content-Type: application/json; charset=utf-8");
-    headers = curl_slist_append(headers, ("X-Pairing-Code: " + code_).c_str());
-    headers = curl_slist_append(headers, "Accept: application/json");
-
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT.c_str());
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_body.c_str());
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(json_body.length()));
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_string_cb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp.body);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout_s);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, connect_timeout_s);
 
-    if (insecure_ || use_https_) {
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);
-        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, insecure_ ? 0L : 2L);
-    }
-
     CURLcode res = curl_easy_perform(curl);
     if (res != CURLE_OK) {
         resp.error = curl_easy_strerror(res);
+        curl_easy_cleanup(curl);
+        post_curl_ = nullptr;
     } else {
         long http_code = 0;
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
         resp.status_code = static_cast<int>(http_code);
     }
 
-    curl_slist_free_all(headers);
-    curl_easy_cleanup(curl);
+    static const bool s_perfLog = (std::getenv("WEBCLIP_PERF") != nullptr || std::getenv("WEBCLIP_DEBUG_PERF") != nullptr);
+    if (s_perfLog) {
+        auto t1 = std::chrono::steady_clock::now();
+        auto durMs = std::chrono::duration_cast<std::chrono::milliseconds>(t1 - t0).count();
+        std::cerr << "[PERF] HttpClient::post_json_body took " << durMs << "ms (size=" << json_body.size() << " bytes, status=" << resp.status_code << ")\n";
+    }
+
     return resp;
 }
 
