@@ -13,7 +13,6 @@ TrayIconManager::TrayIconManager(WebClipController* controller, QObject* parent)
     : QObject(parent)
     , controller_(controller) {
     createTrayIcon();
-    setupMenu();
 
     if (controller_) {
         connect(controller_, &WebClipController::connectedChanged, this, &TrayIconManager::updateTrayMenu);
@@ -21,6 +20,10 @@ TrayIconManager::TrayIconManager(WebClipController* controller, QObject* parent)
         connect(controller_, &WebClipController::hostChanged, this, &TrayIconManager::updateTrayMenu);
         connect(controller_, &WebClipController::portChanged, this, &TrayIconManager::updateTrayMenu);
         connect(controller_, &WebClipController::minimizedToTray, this, &TrayIconManager::showFirstMinimizeNotification);
+    }
+
+    if (!QSystemTrayIcon::isSystemTrayAvailable()) {
+        qWarning() << "System tray unavailable at startup; running without tray integration.";
     }
 }
 
@@ -32,6 +35,10 @@ TrayIconManager::~TrayIconManager() {
 }
 
 void TrayIconManager::createTrayIcon() {
+    if (trayIcon_ || !QSystemTrayIcon::isSystemTrayAvailable()) {
+        return;
+    }
+
     QIcon icon(":/qt/qml/src/gui/resources/icons/webclip.svg");
     if (icon.isNull()) {
         icon = QIcon(":/qt/qml/src/gui/resources/icons/clips.svg");
@@ -142,7 +149,7 @@ void TrayIconManager::hideWindow() {
 }
 
 void TrayIconManager::updateTrayMenu() {
-    if (!controller_) return;
+    if (!controller_ || !trayMenu_) return;
 
     bool isConn = controller_->connected();
     if (statusAction_) {
