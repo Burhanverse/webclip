@@ -209,6 +209,7 @@ WebClipController::WebClipController(QObject* parent)
 }
 
 WebClipController::~WebClipController() {
+    blockSignals(true);
     disconnectFromPortal();
     saveSettings();
 }

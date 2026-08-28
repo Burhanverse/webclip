@@ -89,6 +89,7 @@ void ClipWidget::setController(webclip::WebClipController* controller) {
 
     if (controller_) {
         connect(controller_, &webclip::WebClipController::connectedChanged, this, [this] {
+            if (!controller_ || controller_->signalsBlocked()) return;
             applyConnectedRelayout();
         });
         if (controller_->clipModel()) {
