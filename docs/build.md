@@ -192,7 +192,7 @@ Compress-Archive -Path "portable\webclip" -DestinationPath "webclip-windows-x64-
 ### 5. Build Standalone Inno Setup Installer
 
 ```powershell
-iscc.exe /DMyAppVersion="1.5.0" packaging\setup.iss
+iscc.exe /DMyAppVersion="1.6.0" packaging\setup.iss
 ```
 
 This outputs `webclip-setup-x64.exe`.
