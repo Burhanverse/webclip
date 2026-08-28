@@ -176,18 +176,15 @@ if [ -z "$LOCAL_BIN" ]; then
             echo "Error: webclip executable not found in release archive."
             exit 1
         fi
-        SRC_DESKTOP="$(find "$TMP_DIR" -type f \( -name "${APP_ID}.desktop" -o -name "webclip.desktop" \) | head -n1 || true)"
+        SRC_DESKTOP="$(find "$TMP_DIR" -type f -name "${APP_ID}.desktop" | head -n1 || true)"
         SRC_ICON="$(find "$TMP_DIR" -type f -name "webclip.svg" | head -n1 || true)"
         SRC_METAINFO="$(find "$TMP_DIR" -type f \( -name "*.metainfo.xml" -o -name "*.appdata.xml" \) | head -n1 || true)"
     fi
 else
     SRC_DESKTOP="$(find_local_file \
         "$SCRIPT_DIR/share/applications/${APP_ID}.desktop" \
-        "$SCRIPT_DIR/share/applications/webclip.desktop" \
         "$SCRIPT_DIR/${APP_ID}.desktop" \
-        "$SCRIPT_DIR/webclip.desktop" \
-        "packaging/${APP_ID}.desktop" \
-        "packaging/webclip.desktop" || true)"
+        "packaging/${APP_ID}.desktop" || true)"
 
     SRC_ICON="$(find_local_file \
         "$SCRIPT_DIR/share/icons/hicolor/scalable/apps/webclip.svg" \
@@ -214,10 +211,13 @@ mkdir -p "$BINDIR" "$APPDIR" "$ICONDIR" "$PIXMAPDIR" "$METAINFODIR"
 # Install executable
 install -m 755 "$LOCAL_BIN" "$BINDIR/webclip"
 
-# Install desktop entry
+# Install desktop entry (single, reverse-DNS named entry)
 if [ -n "$SRC_DESKTOP" ] && [ -f "$SRC_DESKTOP" ]; then
     install -m 644 "$SRC_DESKTOP" "$APPDIR/${APP_ID}.desktop"
-    install -m 644 "$SRC_DESKTOP" "$APPDIR/webclip.desktop"
+    # Remove any stale legacy entry from older installs to avoid duplicates
+    if [ -f "$APPDIR/webclip.desktop" ]; then
+        rm -f "$APPDIR/webclip.desktop"
+    fi
 fi
 
 # Install icons

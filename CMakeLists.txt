@@ -215,7 +215,7 @@ install(TARGETS webclip
 )
 
 if(UNIX AND NOT APPLE)
-    install(FILES packaging/webclip.desktop packaging/io.github.burhanverse.webclip.desktop
+    install(FILES packaging/io.github.burhanverse.webclip.desktop
         DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
     )
     install(FILES packaging/io.github.burhanverse.webclip.metainfo.xml
