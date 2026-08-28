@@ -1,124 +1,78 @@
 # WebClip
 
-WebClip is a lightweight, standalone C++ and Qt 6 application for bidirectional clipboard synchronization with **Gboard Web Clipboard** (from [Shotgun Patches](https://github.com/Burhanverse/shotgun-patches)).
-
----
+A lightweight desktop clipboard sync client for **Gboard Web Clipboard** (from [Shotgun Patches](https://github.com/Burhanverse/shotgun-patches)).
 
 ## Features
 
-- **Bidirectional Clipboard Sync**:
-  - Real-time phone-to-PC synchronization via Server-Sent Events (SSE).
-  - Background OS clipboard monitor for automatic PC-to-phone synchronization.
-  - Multi-tier deduplication (FNV-1a hashing, perceptual pixel fingerprinting, and monotonic clip IDs) to prevent echo loops.
-- **Text and Image Support**:
-  - Text synchronization with automatic URL linkification and clickable links.
-  - Image clipboard synchronization supporting PNG, JPEG, and WebP formats.
-  - Drag-and-drop image sharing and image lightbox preview with save and copy actions.
-- **Material Design 3 Interface**:
-  - Dynamic light and dark mode with customizable accent colors.
-  - Conversation-style clip history feed with inline actions (Copy, Open Link, Save Image, Delete).
-  - System tray integration with background sync.
-- **Cross-Platform Support**:
-  - **Linux**: Wayland (`wl-clipboard`) and X11 (`xclip` / `xsel`).
-  - **Windows**: Native Win32 Unicode and DIB/PNG clipboard APIs with working set memory compaction.
-- **Headless CLI Daemon**:
-  - The same binary can run without a graphical environment on servers or minimal setups.
-
----
+- **Bidirectional Sync**: Real-time phone-to-PC (via SSE) and automatic PC-to-phone synchronization.
+- **Text & Images**: Sync text (with clickable URLs) and images (PNG, JPEG, WebP).
+- **Desktop Integration**: System tray support, background sync, and native clipboard integration (Wayland, X11, Windows).
+- **Material Design 3 UI**: Clean native interface with light/dark themes and clip history.
+- **CLI Daemon Mode**: Headless support for servers or terminal-only setups.
 
 ## Installation
 
-### Linux (One-Line Installer)
+### Linux
 
-Install the latest release with desktop integration with a single command:
-
+Using the install script:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Burhanverse/webclip/main/packaging/install.sh | bash
 ```
 
-To install the standalone portable AppImage bundle instead:
+Or grab the standalone **AppImage** or **tar.gz** bundle from [Releases](https://github.com/Burhanverse/webclip/releases/latest).
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/Burhanverse/webclip/main/packaging/install.sh | bash -s -- --appimage
-```
-
-#### Uninstall
-
+To uninstall:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Burhanverse/webclip/main/packaging/uninstall.sh | bash
 ```
 
 ### Windows
 
-Download and run `webclip-setup-x64.exe` installer or extract `webclip-windows-x64-portable.zip` from [GitHub Releases](https://github.com/Burhanverse/webclip/releases/latest).
+Download the installer (`webclip-setup-x64.exe`) or portable zip from [Releases](https://github.com/Burhanverse/webclip/releases/latest).
 
----
+## Usage
 
-## Build Instructions
+### GUI
+Launch `webclip`, enter your phone's IP address and pairing code, and click **Connect**. Closing or minimizing the window keeps it running in the system tray.
 
-For prerequisites and packaging details, see [docs/build.md](docs/build.md).
-
-### Linux
-
+### CLI / Headless
 ```bash
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-cmake --build build --parallel
+webclip --host <phone-ip> --code <pairing-code> [options]
 ```
 
-### Windows (MSVC + vcpkg)
+| Option | Description | Default |
+|---|---|---|
+| `-h, --help` | Show usage options | — |
+| `-v, --version` | Show version | — |
+| `--host <ip/url>` | Phone IP address or URL | — |
+| `-p, --port <port>` | Port number | `8080` (HTTP) / `8081` (HTTPS) |
+| `-c, --code <code>` | Pairing code | `""` |
+| `--https` | Use HTTPS | `false` |
+| `-k, --insecure` | Allow self-signed certificates | `false` |
+| `-i, --poll-interval <sec>` | Polling interval | `1.0` |
+| `--headless` | Run in background without GUI | `false` |
 
-```powershell
+## Building
+
+See [docs/build.md](docs/build.md) for prerequisites and packaging details.
+
+```bash
+# Linux
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build --parallel
+
+# Windows (MSVC + vcpkg)
 vcpkg install curl:x64-windows
 cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
 cmake --build build --config Release --parallel
 ```
 
----
-
-## Usage
-
-### GUI Mode (Default)
-
-```bash
-webclip
-```
-
-1. Enter your phone's local IP address or URL and pairing code.
-2. Click **Connect**.
-3. Minimizing or closing the window keeps WebClip running in the system tray.
-
-### CLI Mode
-
-```bash
-webclip --host <phone-ip> --code <pairing-code> [options]
-```
-
-#### Options
-
-| Option | Description | Default |
-|---|---|---|
-| `-h, --help` | Show usage options | — |
-| `-v, --version` | Show version information | — |
-| `--host <ip/url>` | Phone IP address or URL | — |
-| `-p, --port <port>` | Port number | `8080` (HTTP) / `8081` (HTTPS) |
-| `-c, --code <code>` | Pairing code | `""` |
-| `--https` | Use HTTPS endpoint | `false` |
-| `-k, --insecure` | Allow self-signed certificates | `false` |
-| `-i, --poll-interval <sec>` | Polling interval in seconds | `1.0` |
-| `--client-id <id>` | Custom client identifier | Auto-generated |
-| `--headless` | Run in headless daemon mode | `false` |
-
----
-
 ## Platform Notes
 
-- **Linux (Wayland)**: Requires `wl-clipboard` (`wl-copy` / `wl-paste`). The AppImage bundles these helpers when they are present at build time.
-- **Linux (X11)**: Requires `xclip` or `xsel`. Rounded transparent window corners require a running compositor.
-- **GNOME**: The system tray icon requires the *AppIndicator* extension. Tray balloon notifications may be unavailable without a notification daemon.
-- **Windows**: Image clipboard interop uses GDI+ to convert between PNG and DIB formats, so images copy and paste correctly with both modern and legacy applications. Toast notifications from the portable build may require installing via the setup executable.
-
----
+- **Linux (Wayland)**: Requires `wl-clipboard`.
+- **Linux (X11)**: Requires `xclip` or `xsel`.
+- **GNOME**: Ensure the AppIndicator extension is installed for system tray support.
 
 ## License
 
-This project is licensed under the [GNU General Public License v3.0](LICENSE) (GPL-3.0).
+[GPL-3.0](LICENSE)
