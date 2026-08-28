@@ -47,9 +47,6 @@ public:
         const std::atomic<bool>& stop_flag
     );
 
-    void lock_share() { share_mutex_.lock(); }
-    void unlock_share() { share_mutex_.unlock(); }
-
 private:
     std::string host_;
     int port_;
@@ -59,8 +56,6 @@ private:
     std::string client_id_;
 
     std::string post_url_;
-    void* share_handle_ = nullptr;
-    mutable std::mutex share_mutex_;
     std::mutex post_mutex_;
     void* post_curl_ = nullptr;
     struct curl_slist* post_headers_ = nullptr;

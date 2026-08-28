@@ -54,21 +54,6 @@ int progress_cb(void* clientp, curl_off_t, curl_off_t, curl_off_t, curl_off_t) {
     return 0;
 }
 
-static void share_lock_cb(CURL* handle, curl_lock_data data, curl_lock_access access, void* userptr) {
-    (void)handle;
-    (void)data;
-    (void)access;
-    auto* client = static_cast<HttpClient*>(userptr);
-    if (client) client->lock_share();
-}
-
-static void share_unlock_cb(CURL* handle, curl_lock_data data, void* userptr) {
-    (void)handle;
-    (void)data;
-    auto* client = static_cast<HttpClient*>(userptr);
-    if (client) client->unlock_share();
-}
-
 }
 
 HttpClient::HttpClient(std::string host, int port, std::string code, bool use_https, bool insecure, std::string client_id)
@@ -86,17 +71,6 @@ HttpClient::HttpClient(std::string host, int port, std::string code, bool use_ht
     (void)curl_initialized;
 
     post_url_ = build_url("/clipboard");
-
-    CURLSH* share = curl_share_init();
-    if (share) {
-        curl_share_setopt(share, CURLSHOPT_SHARE, CURL_LOCK_DATA_CONNECT);
-        curl_share_setopt(share, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
-        curl_share_setopt(share, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
-        curl_share_setopt(share, CURLSHOPT_LOCKFUNC, share_lock_cb);
-        curl_share_setopt(share, CURLSHOPT_UNLOCKFUNC, share_unlock_cb);
-        curl_share_setopt(share, CURLSHOPT_USERDATA, this);
-        share_handle_ = share;
-    }
 }
 
 HttpClient::~HttpClient() {
@@ -108,10 +82,6 @@ HttpClient::~HttpClient() {
     if (post_headers_) {
         curl_slist_free_all(post_headers_);
         post_headers_ = nullptr;
-    }
-    if (share_handle_) {
-        curl_share_cleanup(static_cast<CURLSH*>(share_handle_));
-        share_handle_ = nullptr;
     }
 }
 
@@ -144,9 +114,6 @@ HttpResponse HttpClient::get_state() {
     headers = curl_slist_append(headers, "Accept: application/json");
     headers = curl_slist_append(headers, "Connection: keep-alive");
 
-    if (share_handle_) {
-        curl_easy_setopt(curl, CURLOPT_SHARE, static_cast<CURLSH*>(share_handle_));
-    }
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT.c_str());
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -198,9 +165,6 @@ HttpResponse HttpClient::get_image(const std::string& path_or_url) {
     headers = curl_slist_append(headers, "Accept: image/*, */*");
     headers = curl_slist_append(headers, "Connection: keep-alive");
 
-    if (share_handle_) {
-        curl_easy_setopt(curl, CURLOPT_SHARE, static_cast<CURLSH*>(share_handle_));
-    }
     curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
     curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT.c_str());
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
@@ -330,9 +294,6 @@ HttpResponse HttpClient::post_json_body(std::string json_body, long timeout_s, l
         if (!curl) {
             resp.error = "Failed to initialize CURL";
             return resp;
-        }
-        if (share_handle_) {
-            curl_easy_setopt(curl, CURLOPT_SHARE, static_cast<CURLSH*>(share_handle_));
         }
         if (!post_headers_) {
             post_headers_ = curl_slist_append(post_headers_, "Content-Type: application/json; charset=utf-8");
