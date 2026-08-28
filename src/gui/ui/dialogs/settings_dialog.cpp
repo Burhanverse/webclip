@@ -450,7 +450,8 @@ void SettingsDialog::setupContent() {
     mainLayout_->addWidget(createSectionHeader(webclip::I18n::instance()->tr(QStringLiteral("settings.about.section_title"))));
     aboutCard_ = new CardContainer(scrollContent_);
 
-    const QString verText = controller_ ? QStringLiteral("v") + controller_->appVersion() : QStringLiteral("v1.3.0");
+    const QString verText = controller_ ? QStringLiteral("v") + controller_->appVersion()
+                                        : QStringLiteral("v") + QString::fromUtf8(webclip::VERSION_STRING.data(), webclip::VERSION_STRING.size());
     appRow_ = new CardButtonRow(
         aboutCard_,
         webclip::I18n::instance()->tr(QStringLiteral("settings.about.app_name")),
