@@ -700,7 +700,6 @@ void WebClipController::startSseListener() {
                                 QString sourceQ = QString::fromStdString(source.empty() ? "phone" : source);
                                 QByteArray().swap(bytes);
 
-                                static const bool s_perfLog = (std::getenv("WEBCLIP_PERF") != nullptr || std::getenv("WEBCLIP_DEBUG_PERF") != nullptr);
                                 if (s_perfLog) {
                                     auto tEnd = std::chrono::steady_clock::now();
                                     auto durMs = std::chrono::duration_cast<std::chrono::milliseconds>(tEnd - tStart).count();

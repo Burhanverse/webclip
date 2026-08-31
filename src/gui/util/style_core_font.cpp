@@ -6,6 +6,7 @@
 #include <QFileInfo>
 #include <QStandardPaths>
 #include <QLoggingCategory>
+#include <QSettings>
 
 namespace webclip::font {
 

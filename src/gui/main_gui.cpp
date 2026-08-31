@@ -352,10 +352,10 @@ int main(int argc, char* argv[]) {
     if (appFontScale <= 0.0) {
         appFontScale = webclip::font::detectSystemFontScale();
     } else {
-        appFontScale = std::clamp(appFontScale, 0.75, 2.50);
+        appFontScale = (std::clamp)(appFontScale, 0.75, 2.50);
     }
 
-    const int basePx = std::max(8, qRound(14 * appFontScale));
+    const int basePx = (std::max)(8, qRound(14 * appFontScale));
     QFont baseFont = webclip::font::createFont(basePx, QFont::Normal);
     app.setFont(baseFont);
 

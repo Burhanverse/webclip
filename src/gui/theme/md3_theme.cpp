@@ -31,7 +31,7 @@ void MD3Theme::setFontScale(qreal scale) {
     if (scale <= 0.0) {
         scale = font::detectSystemFontScale();
     }
-    scale = std::clamp(scale, 0.75, 2.50);
+    scale = (std::clamp)(scale, 0.75, 2.50);
     if (std::abs(fontScale_ - scale) > 0.001) {
         fontScale_ = scale;
         emit fontScaleChanged();
@@ -354,7 +354,7 @@ QColor MD3Theme::outlineVariant() const {
 }
 
 QFont MD3Theme::createFont(int pixelSize, QFont::Weight weight, bool italic, bool monospace) const {
-    const int scaledSize = std::max(8, qRound(pixelSize * fontScale_));
+    const int scaledSize = (std::max)(8, qRound(pixelSize * fontScale_));
     return font::createFont(scaledSize, weight, italic, monospace);
 }
 

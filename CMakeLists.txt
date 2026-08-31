@@ -200,6 +200,8 @@ target_link_libraries(webclip PRIVATE
 )
 
 if(MSVC)
+    target_compile_definitions(webclip_core PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
+    target_compile_definitions(webclip PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN _CRT_SECURE_NO_WARNINGS)
     target_compile_options(webclip_core PRIVATE /W4 /O2 /Oi /Ot /Oy /Gy /GF /permissive-)
     target_compile_options(webclip PRIVATE /W4 /O2 /Oi /Ot /Oy /Gy /GF /permissive-)
     target_link_options(webclip PRIVATE /OPT:REF /OPT:ICF)
