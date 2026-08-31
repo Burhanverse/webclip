@@ -394,11 +394,9 @@ int main(int argc, char* argv[]) {
             }
         }
 
-        QFontInfo fi(baseFont);
-        WEBCLIP_LOG(QStringLiteral("Base Font (requested 14px): Family='") + fi.family() +
-                    QStringLiteral("' PixelSize=") + QString::number(fi.pixelSize()) +
-                    QStringLiteral(" PointSize=") + QString::number(fi.pointSizeF(), 'f', 1) +
-                    QStringLiteral(" ExactMatch=") + (fi.exactMatch() ? QStringLiteral("true") : QStringLiteral("false")));
+        WEBCLIP_LOG(QStringLiteral("Base Font: Families='") + baseFont.families().join(QStringLiteral(", ")) +
+                    QStringLiteral("' PixelSize=") + QString::number(baseFont.pixelSize()) +
+                    QStringLiteral(" Weight=") + QString::number(baseFont.weight()));
         WEBCLIP_LOG(QStringLiteral("==================================="));
     }
 
