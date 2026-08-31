@@ -430,6 +430,53 @@ void SettingsDialog::setupContent() {
     accentCard->addRow(accentRow);
     mainLayout_->addWidget(accentCard);
 
+    // Text Size Card
+    textSizeCard_ = new CardContainer(scrollContent_);
+    auto* textSizeRow = new CardRow(textSizeCard_, QString(), QString());
+    textSizeRow->setFixedHeight(86);
+    auto* textSizeRowLayout = new QVBoxLayout(textSizeRow);
+    textSizeRowLayout->setContentsMargins(16, 10, 16, 12);
+    textSizeRowLayout->setSpacing(8);
+
+    auto* textSizeHeader = new QHBoxLayout();
+    textSizeLabel_ = new QLabel(textSizeRow);
+    textSizeLabel_->setFont(theme->bodyMedium());
+    textSizeLabel_->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurface().name()));
+    double currentScale = controller_ ? controller_->fontScale() : 0.0;
+    if (currentScale <= 0.0) {
+        textSizeLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.textsize_title")) +
+                               QStringLiteral(": ") + webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.textsize_auto")));
+    } else {
+        textSizeLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.textsize_title")) +
+                               QStringLiteral(": ") + QString::number(qRound(currentScale * 100)) + QStringLiteral("%"));
+    }
+
+    resetTextSizeBtn_ = new Md3IconButton(textSizeRow, QStringLiteral("refresh"), 26, 16);
+    resetTextSizeBtn_->addClickHandler([this] {
+        if (controller_) controller_->setFontScale(0.0);
+    });
+
+    textSizeHeader->addWidget(textSizeLabel_, 1);
+    textSizeHeader->addWidget(resetTextSizeBtn_, 0);
+    textSizeRowLayout->addLayout(textSizeHeader);
+
+    textSizeSlider_ = new Md3Slider(textSizeRow);
+    textSizeSlider_->setFixedHeight(32);
+    textSizeSlider_->setRange(0.75, 2.50);
+    textSizeSlider_->setSteps(11);
+    textSizeSlider_->setValue(currentScale <= 0.0 ? 1.0 : currentScale);
+    connect(textSizeSlider_, &Md3Slider::valueChanged, this, [this](double val) {
+        if (controller_) controller_->setFontScale(val);
+        if (textSizeLabel_) {
+            textSizeLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.textsize_title")) +
+                                   QStringLiteral(": ") + QString::number(qRound(val * 100)) + QStringLiteral("%"));
+        }
+    });
+    textSizeRowLayout->addWidget(textSizeSlider_);
+
+    textSizeCard_->addRow(textSizeRow);
+    mainLayout_->addWidget(textSizeCard_);
+
     // Clear History Button
     clearHistoryBtn_ = new Md3Button(
         scrollContent_,
@@ -546,6 +593,23 @@ void SettingsDialog::setController(webclip::WebClipController* controller) {
             customAccentPill_->setCustomColor(controller_->customColor());
         }
         updateAccentSelection();
+    });
+
+    connect(controller_, &webclip::WebClipController::fontScaleChanged, this, [this] {
+        if (controller_ && textSizeSlider_) {
+            double s = controller_->fontScale();
+            textSizeSlider_->setValue(s <= 0.0 ? 1.0 : s);
+        }
+        if (textSizeLabel_) {
+            double s = controller_ ? controller_->fontScale() : 0.0;
+            if (s <= 0.0) {
+                textSizeLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.textsize_title")) +
+                                       QStringLiteral(": ") + webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.textsize_auto")));
+            } else {
+                textSizeLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.textsize_title")) +
+                                       QStringLiteral(": ") + QString::number(qRound(s * 100)) + QStringLiteral("%"));
+            }
+        }
     });
 
     connect(controller_, &webclip::WebClipController::pollIntervalChanged, this, [this] {

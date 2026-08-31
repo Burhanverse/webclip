@@ -91,6 +91,66 @@ QString monospaceFontFamily() {
     return g_monospaceFamily;
 }
 
+double detectSystemFontScale(QString* outDetails) {
+    double scale = 1.0;
+    QString details;
+
+#if defined(Q_OS_WIN)
+    bool detectedAccessibility = false;
+    // 1. Check Windows Accessibility TextScaleFactor (100 to 225)
+    QSettings accessSettings(QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Accessibility"), QSettings::NativeFormat);
+    QVariant factorVar = accessSettings.value(QStringLiteral("TextScaleFactor"));
+    if (factorVar.isValid()) {
+        int textScaleFactor = factorVar.toInt();
+        if (textScaleFactor >= 100 && textScaleFactor <= 500) {
+            scale = textScaleFactor / 100.0;
+            detectedAccessibility = true;
+            details = QStringLiteral("Windows Accessibility TextScaleFactor=") + QString::number(textScaleFactor) + QStringLiteral("%");
+        }
+    }
+
+    if (!detectedAccessibility) {
+        NONCLIENTMETRICSW ncm;
+        std::memset(&ncm, 0, sizeof(ncm));
+        ncm.cbSize = sizeof(NONCLIENTMETRICSW);
+        if (SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0)) {
+            // Standard Windows 9pt message font height is -12 at 96 DPI
+            int lfHeight = std::abs(ncm.lfMessageFont.lfHeight);
+            if (lfHeight > 0) {
+                double metricScale = static_cast<double>(lfHeight) / 12.0;
+                if (std::abs(metricScale - 1.0) > 0.05) {
+                    scale = metricScale;
+                    details = QStringLiteral("Windows NonClientMetrics lfHeight=") + QString::number(lfHeight) + QStringLiteral("px");
+                }
+            }
+        }
+    }
+    if (details.isEmpty()) {
+        details = QStringLiteral("Windows Default (100%)");
+    }
+#else
+    QFont sysFont = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
+    qreal pt = sysFont.pointSizeF();
+    if (pt <= 0.0) {
+        pt = sysFont.pointSize();
+    }
+    if (pt > 0.0) {
+        // Standard reference is 10.0pt (standard base across GNOME, KDE, and X11)
+        scale = pt / 10.0;
+        details = QStringLiteral("System font: '") + sysFont.family() + QStringLiteral("' ") +
+                  QString::number(pt, 'f', 1) + QStringLiteral("pt (base 10pt)");
+    } else {
+        details = QStringLiteral("Default (100%)");
+    }
+#endif
+
+    scale = std::clamp(scale, 0.75, 2.50);
+    if (outDetails) {
+        *outDetails = details + QStringLiteral(" -> scale=") + QString::number(scale, 'f', 2) + QStringLiteral("x");
+    }
+    return scale;
+}
+
 QFont createFont(int pixelSize, QFont::Weight weight, bool italic, bool monospace) {
     if (monospace) {
         QFont f(monospaceFontFamily());

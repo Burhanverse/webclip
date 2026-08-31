@@ -57,6 +57,8 @@
       "mode_pitch_black": "Pitch Black",
       "accent_color": "Accent Color",
       "accent_custom": "Custom",
+      "textsize_title": "Font Size",
+      "textsize_auto": "System (Auto)",
       "clipboard_engine": "Clipboard Engine",
       "btn_clear_history": "Clear All History"
     },

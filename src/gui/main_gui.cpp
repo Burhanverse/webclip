@@ -343,7 +343,20 @@ int main(int argc, char* argv[]) {
     app.setApplicationDisplayName(QString::fromUtf8(webclip::APP_DISPLAY_NAME.data(), webclip::APP_DISPLAY_NAME.size()));
 
     webclip::font::initFonts();
-    QFont baseFont = webclip::font::createFont(14, QFont::Normal);
+
+    double appFontScale = 0.0;
+    {
+        QSettings persisted("Burhanverse", "WebClip");
+        appFontScale = persisted.value("fontScale", 0.0).toDouble();
+    }
+    if (appFontScale <= 0.0) {
+        appFontScale = webclip::font::detectSystemFontScale();
+    } else {
+        appFontScale = std::clamp(appFontScale, 0.75, 2.50);
+    }
+
+    const int basePx = std::max(8, qRound(14 * appFontScale));
+    QFont baseFont = webclip::font::createFont(basePx, QFont::Normal);
     app.setFont(baseFont);
 
     {
@@ -397,6 +410,13 @@ int main(int argc, char* argv[]) {
         WEBCLIP_LOG(QStringLiteral("Base Font: Families='") + baseFont.families().join(QStringLiteral(", ")) +
                     QStringLiteral("' PixelSize=") + QString::number(baseFont.pixelSize()) +
                     QStringLiteral(" Weight=") + QString::number(baseFont.weight()));
+
+        QString systemFontDetails;
+        double detectedScale = webclip::font::detectSystemFontScale(&systemFontDetails);
+        WEBCLIP_LOG(QStringLiteral("System Font Scale: detected=") + QString::number(detectedScale, 'f', 2) +
+                    QStringLiteral("x applied=") + QString::number(appFontScale, 'f', 2) +
+                    QStringLiteral("x | ") + systemFontDetails);
+
         WEBCLIP_LOG(QStringLiteral("==================================="));
     }
 
@@ -443,6 +463,8 @@ int main(int argc, char* argv[]) {
         }
         webclip::MD3Theme::instance()->setAccentPreset(persisted.value("accentPreset", "purple").toString());
         webclip::MD3Theme::instance()->setThemeMode(persisted.value("themeMode", 0).toInt());
+        double savedFontScale = persisted.value("fontScale", 0.0).toDouble();
+        webclip::MD3Theme::instance()->setFontScale(savedFontScale);
     }
 
     auto* controller = new webclip::WebClipController(&app);

@@ -14,6 +14,7 @@ MD3Theme* MD3Theme::instance() {
 
 MD3Theme::MD3Theme(QObject* parent)
     : QObject(parent) {
+    fontScale_ = font::detectSystemFontScale();
 #if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     if (QGuiApplication::styleHints()) {
         connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, [this]() {
@@ -24,6 +25,18 @@ MD3Theme::MD3Theme(QObject* parent)
         });
     }
 #endif
+}
+
+void MD3Theme::setFontScale(qreal scale) {
+    if (scale <= 0.0) {
+        scale = font::detectSystemFontScale();
+    }
+    scale = std::clamp(scale, 0.75, 2.50);
+    if (std::abs(fontScale_ - scale) > 0.001) {
+        fontScale_ = scale;
+        emit fontScaleChanged();
+        emit themeChanged();
+    }
 }
 
 void MD3Theme::setThemeMode(int mode) {
@@ -341,7 +354,8 @@ QColor MD3Theme::outlineVariant() const {
 }
 
 QFont MD3Theme::createFont(int pixelSize, QFont::Weight weight, bool italic, bool monospace) const {
-    return font::createFont(pixelSize, weight, italic, monospace);
+    const int scaledSize = std::max(8, qRound(pixelSize * fontScale_));
+    return font::createFont(scaledSize, weight, italic, monospace);
 }
 
 QFont MD3Theme::headlineSmall() const {

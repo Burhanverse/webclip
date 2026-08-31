@@ -1,5 +1,6 @@
 #include "webclip_controller.hpp"
 #include "../util/debug_logger.hpp"
+#include "../util/style_core_font.hpp"
 #include "../theme/md3_theme.hpp"
 #include "../../util/json.hpp"
 #include "../../util/base64.hpp"
@@ -435,6 +436,20 @@ void WebClipController::setCustomColor(const QColor& color) {
         saveSettings();
         emit customColorChanged();
         emit accentPresetChanged();
+    }
+}
+
+void WebClipController::setFontScale(double scale) {
+    double clamped = (scale <= 0.0) ? 0.0 : std::clamp(scale, 0.75, 2.50);
+    if (std::abs(fontScale_ - clamped) > 0.001) {
+        fontScale_ = clamped;
+        if (fontScale_ <= 0.0) {
+            MD3Theme::instance()->setFontScale(0.0);
+        } else {
+            MD3Theme::instance()->setFontScale(fontScale_);
+        }
+        saveSettings();
+        emit fontScaleChanged();
     }
 }
 
@@ -1406,6 +1421,7 @@ void WebClipController::saveSettings() {
     s.setValue("themeMode", themeMode_);
     s.setValue("accentPreset", accentPreset_);
     s.setValue("customColor", customColor_.name());
+    s.setValue("fontScale", fontScale_);
 }
 
 void WebClipController::loadSettings() {
@@ -1424,10 +1440,16 @@ void WebClipController::loadSettings() {
     if (!customColor_.isValid()) {
         customColor_ = QColor("#6750A4");
     }
+    fontScale_ = s.value("fontScale", 0.0).toDouble();
 
     MD3Theme::instance()->setCustomColor(customColor_);
     MD3Theme::instance()->setThemeMode(themeMode_);
     MD3Theme::instance()->setAccentPreset(accentPreset_);
+    if (fontScale_ <= 0.0) {
+        MD3Theme::instance()->setFontScale(0.0);
+    } else {
+        MD3Theme::instance()->setFontScale(fontScale_);
+    }
 }
 
 void WebClipController::openUrl(const QString& urlStr) {

@@ -68,6 +68,7 @@ class MD3Theme : public QObject {
     Q_PROPERTY(QFont labelSmall READ labelSmall CONSTANT)
     Q_PROPERTY(QFont codeMedium READ codeMedium CONSTANT)
     Q_PROPERTY(QFont codeSmall READ codeSmall CONSTANT)
+    Q_PROPERTY(qreal fontScale READ fontScale WRITE setFontScale NOTIFY fontScaleChanged)
 
 public:
     explicit MD3Theme(QObject* parent = nullptr);
@@ -84,6 +85,9 @@ public:
 
     QColor customColor() const { return customColor_; }
     void setCustomColor(const QColor& color);
+
+    qreal fontScale() const { return fontScale_; }
+    void setFontScale(qreal scale);
 
     QColor primary() const;
     QColor onPrimary() const;
@@ -149,12 +153,14 @@ signals:
     void isPitchBlackChanged();
     void accentPresetChanged();
     void customColorChanged();
+    void fontScaleChanged();
     void themeChanged();
 
 private:
     int themeMode_ = 0;
     QString accentPreset_ = "purple";
     QColor customColor_ = QColor("#6750A4");
+    qreal fontScale_ = 1.0;
 
     QColor activeSeedColor() const;
     bool usesDirectSeedColor() const;
