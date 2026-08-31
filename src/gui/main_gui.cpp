@@ -3,7 +3,8 @@
 #include <QFontDatabase>
 #include <QIcon>
 #include <QBuffer>
-#include <QImage>
+#include <QScreen>
+#include "util/debug_logger.hpp"
 #include <QLoggingCategory>
 #include <QSettings>
 #include <QSocketNotifier>
@@ -342,7 +343,64 @@ int main(int argc, char* argv[]) {
     app.setApplicationDisplayName(QString::fromUtf8(webclip::APP_DISPLAY_NAME.data(), webclip::APP_DISPLAY_NAME.size()));
 
     webclip::font::initFonts();
-    app.setFont(webclip::font::createFont(14, QFont::Normal));
+    QFont baseFont = webclip::font::createFont(14, QFont::Normal);
+    app.setFont(baseFont);
+
+    {
+        WEBCLIP_LOG(QStringLiteral("=== WebClip Startup Diagnostics ==="));
+        WEBCLIP_LOG(QStringLiteral("Version: ") + QString::fromLatin1(webclip::VERSION_STRING));
+#if defined(_WIN32)
+        WEBCLIP_LOG(QStringLiteral("OS: Windows"));
+#elif defined(__linux__)
+        WEBCLIP_LOG(QStringLiteral("OS: Linux"));
+#elif defined(__APPLE__)
+        WEBCLIP_LOG(QStringLiteral("OS: macOS"));
+#endif
+        auto roundingPolicy = QGuiApplication::highDpiScaleFactorRoundingPolicy();
+        QString policyStr;
+        switch (roundingPolicy) {
+            case Qt::HighDpiScaleFactorRoundingPolicy::Round: policyStr = QStringLiteral("Round"); break;
+            case Qt::HighDpiScaleFactorRoundingPolicy::Ceil: policyStr = QStringLiteral("Ceil"); break;
+            case Qt::HighDpiScaleFactorRoundingPolicy::Floor: policyStr = QStringLiteral("Floor"); break;
+            case Qt::HighDpiScaleFactorRoundingPolicy::RoundPreferFloor: policyStr = QStringLiteral("RoundPreferFloor"); break;
+            case Qt::HighDpiScaleFactorRoundingPolicy::PassThrough: policyStr = QStringLiteral("PassThrough"); break;
+            default: policyStr = QStringLiteral("Unset/Default"); break;
+        }
+        WEBCLIP_LOG(QStringLiteral("HighDpiScaleFactorRoundingPolicy: ") + policyStr);
+
+        QScreen* primary = QGuiApplication::primaryScreen();
+        if (primary) {
+            WEBCLIP_LOG(QStringLiteral("Primary Screen: '") + primary->name() +
+                        QStringLiteral("' DPR=") + QString::number(primary->devicePixelRatio(), 'f', 2) +
+                        QStringLiteral(" LogicalDPI=") + QString::number(primary->logicalDotsPerInch(), 'f', 2) +
+                        QStringLiteral(" PhysicalDPI=") + QString::number(primary->physicalDotsPerInch(), 'f', 2) +
+                        QStringLiteral(" Geometry=[") + QString::number(primary->geometry().width()) +
+                        QStringLiteral("x") + QString::number(primary->geometry().height()) +
+                        QStringLiteral("] Avail=[") + QString::number(primary->availableGeometry().width()) +
+                        QStringLiteral("x") + QString::number(primary->availableGeometry().height()) +
+                        QStringLiteral("]"));
+        }
+
+        const auto screens = QGuiApplication::screens();
+        WEBCLIP_LOG(QStringLiteral("Total screens detected: ") + QString::number(screens.size()));
+        for (int i = 0; i < screens.size(); ++i) {
+            QScreen* s = screens[i];
+            if (s != primary) {
+                WEBCLIP_LOG(QStringLiteral("Screen #") + QString::number(i) +
+                            QStringLiteral(" '") + s->name() +
+                            QStringLiteral("' DPR=") + QString::number(s->devicePixelRatio(), 'f', 2) +
+                            QStringLiteral(" LogicalDPI=") + QString::number(s->logicalDotsPerInch(), 'f', 2) +
+                            QStringLiteral(" PhysicalDPI=") + QString::number(s->physicalDotsPerInch(), 'f', 2));
+            }
+        }
+
+        QFontInfo fi(baseFont);
+        WEBCLIP_LOG(QStringLiteral("Base Font (requested 14px): Family='") + fi.family() +
+                    QStringLiteral("' PixelSize=") + QString::number(fi.pixelSize()) +
+                    QStringLiteral(" PointSize=") + QString::number(fi.pointSizeF(), 'f', 1) +
+                    QStringLiteral(" ExactMatch=") + (fi.exactMatch() ? QStringLiteral("true") : QStringLiteral("false")));
+        WEBCLIP_LOG(QStringLiteral("==================================="));
+    }
 
     app.setWindowIcon(QIcon(QStringLiteral(":/qt/qml/src/gui/resources/icons/webclip.svg")));
 

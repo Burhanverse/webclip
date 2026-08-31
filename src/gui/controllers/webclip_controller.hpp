@@ -152,6 +152,7 @@ private:
     std::mutex syncLock_;
     std::string clientId_;
     std::atomic<bool> suppressNextLocalChange_{false};
+    std::atomic<int64_t> suppressUntilMs_{0};
     QString lastRemoteText_;
     QString lastLocalText_;
     int64_t lastTextTimeMs_ = 0;
@@ -173,6 +174,8 @@ private:
     static QString computePixelFingerprint(const QImage& img);
     static QString computePixelFingerprint(const QByteArray& encodedBytes);
     static std::string generateClipId();
+    static QString normalizeText(const QString& text);
+    static QString escapeForLog(const QString& text, int maxLen = 80);
     bool isClipIdHandled(const std::string& clipId);
     void markClipIdHandled(const std::string& clipId);
     bool shouldSuppressText(const QString& text, int64_t nowMs, int64_t windowMs = 3000);

@@ -1,4 +1,5 @@
 #include "style_core_font.hpp"
+#include "debug_logger.hpp"
 #include <QFontDatabase>
 #include <QFontInfo>
 #include <QDir>
@@ -50,7 +51,16 @@ void initFonts() {
     const QString extractedDir = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) + QStringLiteral("/fonts");
     for (const auto& path : fontFiles) {
         QString diskPath = extractedDir + "/" + QFileInfo(path).fileName();
-        QFontDatabase::addApplicationFont(QFileInfo::exists(diskPath) ? diskPath : path);
+        QString target = QFileInfo::exists(diskPath) ? diskPath : path;
+        int id = QFontDatabase::addApplicationFont(target);
+        if (id < 0) {
+            WEBCLIP_LOG(QStringLiteral("[Font] Failed to load font: ") + target);
+        } else {
+            QStringList families = QFontDatabase::applicationFontFamilies(id);
+            WEBCLIP_LOG(QStringLiteral("[Font] Loaded font id=") + QString::number(id) +
+                        QStringLiteral(" from ") + target +
+                        QStringLiteral(" (families: ") + families.join(QStringLiteral(", ")) + QStringLiteral(")"));
+        }
     }
 
     const QString googleSansFlex = QStringLiteral("Google Sans Flex");
@@ -71,6 +81,7 @@ void initFonts() {
 #endif
 
     g_monospaceFamily = resolveMonospaceFont();
+    WEBCLIP_LOG(QStringLiteral("[Font] Resolved monospace family: ") + g_monospaceFamily);
 }
 
 QString monospaceFontFamily() {

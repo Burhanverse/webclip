@@ -1,4 +1,5 @@
 #include "webclip_controller.hpp"
+#include "../util/debug_logger.hpp"
 #include "../theme/md3_theme.hpp"
 #include "../../util/json.hpp"
 #include "../../util/base64.hpp"
@@ -185,16 +186,72 @@ QString WebClipController::computePixelFingerprint(const QByteArray& data) {
     return computePixelFingerprint(reader.read());
 }
 
+QString WebClipController::normalizeText(const QString& text) {
+    QString s = text;
+    s.replace(QLatin1String("\r\n"), QLatin1String("\n"));
+    s.replace(QLatin1Char('\r'), QLatin1Char('\n'));
+    return s.trimmed();
+}
+
+QString WebClipController::escapeForLog(const QString& text, int maxLen) {
+    QString res;
+    res.reserve(text.size() * 2);
+    for (int i = 0; i < text.size() && res.size() < maxLen; ++i) {
+        QChar c = text[i];
+        if (c == QLatin1Char('\r')) {
+            res.append(QLatin1String("\\r"));
+        } else if (c == QLatin1Char('\n')) {
+            res.append(QLatin1String("\\n"));
+        } else if (c == QLatin1Char('\t')) {
+            res.append(QLatin1String("\\t"));
+        } else if (c.isPrint()) {
+            res.append(c);
+        } else {
+            res.append(QStringLiteral("\\u%1").arg(static_cast<uint16_t>(c.unicode()), 4, 16, QLatin1Char('0')));
+        }
+    }
+    if (text.size() > maxLen) {
+        res.append(QLatin1String("..."));
+    }
+    return res;
+}
+
 bool WebClipController::shouldSuppressText(const QString& text, int64_t nowMs, int64_t windowMs) {
     std::lock_guard<std::mutex> guard(syncLock_);
-    QString trimmed = text.trimmed();
-    if (trimmed.isEmpty()) return true;
-    if (trimmed == lastLocalText_.trimmed() || trimmed == lastRemoteText_.trimmed()) {
+    QString normCurrent = normalizeText(text);
+    if (normCurrent.isEmpty()) {
+        WEBCLIP_LOG(QStringLiteral("[EchoSuppression] Suppressed: empty text"));
         return true;
     }
-    if ((nowMs - lastTextTimeMs_) < windowMs) {
+
+    QString normLocal = normalizeText(lastLocalText_);
+    QString normRemote = normalizeText(lastRemoteText_);
+
+    if (normCurrent == normRemote) {
+        WEBCLIP_LOG(QStringLiteral("[EchoSuppression] Suppressed: identical to remote text: '") +
+                    escapeForLog(text) + QStringLiteral("'"));
         return true;
     }
+
+    if (normCurrent == normLocal) {
+        WEBCLIP_LOG(QStringLiteral("[EchoSuppression] Suppressed: identical to local text: '") +
+                    escapeForLog(text) + QStringLiteral("'"));
+        return true;
+    }
+
+    int64_t elapsed = nowMs - lastTextTimeMs_;
+    if (elapsed < windowMs) {
+        WEBCLIP_LOG(QStringLiteral("[EchoSuppression] Suppressed: elapsed (") + QString::number(elapsed) +
+                    QStringLiteral("ms) < window (") + QString::number(windowMs) +
+                    QStringLiteral("ms), text='") + escapeForLog(text) + QStringLiteral("'"));
+        return true;
+    }
+
+    WEBCLIP_LOG(QStringLiteral("[EchoSuppression] NOT suppressed: text='") + escapeForLog(text) +
+                QStringLiteral("' (norm='") + escapeForLog(normCurrent) +
+                QStringLiteral("') vs normLocal='") + escapeForLog(normLocal) +
+                QStringLiteral("', normRemote='") + escapeForLog(normRemote) +
+                QStringLiteral("', elapsed=") + QString::number(elapsed) + QStringLiteral("ms"));
     return false;
 }
 
@@ -203,6 +260,8 @@ void WebClipController::markTextApplied(const QString& text, int64_t nowMs) {
     lastLocalText_ = text;
     lastRemoteText_ = text;
     lastTextTimeMs_ = nowMs;
+    WEBCLIP_LOG(QStringLiteral("[EchoSuppression] Marked text applied: '") +
+                escapeForLog(text) + QStringLiteral("' at ") + QString::number(nowMs));
 }
 
 bool WebClipController::shouldSuppressImage(const QString& hash, const QString& pixelFp, int64_t nowMs, int64_t windowMs) {
@@ -509,6 +568,7 @@ void WebClipController::connectToPortal() {
                         self->markTextApplied(qRemoteText, nowMs);
 
                         self->suppressNextLocalChange_.store(true);
+                        self->suppressUntilMs_.store(nowMs + 1500);
                         if (QGuiApplication::clipboard()) {
                             QGuiApplication::clipboard()->setText(qRemoteText, QClipboard::Clipboard);
                         } else if (self->nativeClipboard_) {
@@ -720,10 +780,15 @@ void WebClipController::startSseListener() {
                     if (text.trimmed().isEmpty()) return;
                     c->markTextApplied(text, nowMs);
 
-                    QMetaObject::invokeMethod(c, [self, text, source]() {
+                    QMetaObject::invokeMethod(c, [self, text, source, nowMs]() {
                         WebClipController* c = self.data();
                         if (!c) return;
                         c->suppressNextLocalChange_.store(true);
+                        c->suppressUntilMs_.store(nowMs + 1500);
+                        WEBCLIP_LOG(QStringLiteral("[SSE] Received remote text from '") +
+                                    QString::fromStdString(source) + QStringLiteral("': '") +
+                                    WebClipController::escapeForLog(text) + QStringLiteral("', set suppressUntilMs=" ) +
+                                    QString::number(nowMs + 1500));
                         if (QGuiApplication::clipboard()) {
                             QGuiApplication::clipboard()->setText(text, QClipboard::Clipboard);
                         } else if (c->nativeClipboard_) {
@@ -762,11 +827,18 @@ void WebClipController::stopSseListener() {
 void WebClipController::onClipboardDataChanged() {
     if (!connected_ || !autoSync_) return;
 
-    if (suppressNextLocalChange_.exchange(false)) {
+    int64_t nowMs = QDateTime::currentMSecsSinceEpoch();
+    bool flagSuppressed = suppressNextLocalChange_.exchange(false);
+    bool timeSuppressed = (nowMs < suppressUntilMs_.load());
+
+    if (flagSuppressed || timeSuppressed) {
+        WEBCLIP_LOG(QStringLiteral("[Clipboard] onClipboardDataChanged suppressed (flag=") +
+                    (flagSuppressed ? QStringLiteral("true") : QStringLiteral("false")) +
+                    QStringLiteral(", timeSuppressed=") +
+                    (timeSuppressed ? QStringLiteral("true") : QStringLiteral("false")) +
+                    QStringLiteral(")"));
         return;
     }
-
-    int64_t nowMs = QDateTime::currentMSecsSinceEpoch();
 
     if (QGuiApplication::clipboard()) {
         const QMimeData* mimeData = QGuiApplication::clipboard()->mimeData();
@@ -906,6 +978,7 @@ void WebClipController::handleNativeText(QString current) {
         return;
     }
 
+    WEBCLIP_LOG(QStringLiteral("[Clipboard] handleNativeText pushing: '") + escapeForLog(current) + QStringLiteral("'"));
     markTextApplied(current, nowMs);
     pushClipboard(current);
 }
@@ -965,6 +1038,9 @@ bool WebClipController::pushClipboard(const QString& text, const QString& clipId
     std::string cId = clipId.isEmpty() ? generateClipId() : clipId.toStdString();
     markClipIdHandled(cId);
 
+    WEBCLIP_LOG(QStringLiteral("[Push] Pushing clipboard to phone (id=") + QString::fromStdString(cId) +
+                QStringLiteral("): '") + escapeForLog(text) + QStringLiteral("'"));
+
     auto client = httpClient_;
     std::string textStd = text.toStdString();
     QPointer<WebClipController> self(this);
@@ -972,12 +1048,15 @@ bool WebClipController::pushClipboard(const QString& text, const QString& clipId
         if (!client) return;
         HttpResponse resp = client->push_clipboard(textStd, cId);
         if (!self) return;
-        QMetaObject::invokeMethod(self.data(), [self, text, resp]() {
+        QMetaObject::invokeMethod(self.data(), [self, text, resp, cId]() {
             if (!self) return;
             if (resp.status_code == 200) {
+                WEBCLIP_LOG(QStringLiteral("[Push] Push succeeded (id=") + QString::fromStdString(cId) + QStringLiteral(")"));
                 self->clipModel_.addClip(text, "local");
                 emit self->showToast("Pushed " + QString::number(text.length()) + " chars to phone", false);
             } else {
+                WEBCLIP_LOG(QStringLiteral("[Push] Push failed (id=") + QString::fromStdString(cId) +
+                            QStringLiteral(") HTTP ") + QString::number(resp.status_code));
                 emit self->showToast("Push failed (HTTP " + QString::number(resp.status_code) + ")", true);
             }
         });
@@ -1205,13 +1284,19 @@ bool WebClipController::pushCurrentClipboard() {
 }
 
 void WebClipController::copyToClipboard(const QString& text) {
+    int64_t nowMs = QDateTime::currentMSecsSinceEpoch();
     {
         std::lock_guard<std::mutex> guard(syncLock_);
         lastLocalText_ = text;
+        lastRemoteText_ = text;
+        lastTextTimeMs_ = nowMs;
         lastLocalImgHash_.clear();
         lastLocalPixelFp_.clear();
     }
     suppressNextLocalChange_.store(true);
+    suppressUntilMs_.store(nowMs + 1500);
+    WEBCLIP_LOG(QStringLiteral("[Clipboard] copyToClipboard: '") + escapeForLog(text) +
+                QStringLiteral("', suppressUntilMs=") + QString::number(nowMs + 1500));
     if (QGuiApplication::clipboard()) {
         QGuiApplication::clipboard()->setText(text, QClipboard::Clipboard);
     } else if (nativeClipboard_) {
