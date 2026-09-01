@@ -8,6 +8,7 @@
 #include "dialogs/image_preview_modal.hpp"
 #include "../theme/md3_theme.hpp"
 #include "../controllers/webclip_controller.hpp"
+#include "../util/display_scale.hpp"
 
 #include <QtGui/QGuiApplication>
 #include <QtGui/QMouseEvent>
@@ -24,9 +25,9 @@ MainWindow::MainWindow(QWidget* parent, webclip::WebClipController* controller)
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowSystemMenuHint | Qt::Dialog);
     setAttribute(Qt::WA_TranslucentBackground);
 
-    resize(380, 800);
-    setMinimumSize(360, 680);
-    setMaximumSize(420, 880);
+    resize(webclip::scale::px(380), webclip::scale::px(800));
+    setMinimumSize(webclip::scale::px(360), webclip::scale::px(680));
+    setMaximumSize(webclip::scale::px(420), webclip::scale::px(880));
 
     setupUi();
     ensureOnScreen();
@@ -127,12 +128,17 @@ void MainWindow::resizeEvent(QResizeEvent* e) {
 void MainWindow::updateLayout() {
     const int w = width();
     const int h = height();
+    const int headerH = webclip::scale::px(58);
+    const int dockH = webclip::scale::px(64);
+    const int toastH = webclip::scale::px(40);
+    const int toastMargin = webclip::scale::px(16);
+    const int toastBottomOffset = webclip::scale::px(46);
 
-    headerBar_->setGeometry(0, 0, w, 58);
-    inputDock_->setGeometry(0, h - 64, w, 64);
-    clipWidget_->setGeometry(0, 58, w, h - 58 - 64);
+    headerBar_->setGeometry(0, 0, w, headerH);
+    inputDock_->setGeometry(0, h - dockH, w, dockH);
+    clipWidget_->setGeometry(0, headerH, w, h - headerH - dockH);
 
-    toast_->setGeometry(16, h - 64 - 46, w - 32, 40);
+    toast_->setGeometry(toastMargin, h - dockH - toastBottomOffset, w - 2 * toastMargin, toastH);
 
     if (settingsDialog_) settingsDialog_->setGeometry(rect());
     if (imagePreviewModal_) imagePreviewModal_->setGeometry(rect());
@@ -151,11 +157,11 @@ void MainWindow::paintEvent(QPaintEvent* /*e*/) {
     PainterHighQualityEnabler hq(p);
     auto* theme = webclip::MD3Theme::instance();
 
-    // 18px rounded window container without outer outline
+    // Rounded window container without outer outline
     const QRectF r(0.0, 0.0, width(), height());
     p.setPen(Qt::NoPen);
     p.setBrush(theme->surface());
-    p.drawRoundedRect(r, 18.0, 18.0);
+    p.drawRoundedRect(r, webclip::scale::pxF(18.0), webclip::scale::pxF(18.0));
 }
 
 } // namespace Ui

@@ -1,6 +1,7 @@
 #include "md3_text_field.hpp"
 #include "../basic/painter_helpers.hpp"
 #include "../../theme/md3_theme.hpp"
+#include "../../util/display_scale.hpp"
 
 #include <QtGui/QPainter>
 
@@ -24,7 +25,7 @@ Md3TextField::Md3TextField(QWidget* parent, const QString& label, const QString&
     });
     connect(lineEdit_, &QLineEdit::returnPressed, this, &Md3TextField::returnPressed);
 
-    setFixedHeight(label_.isEmpty() ? 36 : 44);
+    setFixedHeight(label_.isEmpty() ? webclip::scale::px(36) : webclip::scale::px(44));
 }
 
 Md3TextField::~Md3TextField() = default;
@@ -40,7 +41,7 @@ void Md3TextField::setText(const QString& text) {
 void Md3TextField::setLabel(const QString& label) {
     if (label_ != label) {
         label_ = label;
-        setFixedHeight(label_.isEmpty() ? 36 : 44);
+        setFixedHeight(label_.isEmpty() ? webclip::scale::px(36) : webclip::scale::px(44));
         updateGeometry();
         updateLayout();
         update();
@@ -64,7 +65,7 @@ QLineEdit::EchoMode Md3TextField::echoMode() const {
 }
 
 QSize Md3TextField::sizeHint() const {
-    return QSize(220, label_.isEmpty() ? 36 : 44);
+    return QSize(webclip::scale::px(220), label_.isEmpty() ? webclip::scale::px(36) : webclip::scale::px(44));
 }
 
 void Md3TextField::resizeEvent(QResizeEvent* e) {
@@ -73,15 +74,15 @@ void Md3TextField::resizeEvent(QResizeEvent* e) {
 }
 
 void Md3TextField::updateLayout() {
-    const int hMargin = 12;
+    const int hMargin = webclip::scale::px(12);
     const int w = width() - 2 * hMargin;
 
     if (label_.isEmpty()) {
-        const int inputH = 24;
+        const int inputH = webclip::scale::px(24);
         lineEdit_->setGeometry(hMargin, (height() - inputH) / 2, w, inputH);
     } else {
-        const int inputH = 22;
-        lineEdit_->setGeometry(hMargin, height() - inputH - 4, w, inputH);
+        const int inputH = webclip::scale::px(22);
+        lineEdit_->setGeometry(hMargin, height() - inputH - webclip::scale::px(4), w, inputH);
     }
 }
 
@@ -95,20 +96,20 @@ void Md3TextField::paintEvent(QPaintEvent* /*e*/) {
     // 1. Background
     p.setPen(Qt::NoPen);
     p.setBrush(theme->surfaceContainerHighest());
-    p.drawRoundedRect(boxRect, 12.0, 12.0);
+    p.drawRoundedRect(boxRect, webclip::scale::pxF(12.0), webclip::scale::pxF(12.0));
 
     // 2. Focus border
     if (lineEdit_->hasFocus()) {
-        p.setPen(QPen(theme->primary(), 1.5));
+        p.setPen(QPen(theme->primary(), webclip::scale::pxF(1.5)));
         p.setBrush(Qt::NoBrush);
-        p.drawRoundedRect(boxRect, 12.0, 12.0);
+        p.drawRoundedRect(boxRect, webclip::scale::pxF(12.0), webclip::scale::pxF(12.0));
     }
 
     // 3. Label
     if (!label_.isEmpty()) {
         p.setFont(theme->labelSmall());
         p.setPen(lineEdit_->hasFocus() ? theme->primary() : theme->onSurfaceVariant());
-        p.drawText(QPointF(12, 14), label_);
+        p.drawText(QPointF(webclip::scale::pxF(12.0), webclip::scale::pxF(14.0)), label_);
     }
 }
 

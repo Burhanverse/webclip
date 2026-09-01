@@ -1,6 +1,7 @@
 #include "md3_switch.hpp"
 #include "../basic/painter_helpers.hpp"
 #include "../../theme/md3_theme.hpp"
+#include "../../util/display_scale.hpp"
 
 #include <QtGui/QPainter>
 #include <QtGui/QPainterPath>
@@ -29,7 +30,7 @@ void PaintMd3Switch(
     // 1. Unchecked track background & outline
     if (toggled < 1.0) {
         ScopedPainterOpacity trackScope(p, p.opacity() * (1.0 - toggled));
-        p.setPen(QPen(theme->outline(), 2.0));
+        p.setPen(QPen(theme->outline(), 2.0 * (switchHeight / 32.0)));
         p.setBrush(theme->surfaceContainerHighest());
         p.drawRoundedRect(
             trackRect.adjusted(1.0, 1.0, -1.0, -1.0),
@@ -47,11 +48,11 @@ void PaintMd3Switch(
     }
 
     // 3. Thumb geometry & color interpolation
-    // Unchecked: diameter 16, centered at margin 8 from left -> x + 8
-    // Checked: diameter 24, margin 4 from right -> x + switchWidth - 28
-    const double thumbDiameter = anim::interpolateF(16.0, 24.0, toggled);
-    const double startX = x + 8.0;
-    const double endX = x + switchWidth - 28.0;
+    const double unchkDiam = 16.0 * (switchHeight / 32.0);
+    const double chkDiam = 24.0 * (switchHeight / 32.0);
+    const double thumbDiameter = anim::interpolateF(unchkDiam, chkDiam, toggled);
+    const double startX = x + 8.0 * (switchWidth / 52.0);
+    const double endX = x + switchWidth - (4.0 * (switchWidth / 52.0) + chkDiam);
     const double thumbX = anim::interpolateF(startX, endX, toggled);
     const double thumbY = y + (switchHeight - thumbDiameter) / 2.0;
 
@@ -116,8 +117,8 @@ void Md3Switch::paintEvent(QPaintEvent* /*e*/) {
     QPainter p(this);
     paintRipple(p, 0, 0);
 
-    const double switchW = 52.0;
-    const double switchH = 32.0;
+    const double switchW = webclip::scale::pxF(52.0);
+    const double switchH = webclip::scale::pxF(32.0);
     const double x = (width() - switchW) / 2.0;
     const double y = (height() - switchH) / 2.0;
     const double toggledProgress = animation_.value(checked_ ? 1.0 : 0.0);
@@ -126,8 +127,8 @@ void Md3Switch::paintEvent(QPaintEvent* /*e*/) {
 }
 
 QImage Md3Switch::prepareRippleMask() const {
-    const double switchW = 52.0;
-    const double switchH = 32.0;
+    const double switchW = webclip::scale::pxF(52.0);
+    const double switchH = webclip::scale::pxF(32.0);
     const double x = (width() - switchW) / 2.0;
     const double y = (height() - switchH) / 2.0;
 

@@ -1,4 +1,5 @@
 #include "bubble_corners.hpp"
+#include "../util/display_scale.hpp"
 
 #include <QHash>
 #include <QPainterPath>
@@ -13,8 +14,8 @@ constexpr int kTopRight = 1;
 constexpr int kBottomLeft = 2;
 constexpr int kBottomRight = 3;
 
-constexpr qreal kTailWidth = 6.0;
-constexpr qreal kTailHeight = 15.0;
+inline qreal tailWidth() { return scale::pxF(6.0); }
+inline qreal tailHeight() { return scale::pxF(15.0); }
 
 struct TailKey {
     int side;
@@ -76,8 +77,10 @@ QPixmap sliceCorner(const QImage& square, int idx, qreal radius, qreal dpr) {
 }
 
 QPixmap makeTailPixmap(BubbleTail side, const QColor& color, qreal dpr) {
-    const int w = qCeil(kTailWidth * dpr);
-    const int h = qCeil(kTailHeight * dpr);
+    const qreal tw = tailWidth();
+    const qreal th = tailHeight();
+    const int w = qCeil(tw * dpr);
+    const int h = qCeil(th * dpr);
     QImage img(w, h, QImage::Format_ARGB32_Premultiplied);
     img.fill(Qt::transparent);
     QPainter p(&img);
@@ -87,12 +90,12 @@ QPixmap makeTailPixmap(BubbleTail side, const QColor& color, qreal dpr) {
     QPainterPath path;
     if (side == BubbleTail::Right) {
         path.moveTo(0, 0);
-        path.cubicTo(0, 8.0, 4.0, kTailHeight - 0.5, kTailWidth, kTailHeight);
-        path.lineTo(0, kTailHeight);
+        path.cubicTo(0, scale::pxF(8.0), scale::pxF(4.0), th - 0.5, tw, th);
+        path.lineTo(0, th);
     } else {
-        path.moveTo(kTailWidth, 0);
-        path.cubicTo(kTailWidth, 8.0, kTailWidth - 4.0, kTailHeight - 0.5, 0, kTailHeight);
-        path.lineTo(kTailWidth, kTailHeight);
+        path.moveTo(tw, 0);
+        path.cubicTo(tw, scale::pxF(8.0), tw - scale::pxF(4.0), th - 0.5, 0, th);
+        path.lineTo(tw, th);
     }
     path.closeSubpath();
     p.setPen(Qt::NoPen);
@@ -146,11 +149,12 @@ void paintBubble(QPainter* p, const QRectF& rectIncludingTail, qreal radius,
     Q_UNUSED(dpr);
     if (rectIncludingTail.width() <= 0 || rectIncludingTail.height() <= 0) return;
 
+    const qreal tw = tailWidth();
     QRectF body = rectIncludingTail;
     if (tail == BubbleTail::Right) {
-        body.setRight(rectIncludingTail.right() - kTailWidth);
+        body.setRight(rectIncludingTail.right() - tw);
     } else if (tail == BubbleTail::Left) {
-        body.setLeft(rectIncludingTail.left() + kTailWidth);
+        body.setLeft(rectIncludingTail.left() + tw);
     }
 
     QPainterPath path;
@@ -162,7 +166,7 @@ void paintBubble(QPainter* p, const QRectF& rectIncludingTail, qreal radius,
         QPainterPath tailPath;
         tailPath.moveTo(bx - radius, by);
         tailPath.lineTo(rectIncludingTail.right(), by);
-        tailPath.cubicTo(rectIncludingTail.right() - 4.0, by - 4.0, bx, by - 12.0, bx, by - 14.0);
+        tailPath.cubicTo(rectIncludingTail.right() - scale::pxF(4.0), by - scale::pxF(4.0), bx, by - scale::pxF(12.0), bx, by - scale::pxF(14.0));
         tailPath.closeSubpath();
         path = path.united(tailPath);
     } else if (tail == BubbleTail::Left) {
@@ -171,7 +175,7 @@ void paintBubble(QPainter* p, const QRectF& rectIncludingTail, qreal radius,
         QPainterPath tailPath;
         tailPath.moveTo(bx + radius, by);
         tailPath.lineTo(rectIncludingTail.left(), by);
-        tailPath.cubicTo(rectIncludingTail.left() + 4.0, by - 4.0, bx, by - 12.0, bx, by - 14.0);
+        tailPath.cubicTo(rectIncludingTail.left() + scale::pxF(4.0), by - scale::pxF(4.0), bx, by - scale::pxF(12.0), bx, by - scale::pxF(14.0));
         tailPath.closeSubpath();
         path = path.united(tailPath);
     }

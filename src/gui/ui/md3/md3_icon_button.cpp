@@ -2,6 +2,7 @@
 #include "icon_loader.hpp"
 #include "../basic/painter_helpers.hpp"
 #include "../../theme/md3_theme.hpp"
+#include "../../util/display_scale.hpp"
 
 #include <QtGui/QPainter>
 
@@ -15,8 +16,8 @@ Md3IconButton::Md3IconButton(
 )
     : RippleButton(parent)
     , iconName_(iconName)
-    , buttonSize_(buttonSize)
-    , iconSize_(iconSize) {
+    , buttonSize_(buttonSize > 0 ? buttonSize : webclip::scale::px(40))
+    , iconSize_(iconSize > 0 ? iconSize : webclip::scale::px(20)) {
     resize(sizeHint());
 }
 

@@ -1,6 +1,7 @@
 #include "toast_widget.hpp"
 #include "../basic/painter_helpers.hpp"
 #include "../../theme/md3_theme.hpp"
+#include "../../util/display_scale.hpp"
 
 #include <QtGui/QFontMetrics>
 #include <QtGui/QPainter>
@@ -10,7 +11,7 @@ namespace Ui {
 ToastWidget::ToastWidget(QWidget* parent)
     : RpWidget(parent) {
     setFont(webclip::MD3Theme::instance()->bodyMedium());
-    setFixedHeight(40);
+    setFixedHeight(webclip::scale::px(40));
     hide();
 
     hideTimer_.setSingleShot(true);
@@ -27,13 +28,13 @@ void ToastWidget::showMessage(const QString& message, bool isError) {
 
     const QFontMetrics fm(font());
     const int textW = fm.horizontalAdvance(message_);
-    const int maxW = parentWidget() ? (parentWidget()->width() - 48) : 320;
-    const int w = std::min(maxW, textW + 32);
+    const int maxW = parentWidget() ? (parentWidget()->width() - webclip::scale::px(48)) : webclip::scale::px(320);
+    const int w = std::min(maxW, textW + webclip::scale::px(32));
 
-    resize(w, 40);
+    resize(w, webclip::scale::px(40));
     if (parentWidget()) {
         const int x = (parentWidget()->width() - w) / 2;
-        const int y = parentWidget()->height() - 40 - 24;
+        const int y = parentWidget()->height() - webclip::scale::px(40) - webclip::scale::px(24);
         move(x, y);
     }
 
@@ -44,7 +45,7 @@ void ToastWidget::showMessage(const QString& message, bool isError) {
     anim_.start(
         [this](double progress) {
             opacity_ = progress;
-            slideOffset_ = 16.0 * (1.0 - progress);
+            slideOffset_ = webclip::scale::pxF(16.0) * (1.0 - progress);
             update();
         },
         opacity_,
@@ -61,7 +62,7 @@ void ToastWidget::hideAnimated() {
     anim_.start(
         [this](double progress) {
             opacity_ = progress;
-            slideOffset_ = 16.0 * (1.0 - progress);
+            slideOffset_ = webclip::scale::pxF(16.0) * (1.0 - progress);
             update();
         },
         opacity_,
@@ -88,12 +89,12 @@ void ToastWidget::paintEvent(QPaintEvent* /*e*/) {
     const QRectF pillRect(0, slideOffset_, width(), height() - slideOffset_);
     p.setPen(Qt::NoPen);
     p.setBrush(bgCol);
-    p.drawRoundedRect(pillRect, 20.0, 20.0);
+    p.drawRoundedRect(pillRect, webclip::scale::pxF(20.0), webclip::scale::pxF(20.0));
 
     p.setFont(font());
     p.setPen(textCol);
     const QFontMetrics fm(font());
-    const QString elidedText = fm.elidedText(message_, Qt::ElideRight, width() - 32);
+    const QString elidedText = fm.elidedText(message_, Qt::ElideRight, width() - webclip::scale::px(32));
     p.drawText(pillRect, Qt::AlignCenter, elidedText);
 }
 

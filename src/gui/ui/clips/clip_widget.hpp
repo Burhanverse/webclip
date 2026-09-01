@@ -126,9 +126,7 @@ private:
     bool pendingRelayout_ = true;
     int lastValidWidth_ = 0;
 
-    static constexpr int kSpacing = 10;
-    static constexpr int kTopMargin = 12;
-    static constexpr int kBottomMargin = 12;
+
 
     QTimer animationTimer_;
     enum class Anim { None, Wheel, Flick, Settle };

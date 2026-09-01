@@ -2,6 +2,7 @@
 #include "icon_loader.hpp"
 #include "../basic/painter_helpers.hpp"
 #include "../../theme/md3_theme.hpp"
+#include "../../util/display_scale.hpp"
 
 #include <QtGui/QFontMetrics>
 #include <QtGui/QPainter>
@@ -70,7 +71,7 @@ CardRow::CardRow(
     , title_(title)
     , subtitle_(subtitle)
     , iconName_(iconName) {
-    setFixedHeight(subtitle_.isEmpty() ? 56 : 72);
+    setFixedHeight(subtitle_.isEmpty() ? webclip::scale::px(56) : webclip::scale::px(72));
 }
 
 CardRow::~CardRow() = default;
@@ -85,7 +86,7 @@ void CardRow::setTitle(const QString& title) {
 void CardRow::setSubtitle(const QString& subtitle) {
     if (subtitle_ != subtitle) {
         subtitle_ = subtitle;
-        setFixedHeight(subtitle_.isEmpty() ? 56 : 72);
+        setFixedHeight(subtitle_.isEmpty() ? webclip::scale::px(56) : webclip::scale::px(72));
         updateGeometry();
         update();
     }
@@ -106,11 +107,11 @@ void CardRow::setSegmentPosition(CardSegmentPosition pos) {
 }
 
 QSize CardRow::sizeHint() const {
-    return QSize(340, subtitle_.isEmpty() ? 56 : 72);
+    return QSize(webclip::scale::px(340), subtitle_.isEmpty() ? webclip::scale::px(56) : webclip::scale::px(72));
 }
 
 QImage CardRow::prepareRippleMask() const {
-    return MakeSegmentMask(size(), segmentPosition_, 20.0, 4.0);
+    return MakeSegmentMask(size(), segmentPosition_, webclip::scale::pxF(20.0), webclip::scale::pxF(4.0));
 }
 
 void CardRow::paintEvent(QPaintEvent* /*e*/) {
@@ -119,7 +120,7 @@ void CardRow::paintEvent(QPaintEvent* /*e*/) {
     auto* theme = webclip::MD3Theme::instance();
 
     const QRectF rowRect(0.5, 0.5, width() - 1.0, height() - 1.0);
-    const QPainterPath path = MakeSegmentPath(rowRect, segmentPosition_, 20.0, 4.0);
+    const QPainterPath path = MakeSegmentPath(rowRect, segmentPosition_, webclip::scale::pxF(20.0), webclip::scale::pxF(4.0));
 
     // 1. Background
     p.setPen(Qt::NoPen);
@@ -139,20 +140,20 @@ void CardRow::paintEvent(QPaintEvent* /*e*/) {
     paintRipple(p, 0, 0, &ripCol);
 
     // 4. Content (Icon + Title + Subtitle)
-    int leftX = (iconName_ == QLatin1String("webclip")) ? 16 : 14;
+    int leftX = (iconName_ == QLatin1String("webclip")) ? webclip::scale::px(16) : webclip::scale::px(14);
     if (!iconName_.isEmpty()) {
-        const int iconSize = (iconName_ == QLatin1String("webclip")) ? 40 : 20;
+        const int iconSize = (iconName_ == QLatin1String("webclip")) ? webclip::scale::px(40) : webclip::scale::px(20);
         const int iconY = (height() - iconSize) / 2;
         if (iconName_ == QLatin1String("webclip")) {
             IconLoader::paint(p, iconName_, QRectF(leftX, iconY, iconSize, iconSize));
-            leftX += iconSize + 14;
+            leftX += iconSize + webclip::scale::px(14);
         } else {
             IconLoader::paint(p, iconName_, QRectF(leftX, iconY, iconSize, iconSize), theme->onSurfaceVariant());
-            leftX += iconSize + 12;
+            leftX += iconSize + webclip::scale::px(12);
         }
     }
 
-    const int maxTextW = std::max(40, width() - leftX - trailingPadding_);
+    const int maxTextW = std::max(webclip::scale::px(40), width() - leftX - trailingPadding_);
 
     if (subtitle_.isEmpty()) {
         p.setFont(theme->bodyLarge());
@@ -166,13 +167,13 @@ void CardRow::paintEvent(QPaintEvent* /*e*/) {
         p.setPen(theme->onSurface());
         const QFontMetrics fm(p.font());
         const QString elidedTitle = fm.elidedText(title_, Qt::ElideRight, maxTextW);
-        p.drawText(QPointF(leftX, 28), elidedTitle);
+        p.drawText(QPointF(leftX, webclip::scale::pxF(28.0)), elidedTitle);
 
         p.setFont(theme->bodySmall());
         p.setPen(theme->onSurfaceVariant());
         const QFontMetrics fmSub(p.font());
         const QString elidedSub = fmSub.elidedText(subtitle_, Qt::ElideRight, maxTextW);
-        p.drawText(QPointF(leftX, 50), elidedSub);
+        p.drawText(QPointF(leftX, webclip::scale::pxF(50.0)), elidedSub);
     }
 }
 
@@ -184,7 +185,7 @@ CardToggleRow::CardToggleRow(
     bool checked
 )
     : CardRow(parent, title, subtitle, iconName) {
-    setTrailingPadding(70);
+    setTrailingPadding(webclip::scale::px(70));
     switch_ = new Md3Switch(this, checked);
     connect(switch_, &Md3Switch::toggled, this, &CardToggleRow::toggled);
 
@@ -204,7 +205,7 @@ void CardToggleRow::setChecked(bool checked, anim::type animated) {
 void CardToggleRow::resizeEvent(QResizeEvent* e) {
     CardRow::resizeEvent(e);
     if (switch_) {
-        switch_->move(width() - 14 - switch_->width(), (height() - switch_->height()) / 2);
+        switch_->move(width() - webclip::scale::px(14) - switch_->width(), (height() - switch_->height()) / 2);
     }
 }
 
@@ -223,7 +224,7 @@ CardButtonRow::CardButtonRow(
 void CardButtonRow::setTrailingValue(const QString& val) {
     trailingValue_ = val;
     const QFontMetrics fm(webclip::MD3Theme::instance()->bodySmall());
-    setTrailingPadding(trailingValue_.isEmpty() ? 16 : (fm.horizontalAdvance(trailingValue_) + 24));
+    setTrailingPadding(trailingValue_.isEmpty() ? webclip::scale::px(16) : (fm.horizontalAdvance(trailingValue_) + webclip::scale::px(24)));
     update();
 }
 
@@ -235,7 +236,7 @@ void CardButtonRow::paintEvent(QPaintEvent* e) {
     auto* theme = webclip::MD3Theme::instance();
 
     // Draw trailing chevron / value
-    const int rightX = width() - 16;
+    const int rightX = width() - webclip::scale::px(16);
     if (!trailingValue_.isEmpty()) {
         p.setFont(theme->bodySmall());
         p.setPen(theme->onSurfaceVariant());

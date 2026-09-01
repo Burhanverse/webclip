@@ -3,6 +3,7 @@
 #include "../md3/icon_loader.hpp"
 #include "../../theme/md3_theme.hpp"
 #include "../../util/i18n.hpp"
+#include "../../util/display_scale.hpp"
 #include "../../controllers/webclip_controller.hpp"
 #include "../../models/clipboard_history_model.hpp"
 
@@ -30,7 +31,7 @@ public:
         , label_(label)
         , color_(color)
         , isCustom_(isCustom) {
-        setFixedHeight(32);
+        setFixedHeight(webclip::scale::px(32));
         setFont(webclip::MD3Theme::instance()->labelSmall());
     }
 
@@ -44,14 +45,16 @@ public:
     }
 
     void setCustomColor(const QColor& c) {
-        color_ = c;
-        update();
+        if (color_ != c) {
+            color_ = c;
+            update();
+        }
     }
 
     [[nodiscard]] QSize sizeHint() const override {
         const QFontMetrics fm(font());
         const int textW = fm.horizontalAdvance(label_);
-        return QSize(textW + 36, 32);
+        return QSize(textW + webclip::scale::px(36), webclip::scale::px(32));
     }
 
 protected:
@@ -66,24 +69,24 @@ protected:
 
         p.setPen(selected_ ? Qt::NoPen : QPen(theme->outlineVariant(), 1.0));
         p.setBrush(bg);
-        p.drawRoundedRect(r, 16.0, 16.0);
+        p.drawRoundedRect(r, webclip::scale::pxF(16.0), webclip::scale::pxF(16.0));
 
         // State layer & ripple
         if (!isDisabled() && (isOver() || isDown())) {
             const int stateAlpha = isDown() ? 36 : 20;
             p.setPen(Qt::NoPen);
             p.setBrush(QColor(textCol.red(), textCol.green(), textCol.blue(), stateAlpha));
-            p.drawRoundedRect(r, 16.0, 16.0);
+            p.drawRoundedRect(r, webclip::scale::pxF(16.0), webclip::scale::pxF(16.0));
         }
         paintRipple(p, 0, 0, &textCol);
 
         // Icon or Color dot
         if (isCustom_) {
-            IconLoader::paint(p, QStringLiteral("palette"), QRectF(10, 8, 16, 16), textCol);
+            IconLoader::paint(p, QStringLiteral("palette"), QRectF(webclip::scale::pxF(10), webclip::scale::pxF(8), webclip::scale::pxF(16), webclip::scale::pxF(16)), textCol);
         } else {
             p.setPen(Qt::NoPen);
             p.setBrush(color_);
-            p.drawEllipse(QRectF(11, 10, 12, 12));
+            p.drawEllipse(QRectF(webclip::scale::pxF(11), webclip::scale::pxF(10), webclip::scale::pxF(12), webclip::scale::pxF(12)));
         }
 
         // Text label
@@ -91,11 +94,11 @@ protected:
         p.setPen(textCol);
         const QFontMetrics fm(font());
         const int textY = (height() - fm.height()) / 2 + fm.ascent();
-        p.drawText(QPointF(30, textY), label_);
+        p.drawText(QPointF(webclip::scale::pxF(30), textY), label_);
     }
 
     QImage prepareRippleMask() const override {
-        return RippleAnimation::RoundRectMask(size(), 16);
+        return RippleAnimation::RoundRectMask(size(), webclip::scale::px(16));
     }
 
 private:
@@ -114,9 +117,9 @@ SettingsDialog::SettingsDialog(QWidget* parent, webclip::WebClipController* cont
 
     sheet_ = new QWidget(this);
     headerBar_ = new QWidget(sheet_);
-    headerBar_->setFixedHeight(56);
+    headerBar_->setFixedHeight(webclip::scale::px(56));
 
-    closeBtn_ = new Md3IconButton(headerBar_, QStringLiteral("close"), 36, 20);
+    closeBtn_ = new Md3IconButton(headerBar_, QStringLiteral("close"), webclip::scale::px(36), webclip::scale::px(20));
     closeBtn_->addClickHandler([this] {
         hideAnimated();
     });
@@ -141,8 +144,8 @@ SettingsDialog::SettingsDialog(QWidget* parent, webclip::WebClipController* cont
     scrollArea_->setWidget(scrollContent_);
 
     mainLayout_ = new QVBoxLayout(scrollContent_);
-    mainLayout_->setContentsMargins(16, 12, 16, 28);
-    mainLayout_->setSpacing(16);
+    mainLayout_->setContentsMargins(webclip::scale::px(16), webclip::scale::px(12), webclip::scale::px(16), webclip::scale::px(28));
+    mainLayout_->setSpacing(webclip::scale::px(16));
 
     colorPicker_ = new ColorPickerDialog(this);
     connect(colorPicker_, &ColorPickerDialog::colorSelected, this, [this](const QColor& c) {
@@ -186,25 +189,25 @@ void SettingsDialog::setupContent() {
 
     auto* connCard = new CardContainer(scrollContent_);
     auto* connRow = new CardRow(connCard, QString(), QString());
-    connRow->setFixedHeight(128);
+    connRow->setFixedHeight(webclip::scale::px(128));
     auto* connBox = new QVBoxLayout(connRow);
-    connBox->setContentsMargins(14, 12, 14, 12);
-    connBox->setSpacing(10);
+    connBox->setContentsMargins(webclip::scale::px(14), webclip::scale::px(12), webclip::scale::px(14), webclip::scale::px(12));
+    connBox->setSpacing(webclip::scale::px(10));
 
     auto* row1 = new QHBoxLayout();
-    row1->setSpacing(8);
+    row1->setSpacing(webclip::scale::px(8));
     hostInput_ = new Md3TextField(connRow, webclip::I18n::instance()->tr(QStringLiteral("settings.connection.host_label")), QStringLiteral("192.168.1.100"));
     portInput_ = new Md3TextField(connRow, webclip::I18n::instance()->tr(QStringLiteral("settings.connection.port_label")), QStringLiteral("8080"));
-    portInput_->setFixedWidth(85);
+    portInput_->setFixedWidth(webclip::scale::px(85));
     row1->addWidget(hostInput_, 1);
     row1->addWidget(portInput_, 0);
     connBox->addLayout(row1);
 
     auto* row2 = new QHBoxLayout();
-    row2->setSpacing(8);
+    row2->setSpacing(webclip::scale::px(8));
     pinInput_ = new Md3TextField(connRow, webclip::I18n::instance()->tr(QStringLiteral("settings.connection.code_label")), QStringLiteral("4-digit code"));
     connectBtn_ = new Md3Button(connRow, webclip::I18n::instance()->tr(QStringLiteral("settings.connection.btn_connect")), ButtonVariant::Filled);
-    connectBtn_->setFixedHeight(44);
+    connectBtn_->setFixedHeight(webclip::scale::px(44));
     connectBtn_->setIconName(QStringLiteral("sync"));
     connectBtn_->addClickHandler([this] {
         if (controller_) controller_->toggleConnection();
@@ -285,10 +288,10 @@ void SettingsDialog::setupContent() {
     // Polling Interval Card
     pollingCard_ = new CardContainer(scrollContent_);
     auto* pollRow = new CardRow(pollingCard_, QString(), QString());
-    pollRow->setFixedHeight(86);
+    pollRow->setFixedHeight(webclip::scale::px(86));
     auto* pollRowLayout = new QVBoxLayout(pollRow);
-    pollRowLayout->setContentsMargins(16, 10, 16, 12);
-    pollRowLayout->setSpacing(8);
+    pollRowLayout->setContentsMargins(webclip::scale::px(16), webclip::scale::px(10), webclip::scale::px(16), webclip::scale::px(12));
+    pollRowLayout->setSpacing(webclip::scale::px(8));
 
     auto* pollHeader = new QHBoxLayout();
     pollingLabel_ = new QLabel(pollRow);
@@ -296,7 +299,7 @@ void SettingsDialog::setupContent() {
     pollingLabel_->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurface().name()));
     pollingLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.sync.polling_title")) + QStringLiteral(": 1.0s"));
 
-    resetPollBtn_ = new Md3IconButton(pollRow, QStringLiteral("sync"), 26, 16);
+    resetPollBtn_ = new Md3IconButton(pollRow, QStringLiteral("sync"), webclip::scale::px(26), webclip::scale::px(16));
     resetPollBtn_->addClickHandler([this] {
         if (controller_) controller_->setPollInterval(1.0);
     });
@@ -306,7 +309,7 @@ void SettingsDialog::setupContent() {
     pollRowLayout->addLayout(pollHeader);
 
     pollSlider_ = new Md3Slider(pollRow);
-    pollSlider_->setFixedHeight(32);
+    pollSlider_->setFixedHeight(webclip::scale::px(32));
     pollSlider_->setRange(0.5, 5.0);
     pollSlider_->setSteps(9);
     pollSlider_->setValue(1.0);
@@ -328,10 +331,10 @@ void SettingsDialog::setupContent() {
 
     auto* themeCard = new CardContainer(scrollContent_);
     auto* themeRow = new CardRow(themeCard, QString(), QString());
-    themeRow->setFixedHeight(86);
+    themeRow->setFixedHeight(webclip::scale::px(86));
     auto* themeRowLayout = new QVBoxLayout(themeRow);
-    themeRowLayout->setContentsMargins(16, 12, 16, 12);
-    themeRowLayout->setSpacing(8);
+    themeRowLayout->setContentsMargins(webclip::scale::px(16), webclip::scale::px(12), webclip::scale::px(16), webclip::scale::px(12));
+    themeRowLayout->setSpacing(webclip::scale::px(8));
 
     auto* themeTitle = new QLabel(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.theme_mode")), themeRow);
     themeTitle->setFont(theme->bodyMedium());
@@ -339,16 +342,16 @@ void SettingsDialog::setupContent() {
     themeRowLayout->addWidget(themeTitle);
 
     auto* modeBox = new QHBoxLayout();
-    modeBox->setSpacing(6);
+    modeBox->setSpacing(webclip::scale::px(6));
     themeAutoBtn_ = new Md3Button(themeRow, webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.mode_system")), ButtonVariant::Tonal);
     themeLightBtn_ = new Md3Button(themeRow, webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.mode_light")), ButtonVariant::Tonal);
     themeDarkBtn_ = new Md3Button(themeRow, webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.mode_dark")), ButtonVariant::Tonal);
     themePitchBtn_ = new Md3Button(themeRow, webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.mode_pitch_black")), ButtonVariant::Tonal);
 
-    themeAutoBtn_->setFixedHeight(34);
-    themeLightBtn_->setFixedHeight(34);
-    themeDarkBtn_->setFixedHeight(34);
-    themePitchBtn_->setFixedHeight(34);
+    themeAutoBtn_->setFixedHeight(webclip::scale::px(34));
+    themeLightBtn_->setFixedHeight(webclip::scale::px(34));
+    themeDarkBtn_->setFixedHeight(webclip::scale::px(34));
+    themePitchBtn_->setFixedHeight(webclip::scale::px(34));
 
     themeAutoBtn_->addClickHandler([this] { if (controller_) controller_->setThemeMode(0); updateThemeSelection(); });
     themeLightBtn_->addClickHandler([this] { if (controller_) controller_->setThemeMode(1); updateThemeSelection(); });
@@ -367,10 +370,10 @@ void SettingsDialog::setupContent() {
     // Accent Color Card
     auto* accentCard = new CardContainer(scrollContent_);
     auto* accentRow = new CardRow(accentCard, QString(), QString());
-    accentRow->setFixedHeight(116);
+    accentRow->setFixedHeight(webclip::scale::px(116));
     auto* accentLayout = new QVBoxLayout(accentRow);
-    accentLayout->setContentsMargins(16, 12, 16, 14);
-    accentLayout->setSpacing(8);
+    accentLayout->setContentsMargins(webclip::scale::px(16), webclip::scale::px(12), webclip::scale::px(16), webclip::scale::px(14));
+    accentLayout->setSpacing(webclip::scale::px(8));
 
     auto* accentLabel = new QLabel(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.accent_color")), accentRow);
     accentLabel->setFont(theme->bodyMedium());
@@ -378,7 +381,7 @@ void SettingsDialog::setupContent() {
     accentLayout->addWidget(accentLabel);
 
     auto* flowLayout1 = new QHBoxLayout();
-    flowLayout1->setSpacing(6);
+    flowLayout1->setSpacing(webclip::scale::px(6));
 
     const struct { QString name; QString label; QColor col; } presets[] = {
         { QStringLiteral("purple"), QStringLiteral("Purple"), QColor(QStringLiteral("#6750A4")) },
@@ -391,7 +394,7 @@ void SettingsDialog::setupContent() {
     };
 
     auto* flowLayout2 = new QHBoxLayout();
-    flowLayout2->setSpacing(6);
+    flowLayout2->setSpacing(webclip::scale::px(6));
 
     int idx = 0;
     for (const auto& p : presets) {
@@ -430,52 +433,81 @@ void SettingsDialog::setupContent() {
     accentCard->addRow(accentRow);
     mainLayout_->addWidget(accentCard);
 
-    // Text Size Card
-    textSizeCard_ = new CardContainer(scrollContent_);
-    auto* textSizeRow = new CardRow(textSizeCard_, QString(), QString());
-    textSizeRow->setFixedHeight(86);
-    auto* textSizeRowLayout = new QVBoxLayout(textSizeRow);
-    textSizeRowLayout->setContentsMargins(16, 10, 16, 12);
-    textSizeRowLayout->setSpacing(8);
+    // Display Scale Card
+    displayScaleCard_ = new CardContainer(scrollContent_);
+    auto* displayScaleRow = new CardRow(displayScaleCard_, QString(), QString());
+    displayScaleRow->setFixedHeight(webclip::scale::px(86));
+    auto* displayScaleRowLayout = new QVBoxLayout(displayScaleRow);
+    displayScaleRowLayout->setContentsMargins(webclip::scale::px(16), webclip::scale::px(10), webclip::scale::px(16), webclip::scale::px(12));
+    displayScaleRowLayout->setSpacing(webclip::scale::px(8));
 
-    auto* textSizeHeader = new QHBoxLayout();
-    textSizeLabel_ = new QLabel(textSizeRow);
-    textSizeLabel_->setFont(theme->bodyMedium());
-    textSizeLabel_->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurface().name()));
-    double currentScale = controller_ ? controller_->fontScale() : 0.0;
+    auto* displayScaleHeader = new QHBoxLayout();
+    displayScaleLabel_ = new QLabel(displayScaleRow);
+    displayScaleLabel_->setFont(theme->bodyMedium());
+    displayScaleLabel_->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurface().name()));
+    double currentScale = controller_ ? controller_->displayScale() : 0.0;
     if (currentScale <= 0.0) {
-        textSizeLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.textsize_title")) +
-                               QStringLiteral(": ") + webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.textsize_auto")));
+        displayScaleLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.displayscale_title")) +
+                               QStringLiteral(": ") + webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.displayscale_auto")));
     } else {
-        textSizeLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.textsize_title")) +
+        displayScaleLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.displayscale_title")) +
                                QStringLiteral(": ") + QString::number(qRound(currentScale * 100)) + QStringLiteral("%"));
     }
 
-    resetTextSizeBtn_ = new Md3IconButton(textSizeRow, QStringLiteral("refresh"), 26, 16);
-    resetTextSizeBtn_->addClickHandler([this] {
-        if (controller_) controller_->setFontScale(0.0);
+    resetDisplayScaleBtn_ = new Md3IconButton(displayScaleRow, QStringLiteral("refresh"), webclip::scale::px(26), webclip::scale::px(16));
+    resetDisplayScaleBtn_->addClickHandler([this] {
+        if (controller_) controller_->setDisplayScale(0.0);
     });
 
-    textSizeHeader->addWidget(textSizeLabel_, 1);
-    textSizeHeader->addWidget(resetTextSizeBtn_, 0);
-    textSizeRowLayout->addLayout(textSizeHeader);
+    displayScaleHeader->addWidget(displayScaleLabel_, 1);
+    displayScaleHeader->addWidget(resetDisplayScaleBtn_, 0);
+    displayScaleRowLayout->addLayout(displayScaleHeader);
 
-    textSizeSlider_ = new Md3Slider(textSizeRow);
-    textSizeSlider_->setFixedHeight(32);
-    textSizeSlider_->setRange(0.75, 2.50);
-    textSizeSlider_->setSteps(11);
-    textSizeSlider_->setValue(currentScale <= 0.0 ? 1.0 : currentScale);
-    connect(textSizeSlider_, &Md3Slider::valueChanged, this, [this](double val) {
-        if (controller_) controller_->setFontScale(val);
-        if (textSizeLabel_) {
-            textSizeLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.textsize_title")) +
+    displayScaleSlider_ = new Md3Slider(displayScaleRow);
+    displayScaleSlider_->setFixedHeight(webclip::scale::px(32));
+    displayScaleSlider_->setRange(0.75, 1.40);
+    displayScaleSlider_->setSteps(14);
+    displayScaleSlider_->setValue(currentScale <= 0.0 ? 1.0 : currentScale);
+    connect(displayScaleSlider_, &Md3Slider::valueChanged, this, [this](double val) {
+        if (controller_) controller_->setDisplayScale(val);
+        if (displayScaleLabel_) {
+            displayScaleLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.displayscale_title")) +
                                    QStringLiteral(": ") + QString::number(qRound(val * 100)) + QStringLiteral("%"));
         }
+        if (restartNoticeWidget_) {
+            restartNoticeWidget_->setVisible(true);
+        }
     });
-    textSizeRowLayout->addWidget(textSizeSlider_);
+    displayScaleRowLayout->addWidget(displayScaleSlider_);
 
-    textSizeCard_->addRow(textSizeRow);
-    mainLayout_->addWidget(textSizeCard_);
+    displayScaleCard_->addRow(displayScaleRow);
+    mainLayout_->addWidget(displayScaleCard_);
+
+    // Restart notice row
+    restartNoticeWidget_ = new QWidget(scrollContent_);
+    auto* restartLayout = new QHBoxLayout(restartNoticeWidget_);
+    restartLayout->setContentsMargins(webclip::scale::px(4), 0, webclip::scale::px(4), 0);
+    restartLayout->setSpacing(webclip::scale::px(8));
+
+    restartNoticeLabel_ = new QLabel(restartNoticeWidget_);
+    restartNoticeLabel_->setFont(theme->bodySmall());
+    restartNoticeLabel_->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurfaceVariant().name()));
+    restartNoticeLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.displayscale_restart_hint")));
+
+    restartNowBtn_ = new Md3Button(
+        restartNoticeWidget_,
+        webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.btn_restart")),
+        ButtonVariant::Tonal
+    );
+    restartNowBtn_->setFixedHeight(webclip::scale::px(32));
+    restartNowBtn_->addClickHandler([this] {
+        if (controller_) controller_->restartApplication();
+    });
+
+    restartLayout->addWidget(restartNoticeLabel_, 1);
+    restartLayout->addWidget(restartNowBtn_, 0);
+    restartNoticeWidget_->setVisible(false);
+    mainLayout_->addWidget(restartNoticeWidget_);
 
     // Clear History Button
     clearHistoryBtn_ = new Md3Button(
@@ -595,20 +627,23 @@ void SettingsDialog::setController(webclip::WebClipController* controller) {
         updateAccentSelection();
     });
 
-    connect(controller_, &webclip::WebClipController::fontScaleChanged, this, [this] {
-        if (controller_ && textSizeSlider_) {
-            double s = controller_->fontScale();
-            textSizeSlider_->setValue(s <= 0.0 ? 1.0 : s);
+    connect(controller_, &webclip::WebClipController::displayScaleChanged, this, [this] {
+        if (controller_ && displayScaleSlider_) {
+            double s = controller_->displayScale();
+            displayScaleSlider_->setValue(s <= 0.0 ? 1.0 : s);
         }
-        if (textSizeLabel_) {
-            double s = controller_ ? controller_->fontScale() : 0.0;
+        if (displayScaleLabel_) {
+            double s = controller_ ? controller_->displayScale() : 0.0;
             if (s <= 0.0) {
-                textSizeLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.textsize_title")) +
-                                       QStringLiteral(": ") + webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.textsize_auto")));
+                displayScaleLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.displayscale_title")) +
+                                       QStringLiteral(": ") + webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.displayscale_auto")));
             } else {
-                textSizeLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.textsize_title")) +
+                displayScaleLabel_->setText(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.displayscale_title")) +
                                        QStringLiteral(": ") + QString::number(qRound(s * 100)) + QStringLiteral("%"));
             }
+        }
+        if (restartNoticeWidget_) {
+            restartNoticeWidget_->setVisible(true);
         }
     });
 
@@ -743,10 +778,11 @@ void SettingsDialog::updateLayout() {
     const int sheetY = height() - static_cast<int>(sheetH * progress_);
     sheet_->setGeometry(0, sheetY, width(), sheetH);
 
-    headerBar_->setGeometry(0, 0, sheet_->width(), 56);
-    closeBtn_->move(sheet_->width() - 16 - closeBtn_->width(), (56 - closeBtn_->height()) / 2);
+    const int headerH = webclip::scale::px(56);
+    headerBar_->setGeometry(0, 0, sheet_->width(), headerH);
+    closeBtn_->move(sheet_->width() - webclip::scale::px(16) - closeBtn_->width(), (headerH - closeBtn_->height()) / 2);
 
-    scrollArea_->setGeometry(0, 56, sheet_->width(), sheet_->height() - 56);
+    scrollArea_->setGeometry(0, headerH, sheet_->width(), sheet_->height() - headerH);
 
     if (colorPicker_) {
         colorPicker_->setGeometry(rect());
@@ -779,12 +815,12 @@ void SettingsDialog::paintEvent(QPaintEvent* /*e*/) {
     // 1. Dimmed backdrop
     p.fillRect(rect(), QColor(0, 0, 0, 115));
 
-    // 2. Sheet background with 28px rounded corners matching MainWindow container
+    // 2. Sheet background matching MainWindow container
     auto* theme = webclip::MD3Theme::instance();
     const QRectF sheetRect(sheet_->geometry());
 
     QPainterPath sheetPath;
-    sheetPath.addRoundedRect(sheetRect, 18.0, 18.0);
+    sheetPath.addRoundedRect(sheetRect, webclip::scale::pxF(18.0), webclip::scale::pxF(18.0));
 
     p.setPen(Qt::NoPen);
     p.setBrush(theme->surface());
@@ -793,11 +829,12 @@ void SettingsDialog::paintEvent(QPaintEvent* /*e*/) {
     // 3. Header title
     p.setFont(theme->titleMedium());
     p.setPen(theme->onSurface());
-    p.drawText(QPointF(20, sheetRect.top() + 35), webclip::I18n::instance()->tr(QStringLiteral("settings.title")));
+    p.drawText(QPointF(webclip::scale::pxF(20), sheetRect.top() + webclip::scale::pxF(35)), webclip::I18n::instance()->tr(QStringLiteral("settings.title")));
 
     // 4. Header bottom divider
+    const qreal divY = sheetRect.top() + webclip::scale::pxF(55);
     p.setPen(theme->outlineVariant());
-    p.drawLine(0, sheetRect.top() + 55, width(), sheetRect.top() + 55);
+    p.drawLine(0, divY, width(), divY);
 }
 
 } // namespace Ui

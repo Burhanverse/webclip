@@ -2,6 +2,7 @@
 #include "icon_loader.hpp"
 #include "../basic/painter_helpers.hpp"
 #include "../../theme/md3_theme.hpp"
+#include "../../util/display_scale.hpp"
 
 #include <QtGui/QFontMetrics>
 #include <QtGui/QPainter>
@@ -13,7 +14,7 @@ Md3Badge::Md3Badge(QWidget* parent, const QString& text, const QString& iconName
     , text_(text)
     , iconName_(iconName) {
     setFont(webclip::MD3Theme::instance()->labelSmall());
-    setFixedHeight(28);
+    setFixedHeight(webclip::scale::px(28));
 }
 
 Md3Badge::~Md3Badge() = default;
@@ -52,13 +53,13 @@ QSize Md3Badge::sizeHint() const {
     const QFontMetrics fm(font());
     int contentW = 0;
     if (!iconName_.isEmpty()) {
-        contentW += 14;
-        if (!text_.isEmpty()) contentW += 6;
+        contentW += webclip::scale::px(14);
+        if (!text_.isEmpty()) contentW += webclip::scale::px(6);
     }
     if (!text_.isEmpty()) {
         contentW += fm.horizontalAdvance(text_);
     }
-    return QSize(contentW + 20, 28);
+    return QSize(contentW + webclip::scale::px(20), webclip::scale::px(28));
 }
 
 void Md3Badge::paintEvent(QPaintEvent* /*e*/) {
@@ -72,12 +73,12 @@ void Md3Badge::paintEvent(QPaintEvent* /*e*/) {
     // 1. Draw capsule background
     p.setPen(Qt::NoPen);
     p.setBrush(bg);
-    p.drawRoundedRect(rect(), 14.0, 14.0);
+    p.drawRoundedRect(rect(), height() / 2.0, height() / 2.0);
 
     // 2. Centered content (icon + text)
     const QFontMetrics fm(font());
-    const int iconSize = 14;
-    const int spacing = (!iconName_.isEmpty() && !text_.isEmpty()) ? 6 : 0;
+    const int iconSize = webclip::scale::px(14);
+    const int spacing = (!iconName_.isEmpty() && !text_.isEmpty()) ? webclip::scale::px(6) : 0;
     const int textW = text_.isEmpty() ? 0 : fm.horizontalAdvance(text_);
     const int totalW = (iconName_.isEmpty() ? 0 : iconSize) + spacing + textW;
 

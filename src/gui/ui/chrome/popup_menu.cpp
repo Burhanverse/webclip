@@ -2,6 +2,7 @@
 #include "../basic/painter_helpers.hpp"
 #include "../md3/icon_loader.hpp"
 #include "../../theme/md3_theme.hpp"
+#include "../../util/display_scale.hpp"
 
 #include <QtGui/QFontMetrics>
 #include <QtGui/QKeyEvent>
@@ -51,22 +52,24 @@ void PopupMenu::addSeparator() {
 
 void PopupMenu::updateGeometryAndMask() {
     const QFontMetrics fm(font());
-    int maxTextWidth = 140;
+    int maxTextWidth = webclip::scale::px(140);
     for (const auto& item : items_) {
         if (!item.isSeparator) {
-            maxTextWidth = std::max(maxTextWidth, fm.horizontalAdvance(item.text) + 60);
+            maxTextWidth = std::max(maxTextWidth, fm.horizontalAdvance(item.text) + webclip::scale::px(60));
         }
     }
 
+    const int shadowMargin = webclip::scale::px(kShadowMargin);
+    const int itemHeight = webclip::scale::px(kItemHeight);
     const int contentWidth = maxTextWidth;
-    int currentY = kShadowMargin + 8;
+    int currentY = shadowMargin + webclip::scale::px(8);
 
     for (auto& item : items_) {
         if (item.isSeparator) {
-            item.rect = QRect(kShadowMargin + 8, currentY + 4, contentWidth - 16, 1);
-            currentY += 9;
+            item.rect = QRect(shadowMargin + webclip::scale::px(8), currentY + webclip::scale::px(4), contentWidth - webclip::scale::px(16), 1);
+            currentY += webclip::scale::px(9);
         } else {
-            item.rect = QRect(kShadowMargin + 4, currentY, contentWidth - 8, kItemHeight);
+            item.rect = QRect(shadowMargin + webclip::scale::px(4), currentY, contentWidth - webclip::scale::px(8), itemHeight);
             if (!item.ripple) {
                 RippleConfig cfg;
                 cfg.color = webclip::MD3Theme::instance()->primary();
@@ -74,17 +77,17 @@ void PopupMenu::updateGeometryAndMask() {
                 cfg.hideDuration = 250;
                 item.ripple = std::make_unique<RippleAnimation>(
                     cfg,
-                    RippleAnimation::RoundRectMask(item.rect.size(), 6),
+                    RippleAnimation::RoundRectMask(item.rect.size(), webclip::scale::px(6)),
                     [this] { update(); }
                 );
             }
-            currentY += kItemHeight;
+            currentY += itemHeight;
         }
     }
 
-    currentY += 8; // bottom padding
-    const int totalWidth = contentWidth + 2 * kShadowMargin;
-    const int totalHeight = currentY + kShadowMargin;
+    currentY += webclip::scale::px(8); // bottom padding
+    const int totalWidth = contentWidth + 2 * shadowMargin;
+    const int totalHeight = currentY + shadowMargin;
     resize(totalWidth, totalHeight);
 }
 
@@ -99,7 +102,8 @@ int PopupMenu::itemUnderPoint(const QPoint& pos) const {
 
 void PopupMenu::popup(const QPoint& globalPos) {
     updateGeometryAndMask();
-    move(globalPos.x() - kShadowMargin, globalPos.y() - kShadowMargin);
+    const int shadowMargin = webclip::scale::px(kShadowMargin);
+    move(globalPos.x() - shadowMargin, globalPos.y() - shadowMargin);
     show();
 
     openAnimation_.start(
@@ -168,29 +172,31 @@ void PopupMenu::paintEvent(QPaintEvent* /*e*/) {
     ScopedPainterOpacity op(p, openProgress_);
 
     auto* theme = webclip::MD3Theme::instance();
+    const int shadowMargin = webclip::scale::px(kShadowMargin);
+    const qreal cornerRadius = webclip::scale::pxF(kCornerRadius);
     const QRectF innerRect(
-        kShadowMargin,
-        kShadowMargin,
-        width() - 2 * kShadowMargin,
-        height() - 2 * kShadowMargin
+        shadowMargin,
+        shadowMargin,
+        width() - 2 * shadowMargin,
+        height() - 2 * shadowMargin
     );
 
     // 1. Soft client-side ambient drop shadow
-    for (int i = 0; i < kShadowMargin; ++i) {
-        const double shadowOpacity = 0.015 * (kShadowMargin - i);
+    for (int i = 0; i < shadowMargin; ++i) {
+        const double shadowOpacity = 0.015 * (shadowMargin - i);
         p.setPen(Qt::NoPen);
         p.setBrush(QColor(0, 0, 0, static_cast<int>(shadowOpacity * 255)));
         p.drawRoundedRect(
             innerRect.adjusted(-i, -i, i, i),
-            kCornerRadius + i,
-            kCornerRadius + i
+            cornerRadius + i,
+            cornerRadius + i
         );
     }
 
     // 2. Container background & 1px outline
     p.setPen(QPen(theme->outlineVariant(), 1.0));
     p.setBrush(theme->surfaceContainer());
-    p.drawRoundedRect(innerRect, kCornerRadius, kCornerRadius);
+    p.drawRoundedRect(innerRect, cornerRadius, cornerRadius);
 
     // 3. Menu items
     const QFontMetrics fm(font());
@@ -206,7 +212,7 @@ void PopupMenu::paintEvent(QPaintEvent* /*e*/) {
         if (static_cast<int>(i) == hoveredIndex_) {
             p.setPen(Qt::NoPen);
             p.setBrush(QColor(theme->primary().red(), theme->primary().green(), theme->primary().blue(), 20));
-            p.drawRoundedRect(item.rect, 6, 6);
+            p.drawRoundedRect(item.rect, webclip::scale::pxF(6.0), webclip::scale::pxF(6.0));
         }
 
         // Ripple
@@ -216,12 +222,12 @@ void PopupMenu::paintEvent(QPaintEvent* /*e*/) {
         }
 
         // Icon
-        int textX = item.rect.x() + 12;
+        int textX = item.rect.x() + webclip::scale::px(12);
         if (!item.iconName.isEmpty()) {
-            const int iconSize = 18;
+            const int iconSize = webclip::scale::px(18);
             const int iconY = item.rect.y() + (item.rect.height() - iconSize) / 2;
             IconLoader::paint(p, item.iconName, QRectF(textX, iconY, iconSize, iconSize), theme->onSurfaceVariant());
-            textX += iconSize + 10;
+            textX += iconSize + webclip::scale::px(10);
         }
 
         // Text

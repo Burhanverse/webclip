@@ -57,8 +57,10 @@
       "mode_pitch_black": "Pitch Black",
       "accent_color": "Accent Color",
       "accent_custom": "Custom",
-      "textsize_title": "Font Size",
-      "textsize_auto": "System (Auto)",
+      "displayscale_title": "Display Scale",
+      "displayscale_auto": "Auto (System)",
+      "displayscale_restart_hint": "Restart required to apply new scale",
+      "btn_restart": "Restart Now",
       "clipboard_engine": "Clipboard Engine",
       "btn_clear_history": "Clear All History"
     },

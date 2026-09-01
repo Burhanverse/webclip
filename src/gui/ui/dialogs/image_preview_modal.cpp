@@ -1,5 +1,6 @@
 #include "image_preview_modal.hpp"
 #include "../basic/painter_helpers.hpp"
+#include "../../util/display_scale.hpp"
 
 #include <QtGui/QKeyEvent>
 #include <QtGui/QMouseEvent>
@@ -12,7 +13,7 @@ ImagePreviewModal::ImagePreviewModal(QWidget* parent)
     hide();
     setFocusPolicy(Qt::StrongFocus);
 
-    closeBtn_ = new Md3IconButton(this, QStringLiteral("close"), 40, 22);
+    closeBtn_ = new Md3IconButton(this, QStringLiteral("close"), webclip::scale::px(40), webclip::scale::px(22));
     closeBtn_->setCustomBgColor(QColor(255, 255, 255, 38));
     closeBtn_->setIconColor(Qt::white);
     closeBtn_->addClickHandler([this] {
@@ -72,7 +73,7 @@ void ImagePreviewModal::resizeEvent(QResizeEvent* e) {
 }
 
 void ImagePreviewModal::updateLayout() {
-    closeBtn_->move(width() - 16 - closeBtn_->width(), 16);
+    closeBtn_->move(width() - webclip::scale::px(16) - closeBtn_->width(), webclip::scale::px(16));
 }
 
 void ImagePreviewModal::mousePressEvent(QMouseEvent* e) {
@@ -102,8 +103,8 @@ void ImagePreviewModal::paintEvent(QPaintEvent* /*e*/) {
 
     // 2. Centered image preserved aspect ratio
     if (!pixmap_.isNull()) {
-        const int maxW = width() - 48;
-        const int maxH = height() - 80;
+        const int maxW = width() - webclip::scale::px(48);
+        const int maxH = height() - webclip::scale::px(80);
         const QSize scaledSize = pixmap_.size().scaled(maxW, maxH, Qt::KeepAspectRatio);
 
         const int imgX = (width() - scaledSize.width()) / 2;

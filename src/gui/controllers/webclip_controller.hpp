@@ -38,7 +38,7 @@ class WebClipController : public QObject {
     Q_PROPERTY(int themeMode READ themeMode WRITE setThemeMode NOTIFY themeModeChanged)
     Q_PROPERTY(QString accentPreset READ accentPreset WRITE setAccentPreset NOTIFY accentPresetChanged)
     Q_PROPERTY(QColor customColor READ customColor WRITE setCustomColor NOTIFY customColorChanged)
-    Q_PROPERTY(double fontScale READ fontScale WRITE setFontScale NOTIFY fontScaleChanged)
+    Q_PROPERTY(double displayScale READ displayScale WRITE setDisplayScale NOTIFY displayScaleChanged)
     Q_PROPERTY(ClipboardHistoryModel* clipModel READ clipModel CONSTANT)
     Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
     Q_PROPERTY(QString qtVersion READ qtVersion CONSTANT)
@@ -61,7 +61,7 @@ public:
     int themeMode() const { return themeMode_; }
     QString accentPreset() const { return accentPreset_; }
     QColor customColor() const { return customColor_; }
-    double fontScale() const { return fontScale_; }
+    double displayScale() const { return displayScale_; }
     ClipboardHistoryModel* clipModel() { return &clipModel_; }
     QString appVersion() const { return QString::fromUtf8(VERSION_STRING.data(), VERSION_STRING.size()); }
     QString qtVersion() const { return QString::fromLatin1(qVersion()); }
@@ -79,7 +79,8 @@ public:
     Q_INVOKABLE void setThemeMode(int mode);
     Q_INVOKABLE void setAccentPreset(const QString& preset);
     Q_INVOKABLE void setCustomColor(const QColor& color);
-    Q_INVOKABLE void setFontScale(double scale);
+    Q_INVOKABLE void setDisplayScale(double scale);
+    Q_INVOKABLE void restartApplication();
 
     Q_INVOKABLE void connectToPortal();
     Q_INVOKABLE void disconnectFromPortal();
@@ -110,7 +111,7 @@ signals:
     void themeModeChanged();
     void accentPresetChanged();
     void customColorChanged();
-    void fontScaleChanged();
+    void displayScaleChanged();
     void clipReceived(const QString& text, const QString& source);
     void showToast(const QString& message, bool isError);
     void minimizedToTray();
@@ -144,7 +145,7 @@ private:
     int themeMode_ = 0;
     QString accentPreset_ = "purple";
     QColor customColor_ = QColor("#6750A4");
-    double fontScale_ = 0.0;
+    double displayScale_ = 0.0;
 
     ClipboardHistoryModel clipModel_;
     std::unique_ptr<IClipboard> nativeClipboard_;

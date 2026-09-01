@@ -92,11 +92,13 @@ private:
     std::vector<AccentPill*> accentPills_;
     AccentPill* customAccentPill_ = nullptr;
 
-    CardContainer* textSizeCard_ = nullptr;
-    QLabel* textSizeLabel_ = nullptr;
-    Md3IconButton* resetTextSizeBtn_ = nullptr;
-    Md3Slider* textSizeSlider_ = nullptr;
-    Md3Button* textSizeAutoBtn_ = nullptr;
+    CardContainer* displayScaleCard_ = nullptr;
+    QLabel* displayScaleLabel_ = nullptr;
+    Md3IconButton* resetDisplayScaleBtn_ = nullptr;
+    Md3Slider* displayScaleSlider_ = nullptr;
+    QWidget* restartNoticeWidget_ = nullptr;
+    QLabel* restartNoticeLabel_ = nullptr;
+    Md3Button* restartNowBtn_ = nullptr;
 
     Md3Button* clearHistoryBtn_ = nullptr;
 

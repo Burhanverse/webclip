@@ -3,6 +3,7 @@
 #include "../md3/icon_loader.hpp"
 #include "../../theme/md3_theme.hpp"
 #include "../../util/i18n.hpp"
+#include "../../util/display_scale.hpp"
 #include "../../controllers/webclip_controller.hpp"
 
 #include <QtGui/QPainter>
@@ -14,11 +15,11 @@ namespace Ui {
 HeaderBar::HeaderBar(QWidget* parent, webclip::WebClipController* controller)
     : RpWidget(parent)
     , controller_(controller) {
-    setFixedHeight(58);
+    setFixedHeight(webclip::scale::px(58));
 
-    syncBtn_ = new Md3IconButton(this, QStringLiteral("sync"), 34, 18);
-    themeBtn_ = new Md3IconButton(this, QStringLiteral("dark_mode"), 34, 18);
-    settingsBtn_ = new Md3IconButton(this, QStringLiteral("settings"), 34, 18);
+    syncBtn_ = new Md3IconButton(this, QStringLiteral("sync"), webclip::scale::px(34), webclip::scale::px(18));
+    themeBtn_ = new Md3IconButton(this, QStringLiteral("dark_mode"), webclip::scale::px(34), webclip::scale::px(18));
+    settingsBtn_ = new Md3IconButton(this, QStringLiteral("settings"), webclip::scale::px(34), webclip::scale::px(18));
 
     syncBtn_->addClickHandler([this] {
         if (controller_) controller_->toggleConnection();
@@ -120,9 +121,9 @@ void HeaderBar::resizeEvent(QResizeEvent* e) {
 }
 
 void HeaderBar::updateLayout() {
-    const int btnSize = 34;
-    const int spacing = 4;
-    const int rightMargin = 12;
+    const int btnSize = webclip::scale::px(34);
+    const int spacing = webclip::scale::px(4);
+    const int rightMargin = webclip::scale::px(12);
     const int y = (height() - btnSize) / 2;
 
     int rightX = width() - rightMargin - btnSize;
@@ -142,7 +143,7 @@ void HeaderBar::mousePressEvent(QMouseEvent* e) {
             return;
         }
 
-        const QRect connArea(16, 6, 200, 46);
+        const QRect connArea(webclip::scale::px(16), webclip::scale::px(6), webclip::scale::px(200), webclip::scale::px(46));
         if (connArea.contains(e->pos()) && controller_) {
             e->accept();
             controller_->toggleConnection();
@@ -163,10 +164,10 @@ void HeaderBar::paintEvent(QPaintEvent* /*e*/) {
     PainterHighQualityEnabler hq(p);
     auto* theme = webclip::MD3Theme::instance();
 
-    const QRectF avatarRect(16, 10, 38, 38);
+    const QRectF avatarRect(webclip::scale::pxF(16), webclip::scale::pxF(10), webclip::scale::pxF(38), webclip::scale::pxF(38));
     IconLoader::paint(p, QStringLiteral("webclip"), avatarRect);
 
-    const QRectF dotRect(44, 38, 10, 10);
+    const QRectF dotRect(webclip::scale::pxF(44), webclip::scale::pxF(38), webclip::scale::pxF(10), webclip::scale::pxF(10));
     QColor dotColor;
     if (controller_ && controller_->connected()) {
         dotColor = QColor(QStringLiteral("#4CAF50"));
@@ -178,18 +179,18 @@ void HeaderBar::paintEvent(QPaintEvent* /*e*/) {
 
     if (controller_ && controller_->connecting()) {
         ScopedPainterOpacity op(p, pulseOpacity_);
-        p.setPen(QPen(theme->surface(), 1.5));
+        p.setPen(QPen(theme->surface(), webclip::scale::pxF(1.5)));
         p.setBrush(dotColor);
         p.drawEllipse(dotRect);
     } else {
-        p.setPen(QPen(theme->surface(), 1.5));
+        p.setPen(QPen(theme->surface(), webclip::scale::pxF(1.5)));
         p.setBrush(dotColor);
         p.drawEllipse(dotRect);
     }
 
     p.setFont(theme->titleSmall());
     p.setPen(theme->onSurface());
-    p.drawText(QPointF(66, 24), webclip::I18n::instance()->tr(QStringLiteral("app.header_title")));
+    p.drawText(QPointF(webclip::scale::pxF(66), webclip::scale::pxF(24)), webclip::I18n::instance()->tr(QStringLiteral("app.header_title")));
 
     QString statusText;
     QColor statusColor;
@@ -206,7 +207,7 @@ void HeaderBar::paintEvent(QPaintEvent* /*e*/) {
 
     p.setFont(theme->labelSmall());
     p.setPen(statusColor);
-    p.drawText(QPointF(66, 42), statusText);
+    p.drawText(QPointF(webclip::scale::pxF(66), webclip::scale::pxF(42)), statusText);
 
     p.setPen(theme->outlineVariant());
     p.drawLine(0, height() - 1, width(), height() - 1);

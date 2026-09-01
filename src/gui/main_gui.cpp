@@ -23,6 +23,7 @@
 #endif
 #include "util/tray_icon_manager.hpp"
 #include "util/style_core_font.hpp"
+#include "util/display_scale.hpp"
 #include "theme/md3_theme.hpp"
 #include "controllers/webclip_controller.hpp"
 #include "util/cli.hpp"
@@ -344,11 +345,21 @@ int main(int argc, char* argv[]) {
 
     webclip::font::initFonts();
 
-    double appFontScale = webclip::font::detectSystemFontScale();
-    appFontScale = (std::clamp)(appFontScale, 0.75, 2.50);
+    double initialAppScale = 0.0;
+    {
+        QSettings persisted("Burhanverse", "WebClip");
+        if (persisted.contains("displayScale")) {
+            initialAppScale = persisted.value("displayScale", 0.0).toDouble();
+        } else if (persisted.contains("fontScale")) {
+            initialAppScale = persisted.value("fontScale", 0.0).toDouble();
+        }
+    }
+    if (initialAppScale > 0.0) {
+        initialAppScale = (std::clamp)(initialAppScale, 0.75, 1.40);
+    }
+    webclip::scale::set(initialAppScale);
 
-    const int basePx = (std::max)(8, qRound(14 * appFontScale));
-    QFont baseFont = webclip::font::createFont(basePx, QFont::Normal);
+    QFont baseFont = webclip::scale::font(14, QFont::Normal);
     app.setFont(baseFont);
 
     {
@@ -405,9 +416,9 @@ int main(int argc, char* argv[]) {
 
         QString systemFontDetails;
         double detectedScale = webclip::font::detectSystemFontScale(&systemFontDetails);
-        WEBCLIP_LOG(QStringLiteral("System Font Scale: detected=") + QString::number(detectedScale, 'f', 2) +
-                    QStringLiteral("x applied=") + QString::number(appFontScale, 'f', 2) +
-                    QStringLiteral("x | ") + systemFontDetails);
+        WEBCLIP_LOG(QStringLiteral("Display Scale: active=") + QString::number(webclip::scale::current(), 'f', 2) +
+                    QStringLiteral("x (system detected=") + QString::number(detectedScale, 'f', 2) +
+                    QStringLiteral("x | ") + systemFontDetails + QStringLiteral(")"));
 
         WEBCLIP_LOG(QStringLiteral("==================================="));
     }
@@ -458,27 +469,6 @@ int main(int argc, char* argv[]) {
     }
 
     auto* controller = new webclip::WebClipController(&app);
-
-    {
-        double initialScale = controller->fontScale() > 0.0
-            ? controller->fontScale()
-            : webclip::font::detectSystemFontScale();
-        initialScale = (std::clamp)(initialScale, 0.75, 2.50);
-        const int initialPx = (std::max)(8, qRound(14 * initialScale));
-        QFont initialFont = webclip::font::createFont(initialPx, QFont::Normal);
-        app.setFont(initialFont);
-
-        QObject::connect(controller, &webclip::WebClipController::fontScaleChanged, &app, [&app, controller]() {
-            double v = controller->fontScale() > 0.0
-                ? controller->fontScale()
-                : webclip::font::detectSystemFontScale();
-            v = (std::clamp)(v, 0.75, 2.50);
-            const int px = (std::max)(8, qRound(14 * v));
-            QFont f = webclip::font::createFont(px, QFont::Normal);
-            app.setFont(f);
-        });
-    }
-
     auto* mainWindow = new Ui::MainWindow(nullptr, controller);
     auto trayManager = std::make_unique<webclip::TrayIconManager>(controller);
     trayManager->setMainWindow(mainWindow);

@@ -3,6 +3,7 @@
 #include "../md3/icon_loader.hpp"
 #include "../../theme/md3_theme.hpp"
 #include "../../util/i18n.hpp"
+#include "../../util/display_scale.hpp"
 #include "../../models/clipboard_history_model.hpp"
 #include "../../controllers/webclip_controller.hpp"
 #include "../../clips/bubble_corners.hpp"
@@ -299,17 +300,19 @@ void ClipWidget::relayoutAll() {
 }
 
 void ClipWidget::repositionFrom(int index) {
-    int curY = (index == 0) ? kTopMargin : (elements_[index - 1]->y() + elements_[index - 1]->height() + kSpacing);
+    const int topMargin = webclip::scale::px(12);
+    const int spacing = webclip::scale::px(10);
+    int curY = (index == 0) ? topMargin : (elements_[index - 1]->y() + elements_[index - 1]->height() + spacing);
     for (int i = index; i < static_cast<int>(elements_.size()); ++i) {
         elements_[i]->setY(curY);
-        curY += elements_[i]->height() + kSpacing;
+        curY += elements_[i]->height() + spacing;
     }
 }
 
 int ClipWidget::contentHeight() const {
     if (elements_.empty()) return 0;
     const auto& last = elements_.back();
-    return last->y() + last->height() + kBottomMargin;
+    return last->y() + last->height() + webclip::scale::px(12);
 }
 
 int ClipWidget::maxScroll() const {
@@ -575,12 +578,12 @@ QRectF ClipWidget::scrollbarThumbRect() const {
     if (ch <= vh || vh <= 0) return QRectF();
 
     const double ratio = static_cast<double>(vh) / ch;
-    const double thumbH = std::max(24.0, vh * ratio);
+    const double thumbH = std::max(webclip::scale::pxF(24.0), vh * ratio);
     const double maxScrollVal = maxScroll();
     const double scrollRatio = (maxScrollVal > 0) ? std::clamp(static_cast<double>(scrollY_) / maxScrollVal, 0.0, 1.0) : 0.0;
     const double thumbY = scrollRatio * (vh - thumbH);
 
-    return QRectF(width() - 6.0, thumbY, 4.0, thumbH);
+    return QRectF(width() - webclip::scale::pxF(6.0), thumbY, webclip::scale::pxF(4.0), thumbH);
 }
 
 void ClipWidget::paintScrollbar(QPainter* p) {
@@ -591,7 +594,7 @@ void ClipWidget::paintScrollbar(QPainter* p) {
     ScopedPainterOpacity op(*p, scrollbarOpacity_);
     p->setPen(Qt::NoPen);
     p->setBrush(webclip::MD3Theme::instance()->outline());
-    p->drawRoundedRect(r, 2.0, 2.0);
+    p->drawRoundedRect(r, webclip::scale::pxF(2.0), webclip::scale::pxF(2.0));
 }
 
 void ClipWidget::onElementImageDecoded(const QString& clipId, const QString& sourceKey, const QImage& image) {
@@ -759,24 +762,24 @@ void ClipWidget::paintEvent(QPaintEvent* e) {
     if (elements_.empty()) {
         auto* theme = webclip::MD3Theme::instance();
         const int cx = width() / 2;
-        const int cy = height() / 2 - 20;
+        const int cy = height() / 2 - webclip::scale::px(20);
 
-        const QRectF avatarRect(cx - 28, cy - 40, 56, 56);
+        const QRectF avatarRect(cx - webclip::scale::pxF(28), cy - webclip::scale::pxF(40), webclip::scale::pxF(56), webclip::scale::pxF(56));
         p.setPen(Qt::NoPen);
         p.setBrush(theme->primaryContainer());
         p.drawEllipse(avatarRect);
 
-        IconLoader::paint(p, QStringLiteral("phone"), QRectF(cx - 13, cy - 25, 26, 26), theme->onPrimaryContainer());
+        IconLoader::paint(p, QStringLiteral("phone"), QRectF(cx - webclip::scale::pxF(13), cy - webclip::scale::pxF(25), webclip::scale::pxF(26), webclip::scale::pxF(26)), theme->onPrimaryContainer());
 
         p.setFont(theme->titleSmall());
         p.setPen(theme->onSurface());
         const QString emptyTitle = webclip::I18n::instance()->tr(QStringLiteral("chat.empty_title"));
-        p.drawText(QRectF(16, cy + 28, width() - 32, 24), Qt::AlignCenter, emptyTitle);
+        p.drawText(QRectF(webclip::scale::pxF(16), cy + webclip::scale::pxF(28), width() - webclip::scale::pxF(32), webclip::scale::pxF(24)), Qt::AlignCenter, emptyTitle);
 
         p.setFont(theme->bodySmall());
         p.setPen(theme->onSurfaceVariant());
         const QString emptySub = webclip::I18n::instance()->tr(QStringLiteral("chat.empty_subtitle"));
-        p.drawText(QRectF(16, cy + 52, width() - 32, 20), Qt::AlignCenter, emptySub);
+        p.drawText(QRectF(webclip::scale::pxF(16), cy + webclip::scale::pxF(52), width() - webclip::scale::pxF(32), webclip::scale::pxF(20)), Qt::AlignCenter, emptySub);
     } else {
         const QRect dirtyRect = e->region().boundingRect();
         renderContent(p, dirtyRect);

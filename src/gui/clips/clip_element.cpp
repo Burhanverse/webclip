@@ -18,27 +18,28 @@
 #include "../theme/md3_theme.hpp"
 #include "../ui/md3/icon_loader.hpp"
 #include "../util/i18n.hpp"
+#include "../util/display_scale.hpp"
 #include "bubble_corners.hpp"
 
 namespace webclip {
 
 namespace {
 
-constexpr qreal kBubbleRadius = 18.0;
-constexpr qreal kTailSpace = 6.0;
-constexpr qreal kContentHPad = 12.0;
-constexpr qreal kVPad = 8.0;
-constexpr qreal kSectionSpacing = 4.0;
-constexpr qreal kMetaRowHeight = 22.0;
-constexpr qreal kButtonSize = 22.0;
-constexpr qreal kIconSize = 14.0;
-constexpr qreal kButtonSpacing = 4.0;
-constexpr qreal kChipHeight = 24.0;
-constexpr qreal kImageMaxH = 260.0;
-constexpr qreal kCollapsedTextHeight = 85.0;
+inline qreal kBubbleRadius() { return scale::pxF(18.0); }
+inline qreal kTailSpace() { return scale::pxF(6.0); }
+inline qreal kContentHPad() { return scale::pxF(12.0); }
+inline qreal kVPad() { return scale::pxF(8.0); }
+inline qreal kSectionSpacing() { return scale::pxF(4.0); }
+inline qreal kMetaRowHeight() { return scale::pxF(22.0); }
+inline qreal kButtonSize() { return scale::pxF(22.0); }
+inline qreal kIconSize() { return scale::pxF(14.0); }
+inline qreal kButtonSpacing() { return scale::pxF(4.0); }
+inline qreal kChipHeight() { return scale::pxF(24.0); }
+inline qreal kImageMaxH() { return scale::pxF(260.0); }
+inline qreal kCollapsedTextHeight() { return scale::pxF(85.0); }
 
 QPixmap iconPixmap(const QString& name, const QColor& color, qreal dpr) {
-    return Ui::IconLoader::loadPixmap(name, static_cast<int>(kIconSize), color, dpr);
+    return Ui::IconLoader::loadPixmap(name, static_cast<int>(kIconSize()), color, dpr);
 }
 
 QString actionIconName(ClipElement::Zone zone) {
@@ -187,23 +188,23 @@ void ClipElement::refreshTheme() {
 }
 
 qreal ClipElement::actionsPillWidth() const {
-    qreal w = 8.0;
+    qreal w = scale::pxF(8.0);
     for (const ActionButton& b : buttons_) {
-        if (b.visible) w += kButtonSize + kButtonSpacing;
+        if (b.visible) w += kButtonSize() + kButtonSpacing();
     }
-    return qMax<qreal>(8.0, w - kButtonSpacing);
+    return qMax<qreal>(scale::pxF(8.0), w - kButtonSpacing());
 }
 
 ClipElement::Metrics ClipElement::computeMetrics(int containerWidth) const {
     Metrics m;
-    const qreal avail = containerWidth - 32;  // old page margins (16 each side)
+    const qreal avail = containerWidth - scale::pxF(32.0);  // old page margins (16 each side)
     m.maxBubbleWidth = avail * 0.84;
-    m.totalHPad = kTailSpace + kContentHPad * 2;
+    m.totalHPad = kTailSpace() + kContentHPad() * 2;
 
     QFontMetricsF timeFm(timeFont_);
     const qreal pillWidth = actionsPillWidth();
     const qreal metaNeeded =
-        timeFm.horizontalAdvance(timeString_) + pillWidth + 24.0 + m.totalHPad;
+        timeFm.horizontalAdvance(timeString_) + pillWidth + scale::pxF(24.0) + m.totalHPad;
 
     if (isImage_) {
         qreal natW = nativeDims_.width();
@@ -213,23 +214,23 @@ ClipElement::Metrics ClipElement::computeMetrics(int containerWidth) const {
             natH = imageScaled_.height();
         }
         if (natW <= 0 || natH <= 0) {
-            m.bubbleWidth = qMin(m.maxBubbleWidth, 260.0);
+            m.bubbleWidth = qMin(m.maxBubbleWidth, scale::pxF(260.0));
             return m;
         }
 
         const qreal imgMaxW = m.maxBubbleWidth - m.totalHPad;
-        qreal scale = qMin(imgMaxW / natW, kImageMaxH / natH);
-        const qreal minDispW = qMin(160.0, imgMaxW);
-        if (natW * scale < minDispW) scale = minDispW / natW;
-        const qreal dispW = std::max<qreal>(1.0, qRound(natW * scale));
+        qreal scaleRatio = qMin(imgMaxW / natW, kImageMaxH() / natH);
+        const qreal minDispW = qMin(scale::pxF(160.0), imgMaxW);
+        if (natW * scaleRatio < minDispW) scaleRatio = minDispW / natW;
+        const qreal dispW = std::max<qreal>(1.0, qRound(natW * scaleRatio));
 
         const qreal needed =
             std::max(dispW, metaNeeded - m.totalHPad) + m.totalHPad;
         m.bubbleWidth = qMin(m.maxBubbleWidth, needed);
 
         const qreal w2 = m.bubbleWidth - m.totalHPad;
-        qreal s2 = qMin(w2 / natW, kImageMaxH / natH);
-        const qreal minDisp2 = qMin(160.0, w2);
+        qreal s2 = qMin(w2 / natW, kImageMaxH() / natH);
+        const qreal minDisp2 = qMin(scale::pxF(160.0), w2);
         if (natW * s2 < minDisp2) s2 = minDisp2 / natW;
         m.imageDisplaySize = QSizeF(std::max<qreal>(1.0, qRound(natW * s2)),
                                     std::max<qreal>(1.0, qRound(natH * s2)));
@@ -259,19 +260,19 @@ int ClipElement::resizeGetHeight(int containerWidth) {
     updateButtonsVisibility();
     const Metrics m = computeMetrics(containerWidth);
 
-    const qreal leftInset = 16 + 8;
+    const qreal leftInset = scale::pxF(24.0);
     const qreal x = fromPhone_ ? leftInset
                                : containerWidth - leftInset - m.bubbleWidth;
     bubbleRect_ = QRectF(qRound(x), 0, qRound(m.bubbleWidth), 0);
-    lastWrapWidth_ = qMax(40, qRound(m.bubbleWidth) -
+    lastWrapWidth_ = qMax(scale::px(40), qRound(m.bubbleWidth) -
                                   qCeil(m.totalHPad));
 
     const qreal contentX = bubbleRect_.left() +
-                           (fromPhone_ ? kTailSpace + kContentHPad : kContentHPad);
+                           (fromPhone_ ? kTailSpace() + kContentHPad() : kContentHPad());
     const qreal contentW = bubbleRect_.width() - m.totalHPad;
 
-    qreal cy = kVPad;
-    qreal totalH = kVPad;
+    qreal cy = kVPad();
+    qreal totalH = kVPad();
 
     if (isImage_) {
         if (m.imageDisplaySize.width() > 1) {
@@ -281,12 +282,12 @@ int ClipElement::resizeGetHeight(int containerWidth) {
             imageAreaRect_ =
                 QRectF(qRound(contentX + (contentW - imgW) / 2.0), cy, imgW,
                        imgH);
-            cy += imageAreaRect_.height() + kSectionSpacing;
-            totalH += imageAreaRect_.height() + kSectionSpacing;
+            cy += imageAreaRect_.height() + kSectionSpacing();
+            totalH += imageAreaRect_.height() + kSectionSpacing();
         } else {
-            imageAreaRect_ = QRectF(contentX, cy, contentW, 220);
-            cy += 220 + kSectionSpacing;
-            totalH += 220 + kSectionSpacing;
+            imageAreaRect_ = QRectF(contentX, cy, contentW, scale::pxF(220.0));
+            cy += scale::pxF(220.0) + kSectionSpacing();
+            totalH += scale::pxF(220.0) + kSectionSpacing();
         }
         textAreaRect_ = QRectF();
         collapsedLong_ = false;
@@ -295,35 +296,35 @@ int ClipElement::resizeGetHeight(int containerWidth) {
         int textH;
         if (collapsedLong_) {
             text_.heightAt(lastWrapWidth_);
-            textH = qCeil(kCollapsedTextHeight);
+            textH = qCeil(kCollapsedTextHeight());
         } else {
             textH = std::max(text_.heightAt(lastWrapWidth_), 1);
         }
         textAreaRect_ = QRectF(contentX, cy, contentW, textH);
-        cy += textH + kSectionSpacing;
-        totalH += textH + kSectionSpacing;
+        cy += textH + kSectionSpacing();
+        totalH += textH + kSectionSpacing();
         imageAreaRect_ = QRectF();
     }
 
     showExpandChip_ = collapsedLong_;
     if (showExpandChip_) {
         QFont chipFont = timeFont_;
-        chipFont.setPixelSize(11);
+        chipFont.setPixelSize(scale::px(11));
         chipFont.setBold(true);
         const QString label =
             I18n::instance()->tr(QStringLiteral("chat.show_full_clip"));
-        const qreal chipW = QFontMetricsF(chipFont).horizontalAdvance(label) + 24.0;
+        const qreal chipW = QFontMetricsF(chipFont).horizontalAdvance(label) + scale::pxF(24.0);
         expandChipRect_ =
             QRectF(qRound(bubbleRect_.center().x() - chipW / 2.0), cy,
-                   qCeil(chipW), kChipHeight);
-        cy += kChipHeight + kSectionSpacing;
-        totalH += kChipHeight + kSectionSpacing;
+                   qCeil(chipW), kChipHeight());
+        cy += kChipHeight() + kSectionSpacing();
+        totalH += kChipHeight() + kSectionSpacing();
     } else {
         expandChipRect_ = QRectF();
     }
 
-    const qreal metaTop = cy + 2.0;
-    totalH += 2.0 + kMetaRowHeight + kVPad;
+    const qreal metaTop = cy + scale::pxF(2.0);
+    totalH += scale::pxF(2.0) + kMetaRowHeight() + kVPad();
 
     bubbleRect_.setBottom(totalH);
     updateButtonRects(contentX, contentW, metaTop);
@@ -349,14 +350,14 @@ void ClipElement::updateButtonsVisibility() {
 void ClipElement::updateButtonRects(qreal contentX, qreal contentW, qreal metaTop) {
     const qreal pillW = actionsPillWidth();
     const qreal pillX = contentX + contentW - pillW;
-    actionsPillRect_ = QRectF(pillX, metaTop, pillW, kMetaRowHeight);
+    actionsPillRect_ = QRectF(pillX, metaTop, pillW, kMetaRowHeight());
 
-    qreal bx = pillX + 4.0;
-    const qreal by = metaTop + (kMetaRowHeight - kButtonSize) / 2.0;
+    qreal bx = pillX + scale::pxF(4.0);
+    const qreal by = metaTop + (kMetaRowHeight() - kButtonSize()) / 2.0;
     for (ActionButton& b : buttons_) {
         if (!b.visible) continue;
-        b.rect = QRectF(bx, by, kButtonSize, kButtonSize);
-        bx += kButtonSize + kButtonSpacing;
+        b.rect = QRectF(bx, by, kButtonSize(), kButtonSize());
+        bx += kButtonSize() + kButtonSpacing();
     }
 }
 
@@ -375,7 +376,7 @@ void ClipElement::paint(const PaintContext& context) const {
     if (!context.clipItemCoords.intersects(bubbleRect_)) return;
 
     const BubbleTail tail = fromPhone_ ? BubbleTail::Left : BubbleTail::Right;
-    paintBubble(p, bubbleRect_, kBubbleRadius, bubbleColor_, tail, context.dpr);
+    paintBubble(p, bubbleRect_, kBubbleRadius(), bubbleColor_, tail, context.dpr);
 
     MD3Theme* theme = MD3Theme::instance();
 
@@ -383,10 +384,10 @@ void ClipElement::paint(const PaintContext& context) const {
         const QColor containerBg =
             fromPhone_ ? theme->surfaceContainerHigh() : theme->secondaryContainer();
         QPainterPath bgPath;
-        bgPath.addRoundedRect(imageAreaRect_, 12, 12);
+        bgPath.addRoundedRect(imageAreaRect_, scale::pxF(12.0), scale::pxF(12.0));
         p->fillPath(bgPath, containerBg);
         if (imageState_ == ImageReady) {
-            drawRoundedImage(p, imageScaled_, imageAreaRect_, 12);
+            drawRoundedImage(p, imageScaled_, imageAreaRect_, scale::pxF(12.0));
         }
     }
 
@@ -409,7 +410,7 @@ void ClipElement::paint(const PaintContext& context) const {
         if (collapsedLong_) {
             p->setClipRect(textAreaRect_);
             text_.draw(da);
-            const qreal fadeH = 24.0;
+            const qreal fadeH = scale::pxF(24.0);
             QRectF fadeRect(textAreaRect_.left(),
                             textAreaRect_.bottom() - fadeH,
                             textAreaRect_.width(), fadeH);
@@ -434,10 +435,10 @@ void ClipElement::paint(const PaintContext& context) const {
                                          : theme->surfaceContainerLowest();
         p->setPen(Qt::NoPen);
         p->setBrush(chipBg);
-        p->drawRoundedRect(expandChipRect_, 12, 12);
+        p->drawRoundedRect(expandChipRect_, scale::pxF(12.0), scale::pxF(12.0));
 
         QFont chipFont = timeFont_;
-        chipFont.setPixelSize(11);
+        chipFont.setPixelSize(scale::px(11));
         chipFont.setBold(true);
         p->setFont(chipFont);
         p->setPen(theme->primary());
@@ -448,8 +449,8 @@ void ClipElement::paint(const PaintContext& context) const {
 
     const qreal metaTop = actionsPillRect_.top();
     const qreal contentX = bubbleRect_.left() +
-                           (fromPhone_ ? kTailSpace + kContentHPad : kContentHPad);
-    const QRectF metaRow(contentX, metaTop, bubbleRect_.width(), kMetaRowHeight);
+                           (fromPhone_ ? kTailSpace() + kContentHPad() : kContentHPad());
+    const QRectF metaRow(contentX, metaTop, bubbleRect_.width(), kMetaRowHeight());
     if (context.clipItemCoords.intersects(metaRow)) {
         QColor timeColor = textColor_;
         timeColor.setAlphaF(timeColor.alphaF() * 0.65);
@@ -457,8 +458,8 @@ void ClipElement::paint(const PaintContext& context) const {
         p->setPen(timeColor);
         const QRectF timeRect(
             contentX, metaTop,
-            qMax<qreal>(0.0, actionsPillRect_.left() - contentX - 8.0),
-            kMetaRowHeight);
+            qMax<qreal>(0.0, actionsPillRect_.left() - contentX - scale::pxF(8.0)),
+            kMetaRowHeight());
         p->drawText(timeRect, Qt::AlignVCenter | Qt::AlignLeft, timeString_);
 
         const bool dark = theme->isDark();
@@ -467,7 +468,7 @@ void ClipElement::paint(const PaintContext& context) const {
             : overlayColor(dark, dark ? 0.12 : 0.06);
         p->setPen(Qt::NoPen);
         p->setBrush(pillBg);
-        p->drawRoundedRect(actionsPillRect_, 12, 12);
+        p->drawRoundedRect(actionsPillRect_, scale::pxF(12.0), scale::pxF(12.0));
 
         for (const ActionButton& b : buttons_) {
             if (!b.visible) continue;
@@ -482,9 +483,9 @@ void ClipElement::paint(const PaintContext& context) const {
             }
             const QPixmap glyph = iconPixmap(actionIconName(b.zone), textColor_,
                                              context.dpr);
-            QRectF iconRect(b.rect.center().x() - kIconSize / 2.0,
-                            b.rect.center().y() - kIconSize / 2.0, kIconSize,
-                            kIconSize);
+            QRectF iconRect(b.rect.center().x() - kIconSize() / 2.0,
+                            b.rect.center().y() - kIconSize() / 2.0, kIconSize(),
+                            kIconSize());
             p->drawPixmap(iconRect.toRect(), glyph,
                           QRect(0, 0, glyph.width(), glyph.height()));
         }

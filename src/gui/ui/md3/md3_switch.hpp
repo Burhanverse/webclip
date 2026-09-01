@@ -3,6 +3,7 @@
 #include "../basic/animation.hpp"
 #include "../basic/ripple_button.hpp"
 #include "../basic/rpl_lite.hpp"
+#include "../../util/display_scale.hpp"
 
 class QPainter;
 
@@ -38,7 +39,7 @@ public:
     }
 
     [[nodiscard]] QSize sizeHint() const override {
-        return QSize(52, 32);
+        return QSize(webclip::scale::px(52), webclip::scale::px(32));
     }
     [[nodiscard]] QSize minimumSizeHint() const override {
         return sizeHint();

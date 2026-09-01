@@ -1,5 +1,5 @@
 #include "md3_theme.hpp"
-#include "../util/style_core_font.hpp"
+#include "../util/display_scale.hpp"
 #include <QGuiApplication>
 #include <QStyleHints>
 #include <QPalette>
@@ -14,7 +14,6 @@ MD3Theme* MD3Theme::instance() {
 
 MD3Theme::MD3Theme(QObject* parent)
     : QObject(parent) {
-    fontScale_ = font::detectSystemFontScale();
 #if QT_VERSION >= QT_VERSION_CHECK(6, 5, 0)
     if (QGuiApplication::styleHints()) {
         connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged, this, [this]() {
@@ -25,18 +24,6 @@ MD3Theme::MD3Theme(QObject* parent)
         });
     }
 #endif
-}
-
-void MD3Theme::setFontScale(qreal scale) {
-    if (scale <= 0.0) {
-        scale = font::detectSystemFontScale();
-    }
-    scale = (std::clamp)(scale, 0.75, 2.50);
-    if (std::abs(fontScale_ - scale) > 0.001) {
-        fontScale_ = scale;
-        emit fontScaleChanged();
-        emit themeChanged();
-    }
 }
 
 void MD3Theme::setThemeMode(int mode) {
@@ -353,57 +340,52 @@ QColor MD3Theme::outlineVariant() const {
     return isDark() ? QColor::fromHslF(h, s, 0.25f) : QColor::fromHslF(h, s, 0.82f);
 }
 
-QFont MD3Theme::createFont(int pixelSize, QFont::Weight weight, bool italic, bool monospace) const {
-    const int scaledSize = (std::max)(8, qRound(pixelSize * fontScale_));
-    return font::createFont(scaledSize, weight, italic, monospace);
-}
-
 QFont MD3Theme::headlineSmall() const {
-    return createFont(24, QFont::Normal);
+    return scale::font(24, QFont::Normal);
 }
 
 QFont MD3Theme::titleLarge() const {
-    return createFont(22, QFont::Normal);
+    return scale::font(22, QFont::Normal);
 }
 
 QFont MD3Theme::titleMedium() const {
-    return createFont(16, QFont::Medium);
+    return scale::font(16, QFont::Medium);
 }
 
 QFont MD3Theme::titleSmall() const {
-    return createFont(14, QFont::Medium);
+    return scale::font(14, QFont::Medium);
 }
 
 QFont MD3Theme::bodyLarge() const {
-    return createFont(16, QFont::Normal);
+    return scale::font(16, QFont::Normal);
 }
 
 QFont MD3Theme::bodyMedium() const {
-    return createFont(14, QFont::Normal);
+    return scale::font(14, QFont::Normal);
 }
 
 QFont MD3Theme::bodySmall() const {
-    return createFont(12, QFont::Normal);
+    return scale::font(12, QFont::Normal);
 }
 
 QFont MD3Theme::labelLarge() const {
-    return createFont(14, QFont::Medium);
+    return scale::font(14, QFont::Medium);
 }
 
 QFont MD3Theme::labelMedium() const {
-    return createFont(12, QFont::Medium);
+    return scale::font(12, QFont::Medium);
 }
 
 QFont MD3Theme::labelSmall() const {
-    return createFont(11, QFont::Medium);
+    return scale::font(11, QFont::Medium);
 }
 
 QFont MD3Theme::codeMedium() const {
-    return createFont(13, QFont::Normal, false, true);
+    return scale::font(13, QFont::Normal, false, true);
 }
 
 QFont MD3Theme::codeSmall() const {
-    return createFont(11, QFont::Normal, false, true);
+    return scale::font(11, QFont::Normal, false, true);
 }
 
 }

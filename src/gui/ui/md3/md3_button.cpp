@@ -2,6 +2,7 @@
 #include "icon_loader.hpp"
 #include "../basic/painter_helpers.hpp"
 #include "../../theme/md3_theme.hpp"
+#include "../../util/display_scale.hpp"
 
 #include <QtGui/QFontMetrics>
 #include <QtGui/QPainter>
@@ -13,7 +14,7 @@ Md3Button::Md3Button(QWidget* parent, const QString& text, ButtonVariant variant
     , text_(text)
     , variant_(variant) {
     setFont(webclip::MD3Theme::instance()->labelLarge());
-    setFixedHeight(40);
+    setFixedHeight(webclip::scale::px(40));
 }
 
 Md3Button::~Md3Button() = default;
@@ -87,17 +88,17 @@ QSize Md3Button::sizeHint() const {
     int contentWidth = 0;
 
     if (!iconName_.isEmpty()) {
-        contentWidth += 18; // icon width
+        contentWidth += webclip::scale::px(18); // icon width
         if (!text_.isEmpty()) {
-            contentWidth += 8; // spacing
+            contentWidth += webclip::scale::px(8); // spacing
         }
     }
     if (!text_.isEmpty()) {
         contentWidth += fm.horizontalAdvance(text_);
     }
 
-    const int hPadding = (variant_ == ButtonVariant::Text) ? 24 : 32;
-    return QSize(std::max(64, contentWidth + hPadding), 40);
+    const int hPadding = (variant_ == ButtonVariant::Text) ? webclip::scale::px(24) : webclip::scale::px(32);
+    return QSize(std::max(webclip::scale::px(64), contentWidth + hPadding), webclip::scale::px(40));
 }
 
 void Md3Button::paintEvent(QPaintEvent* /*e*/) {
@@ -140,8 +141,8 @@ void Md3Button::paintEvent(QPaintEvent* /*e*/) {
 
     // 5. Content layout (Icon + Text centered)
     const QFontMetrics fm(font());
-    const int iconSize = 18;
-    const int spacing = (!iconName_.isEmpty() && !text_.isEmpty()) ? 8 : 0;
+    const int iconSize = webclip::scale::px(18);
+    const int spacing = (!iconName_.isEmpty() && !text_.isEmpty()) ? webclip::scale::px(8) : 0;
     const int textWidth = text_.isEmpty() ? 0 : fm.horizontalAdvance(text_);
     const int totalContentWidth = (iconName_.isEmpty() ? 0 : iconSize) + spacing + textWidth;
 

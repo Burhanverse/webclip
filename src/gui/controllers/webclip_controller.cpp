@@ -1,6 +1,7 @@
 #include "webclip_controller.hpp"
 #include "../util/debug_logger.hpp"
 #include "../util/style_core_font.hpp"
+#include "../util/display_scale.hpp"
 #include "../theme/md3_theme.hpp"
 #include "../../util/json.hpp"
 #include "../../util/base64.hpp"
@@ -19,6 +20,8 @@
 #include <QMimeData>
 #include <QRandomGenerator>
 #include <QImageReader>
+#include <QProcess>
+#include <QCoreApplication>
 
 namespace webclip {
 
@@ -439,18 +442,20 @@ void WebClipController::setCustomColor(const QColor& color) {
     }
 }
 
-void WebClipController::setFontScale(double scale) {
-    double clamped = (scale <= 0.0) ? 0.0 : std::clamp(scale, 0.75, 2.50);
-    if (std::abs(fontScale_ - clamped) > 0.001) {
-        fontScale_ = clamped;
-        if (fontScale_ <= 0.0) {
-            MD3Theme::instance()->setFontScale(0.0);
-        } else {
-            MD3Theme::instance()->setFontScale(fontScale_);
-        }
+void WebClipController::setDisplayScale(double scale) {
+    double clamped = (scale <= 0.0) ? 0.0 : (std::clamp)(scale, 0.75, 1.40);
+    if (std::abs(displayScale_ - clamped) > 0.001) {
+        displayScale_ = clamped;
+        scale::set(displayScale_);
         saveSettings();
-        emit fontScaleChanged();
+        emit displayScaleChanged();
     }
+}
+
+void WebClipController::restartApplication() {
+    saveSettings();
+    QProcess::startDetached(QCoreApplication::applicationFilePath(), QCoreApplication::arguments());
+    QCoreApplication::quit();
 }
 
 void WebClipController::setConnected(bool c) {
@@ -1420,7 +1425,7 @@ void WebClipController::saveSettings() {
     s.setValue("themeMode", themeMode_);
     s.setValue("accentPreset", accentPreset_);
     s.setValue("customColor", customColor_.name());
-    s.setValue("fontScale", fontScale_);
+    s.setValue("displayScale", displayScale_);
 }
 
 void WebClipController::loadSettings() {
@@ -1439,16 +1444,21 @@ void WebClipController::loadSettings() {
     if (!customColor_.isValid()) {
         customColor_ = QColor("#6750A4");
     }
-    fontScale_ = s.value("fontScale", 0.0).toDouble();
+    if (s.contains("displayScale")) {
+        displayScale_ = s.value("displayScale", 0.0).toDouble();
+    } else if (s.contains("fontScale")) {
+        displayScale_ = s.value("fontScale", 0.0).toDouble();
+    } else {
+        displayScale_ = 0.0;
+    }
+    if (displayScale_ > 0.0) {
+        displayScale_ = (std::clamp)(displayScale_, 0.75, 1.40);
+    }
 
     MD3Theme::instance()->setCustomColor(customColor_);
     MD3Theme::instance()->setThemeMode(themeMode_);
     MD3Theme::instance()->setAccentPreset(accentPreset_);
-    if (fontScale_ <= 0.0) {
-        MD3Theme::instance()->setFontScale(0.0);
-    } else {
-        MD3Theme::instance()->setFontScale(fontScale_);
-    }
+    scale::set(displayScale_);
 }
 
 void WebClipController::openUrl(const QString& urlStr) {

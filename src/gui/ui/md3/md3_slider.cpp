@@ -1,6 +1,7 @@
 #include "md3_slider.hpp"
 #include "../basic/painter_helpers.hpp"
 #include "../../theme/md3_theme.hpp"
+#include "../../util/display_scale.hpp"
 
 #include <QtGui/QMouseEvent>
 #include <QtGui/QPainter>
@@ -13,7 +14,7 @@ namespace Ui {
 Md3Slider::Md3Slider(QWidget* parent)
     : RpWidget(parent) {
     setCursor(Qt::PointingHandCursor);
-    setFixedHeight(36);
+    setFixedHeight(webclip::scale::px(36));
 }
 
 Md3Slider::~Md3Slider() = default;
@@ -42,8 +43,8 @@ void Md3Slider::setSteps(int steps) {
 }
 
 void Md3Slider::updateValueFromPos(int x) {
-    const double trackMargin = 4.0;
-    const double trackRadius = 8.0;
+    const double trackMargin = webclip::scale::pxF(4.0);
+    const double trackRadius = webclip::scale::pxF(8.0);
     const double trackW = width() - 2.0 * trackMargin;
     const double travelStart = trackMargin + trackRadius;
     const double travelW = trackW - 2.0 * trackRadius;
@@ -88,9 +89,9 @@ void Md3Slider::paintEvent(QPaintEvent* /*e*/) {
     PainterHighQualityEnabler hq(p);
     auto* theme = webclip::MD3Theme::instance();
 
-    const double trackMargin = 4.0;
-    const double trackH = 16.0;
-    const double trackRadius = 8.0;
+    const double trackMargin = webclip::scale::pxF(4.0);
+    const double trackH = webclip::scale::pxF(16.0);
+    const double trackRadius = webclip::scale::pxF(8.0);
     const double trackY = (height() - trackH) / 2.0;
     const double trackW = width() - 2.0 * trackMargin;
     const QRectF trackRect(trackMargin, trackY, trackW, trackH);
@@ -115,25 +116,27 @@ void Md3Slider::paintEvent(QPaintEvent* /*e*/) {
     }
 
     if (steps_ > 1) {
+        const double dotRadius = webclip::scale::pxF(1.75);
         for (int i = 0; i < steps_; ++i) {
             const double dotRatio = static_cast<double>(i) / (steps_ - 1);
             const double dotX = travelStart + dotRatio * travelW;
-            if (std::abs(dotX - thumbX) < 6.0) continue;
+            if (std::abs(dotX - thumbX) < webclip::scale::pxF(6.0)) continue;
             const bool isActive = (dotX <= thumbX);
             p.setBrush(isActive ? theme->onPrimary() : theme->onSecondaryContainer());
-            p.drawEllipse(QPointF(dotX, height() / 2.0), 1.75, 1.75);
+            p.drawEllipse(QPointF(dotX, height() / 2.0), dotRadius, dotRadius);
         }
     }
 
-    const double thumbW = 6.0;
-    const double thumbH = 26.0;
+    const double thumbW = webclip::scale::pxF(6.0);
+    const double thumbH = webclip::scale::pxF(26.0);
+    const double thumbRadius = webclip::scale::pxF(3.0);
     const double thumbY = (height() - thumbH) / 2.0;
     const QRectF thumbRect(thumbX - thumbW / 2.0, thumbY, thumbW, thumbH);
 
     const QColor thumbCol = isDown_ ? theme->onPrimary() : (theme->isDark() ? QColor(QStringLiteral("#FFFFFF")) : theme->onSurface());
     p.setPen(Qt::NoPen);
     p.setBrush(thumbCol);
-    p.drawRoundedRect(thumbRect, 3.0, 3.0);
+    p.drawRoundedRect(thumbRect, thumbRadius, thumbRadius);
 }
 
 } // namespace Ui

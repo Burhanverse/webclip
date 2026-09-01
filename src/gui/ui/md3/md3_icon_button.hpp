@@ -11,8 +11,8 @@ public:
     explicit Md3IconButton(
         QWidget* parent = nullptr,
         const QString& iconName = QString(),
-        int buttonSize = 40,
-        int iconSize = 20
+        int buttonSize = -1,
+        int iconSize = -1
     );
     ~Md3IconButton() override;
 

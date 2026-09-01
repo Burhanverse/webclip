@@ -1,6 +1,7 @@
 #include "color_picker_dialog.hpp"
 #include "../basic/painter_helpers.hpp"
 #include "../../theme/md3_theme.hpp"
+#include "../../util/display_scale.hpp"
 
 #include <QtGui/QKeyEvent>
 #include <QtGui/QMouseEvent>
@@ -43,7 +44,7 @@ protected:
 
         const QRectF r = rect();
         QPainterPath clip;
-        clip.addRoundedRect(r, 12.0, 12.0);
+        clip.addRoundedRect(r, webclip::scale::pxF(12.0), webclip::scale::pxF(12.0));
         p.setClipPath(clip);
 
         const QColor pureHue = QColor::fromHsvF(hue_ / 360.0, 1.0, 1.0);
@@ -60,15 +61,16 @@ protected:
         p.fillRect(rect(), vGrad);
 
         p.setClipping(false);
-        const double hX = std::clamp(r.left() + sat_ * r.width(), r.left() + 8.0, r.right() - 8.0);
-        const double hY = std::clamp(r.top() + (1.0 - val_) * r.height(), r.top() + 8.0, r.bottom() - 8.0);
+        const double handleMargin = webclip::scale::pxF(8.0);
+        const double hX = std::clamp(r.left() + sat_ * r.width(), r.left() + handleMargin, r.right() - handleMargin);
+        const double hY = std::clamp(r.top() + (1.0 - val_) * r.height(), r.top() + handleMargin, r.bottom() - handleMargin);
         const QPointF center(hX, hY);
 
-        p.setPen(QPen(QColor(0, 0, 0, 140), 2.5));
+        p.setPen(QPen(QColor(0, 0, 0, 140), webclip::scale::pxF(2.5)));
         p.setBrush(Qt::NoBrush);
-        p.drawEllipse(center, 7.5, 7.5);
-        p.setPen(QPen(Qt::white, 2.0));
-        p.drawEllipse(center, 7.0, 7.0);
+        p.drawEllipse(center, webclip::scale::pxF(7.5), webclip::scale::pxF(7.5));
+        p.setPen(QPen(Qt::white, webclip::scale::pxF(2.0)));
+        p.drawEllipse(center, webclip::scale::pxF(7.0), webclip::scale::pxF(7.0));
     }
 
     void mousePressEvent(QMouseEvent* e) override {
@@ -109,7 +111,7 @@ class HueBar : public QWidget {
 public:
     explicit HueBar(QWidget* parent = nullptr)
         : QWidget(parent) {
-        setFixedHeight(14);
+        setFixedHeight(webclip::scale::px(14));
         setCursor(Qt::PointingHandCursor);
     }
 
@@ -142,12 +144,12 @@ protected:
         p.setBrush(grad);
         p.drawRoundedRect(r, radius, radius);
 
-        const double tX = std::clamp(r.left() + (hue_ / 360.0) * r.width(), r.left() + 7.0, r.right() - 7.0);
+        const double tX = std::clamp(r.left() + (hue_ / 360.0) * r.width(), r.left() + webclip::scale::pxF(7.0), r.right() - webclip::scale::pxF(7.0));
         const QPointF center(tX, r.center().y());
 
-        p.setPen(QPen(Qt::white, 2.5));
+        p.setPen(QPen(Qt::white, webclip::scale::pxF(2.5)));
         p.setBrush(QColor::fromHsvF(hue_ / 360.0, 1.0, 1.0));
-        p.drawEllipse(center, 6.5, 6.5);
+        p.drawEllipse(center, webclip::scale::pxF(6.5), webclip::scale::pxF(6.5));
     }
 
     void mousePressEvent(QMouseEvent* e) override {
@@ -188,7 +190,7 @@ class AlphaBar : public QWidget {
 public:
     explicit AlphaBar(QWidget* parent = nullptr)
         : QWidget(parent) {
-        setFixedHeight(14);
+        setFixedHeight(webclip::scale::px(14));
         setCursor(Qt::PointingHandCursor);
     }
 
@@ -214,16 +216,17 @@ protected:
         p.setClipPath(clip);
 
         // Checkerboard
-        static const QPixmap checker = []() {
-            QPixmap pm(12, 12);
+        const int checkSize = webclip::scale::px(6);
+        const int pmSize = checkSize * 2;
+        QPixmap pm(pmSize, pmSize);
+        {
             QPainter cp(&pm);
-            cp.fillRect(0, 0, 6, 6, QColor(200, 200, 200));
-            cp.fillRect(6, 6, 6, 6, QColor(200, 200, 200));
-            cp.fillRect(6, 0, 6, 6, QColor(255, 255, 255));
-            cp.fillRect(0, 6, 6, 6, QColor(255, 255, 255));
-            return pm;
-        }();
-        p.drawTiledPixmap(r, checker);
+            cp.fillRect(0, 0, checkSize, checkSize, QColor(200, 200, 200));
+            cp.fillRect(checkSize, checkSize, checkSize, checkSize, QColor(200, 200, 200));
+            cp.fillRect(checkSize, 0, checkSize, checkSize, QColor(255, 255, 255));
+            cp.fillRect(0, checkSize, checkSize, checkSize, QColor(255, 255, 255));
+        }
+        p.drawTiledPixmap(r, pm);
 
         // Alpha gradient
         QLinearGradient grad(r.left(), r.center().y(), r.right(), r.center().y());
@@ -238,14 +241,14 @@ protected:
         p.setClipping(false);
 
         // Circular thumb
-        const double tX = std::clamp(r.left() + alpha_ * r.width(), r.left() + 7.0, r.right() - 7.0);
+        const double tX = std::clamp(r.left() + alpha_ * r.width(), r.left() + webclip::scale::pxF(7.0), r.right() - webclip::scale::pxF(7.0));
         const QPointF center(tX, r.center().y());
 
-        p.setPen(QPen(Qt::white, 2.5));
+        p.setPen(QPen(Qt::white, webclip::scale::pxF(2.5)));
         QColor fill = color_;
         fill.setAlphaF(alpha_);
         p.setBrush(fill);
-        p.drawEllipse(center, 6.5, 6.5);
+        p.drawEllipse(center, webclip::scale::pxF(6.5), webclip::scale::pxF(6.5));
     }
 
     void mousePressEvent(QMouseEvent* e) override {
@@ -287,7 +290,7 @@ class SwatchesRow : public QWidget {
 public:
     explicit SwatchesRow(QWidget* parent = nullptr)
         : QWidget(parent) {
-        setFixedHeight(26);
+        setFixedHeight(webclip::scale::px(26));
         setCursor(Qt::PointingHandCursor);
     }
 
@@ -312,7 +315,7 @@ protected:
         PainterHighQualityEnabler hq(p);
 
         const int count = static_cast<int>(colors_.size());
-        const double dotD = 22.0;
+        const double dotD = webclip::scale::pxF(22.0);
         const double totalDotsW = count * dotD;
         const double gap = count > 1 ? (width() - totalDotsW) / double(count - 1) : 0.0;
 
@@ -324,9 +327,9 @@ protected:
             const bool isSelected = (colors_[i].name(QColor::HexRgb).toUpper() == selectedColor_.name(QColor::HexRgb).toUpper());
 
             if (isSelected) {
-                p.setPen(QPen(webclip::MD3Theme::instance()->primary(), 2.0));
+                p.setPen(QPen(webclip::MD3Theme::instance()->primary(), webclip::scale::pxF(2.0)));
                 p.setBrush(Qt::NoBrush);
-                p.drawEllipse(center, dotD / 2.0 + 2.0, dotD / 2.0 + 2.0);
+                p.drawEllipse(center, dotD / 2.0 + webclip::scale::pxF(2.0), dotD / 2.0 + webclip::scale::pxF(2.0));
             }
 
             p.setPen(QPen(QColor(0, 0, 0, 30), 1.0));
@@ -339,7 +342,7 @@ protected:
         if (colors_.empty() || e->button() != Qt::LeftButton) return;
 
         const int count = static_cast<int>(colors_.size());
-        const double dotD = 22.0;
+        const double dotD = webclip::scale::pxF(22.0);
         const double gap = count > 1 ? (width() - count * dotD) / double(count - 1) : 0.0;
 
         const double clickX = e->position().x();
@@ -365,7 +368,7 @@ class FormatPill : public QWidget {
 public:
     explicit FormatPill(QWidget* parent = nullptr)
         : QWidget(parent) {
-        setFixedSize(68, 34);
+        setFixedSize(webclip::scale::px(68), webclip::scale::px(34));
     }
 
 protected:
@@ -377,18 +380,18 @@ protected:
         const QRectF r(0.5, 0.5, width() - 1.0, height() - 1.0);
         p.setPen(QPen(theme->outlineVariant(), 1.0));
         p.setBrush(theme->surface());
-        p.drawRoundedRect(r, 8.0, 8.0);
+        p.drawRoundedRect(r, webclip::scale::pxF(8.0), webclip::scale::pxF(8.0));
 
         p.setFont(theme->bodyMedium());
         p.setPen(theme->onSurface());
-        p.drawText(QRectF(10, 0, 32, height()), Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("Hex"));
+        p.drawText(QRectF(webclip::scale::pxF(10), 0, webclip::scale::pxF(32), height()), Qt::AlignVCenter | Qt::AlignLeft, QStringLiteral("Hex"));
 
         // Draw crisp vector down chevron
-        p.setPen(QPen(theme->onSurfaceVariant(), 1.5, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
-        const double cx = 50.0;
+        p.setPen(QPen(theme->onSurfaceVariant(), webclip::scale::pxF(1.5), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+        const double cx = webclip::scale::pxF(50.0);
         const double cy = height() / 2.0 - 1.0;
-        p.drawLine(QPointF(cx - 3.5, cy - 2.0), QPointF(cx, cy + 2.0));
-        p.drawLine(QPointF(cx, cy + 2.0), QPointF(cx + 3.5, cy - 2.0));
+        p.drawLine(QPointF(cx - webclip::scale::pxF(3.5), cy - webclip::scale::pxF(2.0)), QPointF(cx, cy + webclip::scale::pxF(2.0)));
+        p.drawLine(QPointF(cx, cy + webclip::scale::pxF(2.0)), QPointF(cx + webclip::scale::pxF(3.5), cy - webclip::scale::pxF(2.0)));
     }
 };
 
@@ -589,53 +592,56 @@ void ColorPickerDialog::resizeEvent(QResizeEvent* e) {
 }
 
 void ColorPickerDialog::updateLayout() {
-    const int cardW = 326;
-    const int cardH = 430;
+    const int cardW = webclip::scale::px(326);
+    const int cardH = webclip::scale::px(430);
     const int cardX = (width() - cardW) / 2;
     const int cardY = (height() - cardH) / 2;
     card_->setGeometry(cardX, cardY, cardW, cardH);
 
-    const int contentX = 16;
-    const int contentW = cardW - 32;
-    int curY = 16;
+    const int contentX = webclip::scale::px(16);
+    const int contentW = cardW - webclip::scale::px(32);
+    int curY = webclip::scale::px(16);
 
     // 1. 2D Area
-    satValArea_->setGeometry(contentX, curY, contentW, 160);
-    curY += 160 + 12;
+    satValArea_->setGeometry(contentX, curY, contentW, webclip::scale::px(160));
+    curY += webclip::scale::px(160 + 12);
 
     // 2. Hue Bar
-    hueBar_->setGeometry(contentX, curY, contentW, 14);
-    curY += 14 + 8;
+    hueBar_->setGeometry(contentX, curY, contentW, webclip::scale::px(14));
+    curY += webclip::scale::px(14 + 8);
 
     // 3. Alpha Bar
-    alphaBar_->setGeometry(contentX, curY, contentW, 14);
-    curY += 14 + 14;
+    alphaBar_->setGeometry(contentX, curY, contentW, webclip::scale::px(14));
+    curY += webclip::scale::px(14 + 14);
 
     // 4. Input Row
-    const int pillW = 68;
-    const int rowH = 34;
+    const int pillW = webclip::scale::px(68);
+    const int rowH = webclip::scale::px(34);
     formatPill_->setGeometry(contentX, curY, pillW, rowH);
 
-    const int hexBoxX = contentX + pillW + 8;
-    const int hexBoxW = contentW - pillW - 8;
+    const int hexBoxX = contentX + pillW + webclip::scale::px(8);
+    const int hexBoxW = contentW - pillW - webclip::scale::px(8);
     hexBox_->setGeometry(hexBoxX, curY, hexBoxW, rowH);
-    hexInput_->setGeometry(32, 2, hexBoxW - 80, rowH - 4);
-    opacityLabel_->setGeometry(hexBoxW - 46, 2, 42, rowH - 4);
-    curY += rowH + 12;
+    hexInput_->setGeometry(webclip::scale::px(32), webclip::scale::px(2), hexBoxW - webclip::scale::px(80), rowH - webclip::scale::px(4));
+    opacityLabel_->setGeometry(hexBoxW - webclip::scale::px(46), webclip::scale::px(2), webclip::scale::px(42), rowH - webclip::scale::px(4));
+    curY += rowH + webclip::scale::px(12);
 
     // 5. Saved Header
-    savedHeader_->setGeometry(contentX, curY, contentW, 18);
-    savedTitle_->setGeometry(0, 0, 100, 18);
-    addBtn_->setGeometry(contentW - 60, 0, 60, 18);
-    curY += 18 + 8;
+    savedHeader_->setGeometry(contentX, curY, contentW, webclip::scale::px(18));
+    savedTitle_->setGeometry(0, 0, webclip::scale::px(100), webclip::scale::px(18));
+    addBtn_->setGeometry(contentW - webclip::scale::px(60), 0, webclip::scale::px(60), webclip::scale::px(18));
+    curY += webclip::scale::px(18 + 8);
 
     // 6. Swatches Row
-    swatchesRow_->setGeometry(contentX, curY, contentW, 26);
-    curY += 26 + 14;
+    swatchesRow_->setGeometry(contentX, curY, contentW, webclip::scale::px(26));
+    curY += webclip::scale::px(26 + 14);
 
     // 7. Buttons
-    cancelBtn_->setGeometry(cardW - 16 - 80 - 8 - 90, curY, 80, 36);
-    selectBtn_->setGeometry(cardW - 16 - 90, curY, 90, 36);
+    const int cancelW = webclip::scale::px(80);
+    const int selectW = webclip::scale::px(90);
+    const int btnH = webclip::scale::px(36);
+    cancelBtn_->setGeometry(cardW - webclip::scale::px(16) - cancelW - webclip::scale::px(8) - selectW, curY, cancelW, btnH);
+    selectBtn_->setGeometry(cardW - webclip::scale::px(16) - selectW, curY, selectW, btnH);
 }
 
 void ColorPickerDialog::mousePressEvent(QMouseEvent* e) {
@@ -670,29 +676,33 @@ void ColorPickerDialog::paintEvent(QPaintEvent* /*e*/) {
 
     p.setPen(QPen(theme->outlineVariant(), 1.0));
     p.setBrush(theme->surfaceContainer());
-    p.drawRoundedRect(cRect, 20.0, 20.0);
+    p.drawRoundedRect(cRect, webclip::scale::pxF(20.0), webclip::scale::pxF(20.0));
 
     // 3. Hex Box styling
     const QRectF hbRect(card_->x() + hexBox_->x(), card_->y() + hexBox_->y(), hexBox_->width(), hexBox_->height());
     p.setPen(QPen(theme->outlineVariant(), 1.0));
     p.setBrush(theme->surface());
-    p.drawRoundedRect(hbRect, 8.0, 8.0);
+    p.drawRoundedRect(hbRect, webclip::scale::pxF(8.0), webclip::scale::pxF(8.0));
 
     // 5. Circular preview swatch inside hexBox
-    const QPointF swatchCenter(hbRect.left() + 18.0, hbRect.center().y());
+    const QPointF swatchCenter(hbRect.left() + webclip::scale::pxF(18.0), hbRect.center().y());
     p.setPen(QPen(QColor(0, 0, 0, 40), 1.0));
     p.setBrush(currentColor_);
-    p.drawEllipse(swatchCenter, 8.0, 8.0);
+    p.drawEllipse(swatchCenter, webclip::scale::pxF(8.0), webclip::scale::pxF(8.0));
 
     // Subtle divider before opacity
     p.setPen(theme->outlineVariant());
-    p.drawLine(QPointF(hbRect.right() - 48.0, hbRect.top() + 6.0), QPointF(hbRect.right() - 48.0, hbRect.bottom() - 6.0));
+    p.drawLine(QPointF(hbRect.right() - webclip::scale::pxF(48.0), hbRect.top() + webclip::scale::pxF(6.0)), QPointF(hbRect.right() - webclip::scale::pxF(48.0), hbRect.bottom() - webclip::scale::pxF(6.0)));
 
-    hexInput_->setStyleSheet(QStringLiteral("QLineEdit { color: %1; background: transparent; border: none; font-family: monospace; font-size: 13px; }").arg(theme->onSurface().name()));
-    opacityLabel_->setStyleSheet(QStringLiteral("color: %1; background: transparent; font-size: 12px;").arg(theme->onSurfaceVariant().name()));
+    hexInput_->setFont(theme->codeMedium());
+    hexInput_->setStyleSheet(QStringLiteral("QLineEdit { color: %1; background: transparent; border: none; }").arg(theme->onSurface().name()));
+    opacityLabel_->setFont(theme->bodySmall());
+    opacityLabel_->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurfaceVariant().name()));
 
-    savedTitle_->setStyleSheet(QStringLiteral("color: %1; background: transparent; font-weight: 600; font-size: 13px;").arg(theme->onSurface().name()));
-    addBtn_->setStyleSheet(QStringLiteral("QPushButton { color: %1; background: transparent; border: none; font-weight: 600; font-size: 13px; text-align: right; padding: 0px; }").arg(theme->primary().name()));
+    savedTitle_->setFont(theme->bodyMedium());
+    savedTitle_->setStyleSheet(QStringLiteral("color: %1; background: transparent; font-weight: 600;").arg(theme->onSurface().name()));
+    addBtn_->setFont(theme->bodyMedium());
+    addBtn_->setStyleSheet(QStringLiteral("QPushButton { color: %1; background: transparent; border: none; font-weight: 600; text-align: right; padding: 0px; }").arg(theme->primary().name()));
 }
 
 } // namespace Ui
