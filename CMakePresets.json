@@ -1,0 +1,84 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 22,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "linux-clang",
+      "displayName": "Linux (Clang + Ninja + lld)",
+      "description": "Build with Clang, Ninja, and lld linker on Linux (C++20)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "clang",
+        "CMAKE_CXX_COMPILER": "clang++",
+        "USE_LEGACY_TOOLCHAIN": "OFF"
+      }
+    },
+    {
+      "name": "linux-gcc",
+      "displayName": "Linux (GCC + Ninja)",
+      "description": "Legacy build with GCC and Ninja on Linux (C++20)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-gcc",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "gcc",
+        "CMAKE_CXX_COMPILER": "g++",
+        "USE_LEGACY_TOOLCHAIN": "ON"
+      }
+    },
+    {
+      "name": "windows-clang-cl",
+      "displayName": "Windows (clang-cl + Ninja + lld-link)",
+      "description": "Build with clang-cl, Ninja, and lld-link on Windows (MSVC ABI, C++20)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "clang-cl",
+        "CMAKE_CXX_COMPILER": "clang-cl",
+        "USE_LEGACY_TOOLCHAIN": "OFF"
+      }
+    },
+    {
+      "name": "windows-msvc",
+      "displayName": "Windows (MSVC cl.exe + Ninja)",
+      "description": "Legacy build with MSVC compiler and linker on Windows (C++20)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-msvc",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_COMPILER": "cl",
+        "CMAKE_CXX_COMPILER": "cl",
+        "USE_LEGACY_TOOLCHAIN": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "linux-clang",
+      "displayName": "Build Linux Clang",
+      "configurePreset": "linux-clang"
+    },
+    {
+      "name": "linux-gcc",
+      "displayName": "Build Linux GCC",
+      "configurePreset": "linux-gcc"
+    },
+    {
+      "name": "windows-clang-cl",
+      "displayName": "Build Windows clang-cl",
+      "configurePreset": "windows-clang-cl"
+    },
+    {
+      "name": "windows-msvc",
+      "displayName": "Build Windows MSVC",
+      "configurePreset": "windows-msvc"
+    }
+  ]
+}

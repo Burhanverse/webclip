@@ -2,8 +2,9 @@
 
 ## Prerequisites
 
-- **C++17 compiler** (`g++`, `clang++`, or MSVC 2022)
-- **CMake** (>= 3.16) and **Ninja** (or Make)
+- **C++20 compiler**: `clang++` (Linux) / `clang-cl` (Windows), or `g++` / MSVC 2022
+- **Linker**: `lld` (Linux) / `lld-link` (Windows)
+- **Build System**: **CMake** (>= 3.22) and **Ninja**
 - **Qt 6** (Core, Gui, Widgets, Svg, Quick, Qml)
 - **libcurl**
 - **Clipboard helper** (Linux only: `wl-clipboard` for Wayland, `xclip` for X11)
@@ -13,19 +14,19 @@
 **Ubuntu / Debian:**
 ```bash
 sudo apt-get update && sudo apt-get install -y \
-  build-essential cmake ninja-build libcurl4-openssl-dev \
+  clang lld build-essential cmake ninja-build libcurl4-openssl-dev \
   qt6-base-dev qt6-declarative-dev qt6-tools-dev libqt6svg6-dev \
   qt6-wayland libqt6waylandclient6 wl-clipboard xclip
 ```
 
 **Arch Linux:**
 ```bash
-sudo pacman -S base-devel cmake ninja curl qt6-base qt6-declarative qt6-wayland qt6-svg qt6-tools wl-clipboard xclip
+sudo pacman -S clang lld base-devel cmake ninja curl qt6-base qt6-declarative qt6-wayland qt6-svg qt6-tools wl-clipboard xclip
 ```
 
 **Fedora / RHEL:**
 ```bash
-sudo dnf install gcc-c++ cmake ninja-build libcurl-devel \
+sudo dnf install clang lld gcc-c++ cmake ninja-build libcurl-devel \
   qt6-qtbase-devel qt6-qtdeclarative-devel qt6-qtwayland-devel \
   qt6-qtsvg-devel qt6-qttools-devel wl-clipboard xclip
 ```
@@ -34,14 +35,43 @@ sudo dnf install gcc-c++ cmake ninja-build libcurl-devel \
 
 ## Linux Build
 
-### 1. Compile
+### 1. Compile with Clang + Ninja + lld (Default)
 
+Using CMake Presets:
 ```bash
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --preset linux-clang
+cmake --build --preset linux-clang
+```
+
+Or manually:
+```bash
+cmake -B build -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_C_COMPILER=clang \
+  -DCMAKE_CXX_COMPILER=clang++
+
 cmake --build build --parallel
 ```
 
 The output binary is located at `build/webclip`.
+
+### Legacy GCC Fallback
+
+To build using the legacy GCC toolchain:
+```bash
+cmake --preset linux-gcc
+cmake --build --preset linux-gcc
+```
+Or manually:
+```bash
+cmake -B build-gcc -G Ninja \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DUSE_LEGACY_TOOLCHAIN=ON \
+  -DCMAKE_C_COMPILER=gcc \
+  -DCMAKE_CXX_COMPILER=g++
+
+cmake --build build-gcc --parallel
+```
 
 ### 2. Packaging (Optional)
 
@@ -49,6 +79,7 @@ The output binary is located at `build/webclip`.
   ```bash
   ./build_linux.sh
   ```
+  *(Pass `--legacy` to compile with GCC)*
   Generates both the AppImage and Tarball in `./dist/`.
 
 - **AppImage only**:
@@ -76,7 +107,7 @@ To remove:
 
 ---
 
-## Windows Build (MSVC)
+## Windows Build (clang-cl + Ninja + lld-link)
 
 ### 1. Install Dependencies
 
@@ -87,18 +118,42 @@ vcpkg install curl:x64-windows
 
 ### 2. Compile
 
+Using CMake Presets:
 ```powershell
-cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
-cmake --build build --config Release --parallel
+cmake --preset windows-clang-cl -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+cmake --build --preset windows-clang-cl
 ```
 
-Output binary: `build\Release\webclip.exe`.
+Or manually:
+```powershell
+cmake -B build -G Ninja `
+  -DCMAKE_BUILD_TYPE=Release `
+  -DCMAKE_C_COMPILER=clang-cl `
+  -DCMAKE_CXX_COMPILER=clang-cl `
+  -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+
+cmake --build build --parallel
+```
+
+Output binary: `build\webclip.exe`.
+
+### Legacy MSVC Fallback
+
+To build using the native MSVC compiler and linker:
+```powershell
+cmake --preset windows-msvc -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
+cmake --build --preset windows-msvc
+```
 
 ### 3. Package Portable Zip
 
 ```powershell
 New-Item -ItemType Directory -Force -Path "deploy"
-Copy-Item "build\Release\webclip.exe" -Destination "deploy\"
+if (Test-Path "build\webclip.exe") {
+    Copy-Item "build\webclip.exe" -Destination "deploy\"
+} elseif (Test-Path "build\Release\webclip.exe") {
+    Copy-Item "build\Release\webclip.exe" -Destination "deploy\"
+}
 Copy-Item "$env:VCPKG_INSTALLATION_ROOT\installed\x64-windows\bin\*.dll" -Destination "deploy\"
 
 windeployqt deploy\webclip.exe --qmldir src\gui\qml --no-translations --no-opengl-sw --compiler-runtime

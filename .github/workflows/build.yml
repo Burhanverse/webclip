@@ -21,6 +21,8 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            clang \
+            lld \
             build-essential \
             cmake \
             ninja-build \
@@ -52,7 +54,9 @@ jobs:
       - name: Configure CMake
         run: |
           cmake -B build -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER=clang \
+            -DCMAKE_CXX_COMPILER=clang++
 
       - name: Build WebClip
         run: |
@@ -114,19 +118,25 @@ jobs:
 
       - name: Configure CMake
         run: |
-          cmake -B build `
+          cmake -B build -G Ninja `
             -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_C_COMPILER=clang-cl `
+            -DCMAKE_CXX_COMPILER=clang-cl `
             -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_INSTALLATION_ROOT/scripts/buildsystems/vcpkg.cmake"
 
       - name: Build WebClip
         run: |
-          cmake --build build --config Release --parallel
+          cmake --build build --parallel
 
       - name: Package Windows Bundle with windeployqt
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path "deploy"
-          Copy-Item "build/Release/webclip.exe" -Destination "deploy/"
+          if (Test-Path "build/webclip.exe") {
+              Copy-Item "build/webclip.exe" -Destination "deploy/"
+          } elseif (Test-Path "build/Release/webclip.exe") {
+              Copy-Item "build/Release/webclip.exe" -Destination "deploy/"
+          }
 
           # Copy libcurl and dependencies from vcpkg
           if (Test-Path "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin") {

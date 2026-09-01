@@ -13,6 +13,7 @@ OUTPUT_DIR="${OUTPUT_DIR:-dist}"
 PACKAGE_APPIMAGE=true
 PACKAGE_TARBALL=true
 CLEAN=false
+USE_LEGACY=false
 
 print_usage() {
     cat << 'EOF'
@@ -24,6 +25,7 @@ Options:
   --tarball-only        Build executable and tarball package only
   --bin-only            Compile only the webclip executable (skip packaging)
   --clean               Remove build and dist directories before starting
+  --legacy, --gcc       Use legacy GCC toolchain instead of Clang + lld
   --build-type <type>   Set CMake build type (Release, Debug, RelWithDebInfo) [default: Release]
   --build-dir <dir>     Set build directory [default: build]
   --output-dir <dir>    Set output directory for packages [default: dist]
@@ -40,6 +42,10 @@ while [ $# -gt 0 ]; do
             ;;
         --clean)
             CLEAN=true
+            shift
+            ;;
+        --legacy|--gcc)
+            USE_LEGACY=true
             shift
             ;;
         --build-type)
@@ -83,6 +89,7 @@ done
 
 echo "=========================================="
 echo "  WebClip Linux Builder"
+echo "  Toolchain:  $(if [ "$USE_LEGACY" = true ]; then echo "GCC (Legacy)"; else echo "Clang + lld"; fi)"
 echo "  Build Type: $BUILD_TYPE"
 echo "  Build Dir:  $BUILD_DIR"
 echo "  Output Dir: $OUTPUT_DIR"
@@ -91,9 +98,9 @@ echo "=========================================="
 # Check for required tools
 command -v cmake >/dev/null 2>&1 || { echo "Error: cmake is required but not installed."; exit 1; }
 
-GENERATOR="Unix Makefiles"
-if command -v ninja >/dev/null 2>&1; then
-    GENERATOR="Ninja"
+GENERATOR="Ninja"
+if ! command -v ninja >/dev/null 2>&1; then
+    GENERATOR="Unix Makefiles"
 fi
 
 if [ "$CLEAN" = true ]; then
@@ -103,8 +110,17 @@ fi
 
 mkdir -p "$BUILD_DIR" "$OUTPUT_DIR"
 
+CMAKE_EXTRA_FLAGS=()
+if [ "$USE_LEGACY" = true ]; then
+    CMAKE_EXTRA_FLAGS+=("-DUSE_LEGACY_TOOLCHAIN=ON" "-DCMAKE_C_COMPILER=gcc" "-DCMAKE_CXX_COMPILER=g++")
+else
+    if command -v clang >/dev/null 2>&1 && command -v clang++ >/dev/null 2>&1; then
+        CMAKE_EXTRA_FLAGS+=("-DUSE_LEGACY_TOOLCHAIN=OFF" "-DCMAKE_C_COMPILER=clang" "-DCMAKE_CXX_COMPILER=clang++")
+    fi
+fi
+
 echo "==> Configuring CMake ($GENERATOR, $BUILD_TYPE)..."
-cmake -B "$BUILD_DIR" -G "$GENERATOR" -DCMAKE_BUILD_TYPE="$BUILD_TYPE"
+cmake -B "$BUILD_DIR" -G "$GENERATOR" -DCMAKE_BUILD_TYPE="$BUILD_TYPE" "${CMAKE_EXTRA_FLAGS[@]}"
 
 echo "==> Compiling WebClip..."
 cmake --build "$BUILD_DIR" --parallel
