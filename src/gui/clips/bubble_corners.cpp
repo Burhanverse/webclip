@@ -71,6 +71,7 @@ QPixmap sliceCorner(const QImage& square, int idx, qreal radius, qreal dpr) {
         case kTopLeft: x = 0; y = 0; break;
         case kTopRight: x = r; y = 0; break;
         case kBottomLeft: x = 0; y = r; break;
+        case kBottomRight:
         default: x = r; y = r; break;
     }
     return QPixmap::fromImage(square.copy(x, y, r, r));
