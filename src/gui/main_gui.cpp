@@ -343,10 +343,8 @@ int main(int argc, char* argv[]) {
     app.setQuitOnLastWindowClosed(false);
     app.setApplicationDisplayName(QString::fromUtf8(webclip::APP_DISPLAY_NAME.data(), webclip::APP_DISPLAY_NAME.size()));
 
-    webclip::font::initFonts();
-
     double initialAppScale = 0.0;
-    bool initialDebugLogging = true;
+    bool initialDebugLogging = false;
     {
         QSettings persisted("Burhanverse", "WebClip");
         if (persisted.contains("displayScale")) {
@@ -354,13 +352,14 @@ int main(int argc, char* argv[]) {
         } else if (persisted.contains("fontScale")) {
             initialAppScale = persisted.value("fontScale", 0.0).toDouble();
         }
-        initialDebugLogging = persisted.value("debugLogging", true).toBool();
+        initialDebugLogging = persisted.value("debugLogging", false).toBool();
     }
     if (initialAppScale > 0.0) {
         initialAppScale = (std::clamp)(initialAppScale, 0.75, 1.40);
     }
     webclip::scale::set(initialAppScale);
     webclip::DebugLogger::setEnabled(initialDebugLogging);
+    webclip::font::initFonts();
 
     QFont baseFont = webclip::scale::font(14, QFont::Normal);
     app.setFont(baseFont);

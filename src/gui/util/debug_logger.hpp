@@ -79,7 +79,7 @@ public:
 
 private:
     static std::atomic<bool>& enabledRef() {
-        static std::atomic<bool> s_enabled{true};
+        static std::atomic<bool> s_enabled{false};
         return s_enabled;
     }
 };

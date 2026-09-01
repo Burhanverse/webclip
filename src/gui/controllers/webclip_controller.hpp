@@ -144,7 +144,7 @@ private:
     bool insecure_ = true;
     bool autoConnect_ = false;
     bool autoSync_ = true;
-    bool debugLogging_ = true;
+    bool debugLogging_ = false;
     double pollInterval_ = 1.0;
     int themeMode_ = 0;
     QString accentPreset_ = "purple";

@@ -1448,7 +1448,7 @@ void WebClipController::loadSettings() {
     autoSync_ = s.value("autoSync", true).toBool();
     autoConnect_ = s.value("autoConnect", false).toBool();
     pollInterval_ = s.value("pollInterval", 1.0).toDouble();
-    debugLogging_ = s.value("debugLogging", true).toBool();
+    debugLogging_ = s.value("debugLogging", false).toBool();
     DebugLogger::setEnabled(debugLogging_);
     themeMode_ = s.value("themeMode", 0).toInt();
     accentPreset_ = s.value("accentPreset", "purple").toString();
