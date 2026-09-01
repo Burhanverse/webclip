@@ -72,7 +72,13 @@ void initFonts() {
     QFont::insertSubstitution(googleSans, vazirmatn);
 
 #ifdef Q_OS_WIN
-    const QStringList winFallbacks = { QStringLiteral("Ebrima"), QStringLiteral("Nirmala UI"), QStringLiteral("Segoe UI Symbol") };
+    const QStringList winFallbacks = {
+        QStringLiteral("Segoe UI"),
+        QStringLiteral("Arial"),
+        QStringLiteral("Ebrima"),
+        QStringLiteral("Nirmala UI"),
+        QStringLiteral("Segoe UI Symbol")
+    };
     QFont::insertSubstitutions(googleSansFlex, winFallbacks);
     QFont::insertSubstitutions(googleSans, winFallbacks);
 #elif defined(Q_OS_MAC)

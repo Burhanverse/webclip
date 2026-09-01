@@ -344,16 +344,8 @@ int main(int argc, char* argv[]) {
 
     webclip::font::initFonts();
 
-    double appFontScale = 0.0;
-    {
-        QSettings persisted("Burhanverse", "WebClip");
-        appFontScale = persisted.value("fontScale", 0.0).toDouble();
-    }
-    if (appFontScale <= 0.0) {
-        appFontScale = webclip::font::detectSystemFontScale();
-    } else {
-        appFontScale = (std::clamp)(appFontScale, 0.75, 2.50);
-    }
+    double appFontScale = webclip::font::detectSystemFontScale();
+    appFontScale = (std::clamp)(appFontScale, 0.75, 2.50);
 
     const int basePx = (std::max)(8, qRound(14 * appFontScale));
     QFont baseFont = webclip::font::createFont(basePx, QFont::Normal);
@@ -463,11 +455,30 @@ int main(int argc, char* argv[]) {
         }
         webclip::MD3Theme::instance()->setAccentPreset(persisted.value("accentPreset", "purple").toString());
         webclip::MD3Theme::instance()->setThemeMode(persisted.value("themeMode", 0).toInt());
-        double savedFontScale = persisted.value("fontScale", 0.0).toDouble();
-        webclip::MD3Theme::instance()->setFontScale(savedFontScale);
     }
 
     auto* controller = new webclip::WebClipController(&app);
+
+    {
+        double initialScale = controller->fontScale() > 0.0
+            ? controller->fontScale()
+            : webclip::font::detectSystemFontScale();
+        initialScale = (std::clamp)(initialScale, 0.75, 2.50);
+        const int initialPx = (std::max)(8, qRound(14 * initialScale));
+        QFont initialFont = webclip::font::createFont(initialPx, QFont::Normal);
+        app.setFont(initialFont);
+
+        QObject::connect(controller, &webclip::WebClipController::fontScaleChanged, &app, [&app, controller]() {
+            double v = controller->fontScale() > 0.0
+                ? controller->fontScale()
+                : webclip::font::detectSystemFontScale();
+            v = (std::clamp)(v, 0.75, 2.50);
+            const int px = (std::max)(8, qRound(14 * v));
+            QFont f = webclip::font::createFont(px, QFont::Normal);
+            app.setFont(f);
+        });
+    }
+
     auto* mainWindow = new Ui::MainWindow(nullptr, controller);
     auto trayManager = std::make_unique<webclip::TrayIconManager>(controller);
     trayManager->setMainWindow(mainWindow);
