@@ -40,6 +40,7 @@ protected:
 
 private:
     void updateSendButtonState();
+    void updateTheme();
     void updateLayout();
 
     webclip::WebClipController* controller_ = nullptr;

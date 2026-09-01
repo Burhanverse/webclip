@@ -42,9 +42,9 @@ InputDock::InputDock(QWidget* parent, webclip::WebClipController* controller)
 
     lineEdit_ = new QLineEdit(this);
     lineEdit_->setFrame(false);
-    lineEdit_->setStyleSheet(QStringLiteral("QLineEdit { background: transparent; border: none; padding: 0px; }"));
     lineEdit_->setPlaceholderText(webclip::I18n::instance()->tr(QStringLiteral("chat.message_placeholder")));
-    lineEdit_->setFont(webclip::MD3Theme::instance()->bodyLarge());
+
+    updateTheme();
 
     connect(lineEdit_, &QLineEdit::textChanged, this, [this] {
         updateSendButtonState();
@@ -68,6 +68,7 @@ InputDock::InputDock(QWidget* parent, webclip::WebClipController* controller)
         attachBtn_->setCustomBgColor(theme->primaryContainer());
         attachBtn_->setIconColor(theme->onPrimaryContainer());
         pasteBtn_->setIconColor(theme->onSurfaceVariant());
+        updateTheme();
         updateSendButtonState();
         update();
     });
@@ -75,6 +76,32 @@ InputDock::InputDock(QWidget* parent, webclip::WebClipController* controller)
     auto* theme = webclip::MD3Theme::instance();
     attachBtn_->setCustomBgColor(theme->primaryContainer());
     attachBtn_->setIconColor(theme->onPrimaryContainer());
+}
+
+void InputDock::updateTheme() {
+    auto* theme = webclip::MD3Theme::instance();
+    if (lineEdit_) {
+        lineEdit_->setFont(theme->bodyLarge());
+        lineEdit_->setStyleSheet(QStringLiteral(
+            "QLineEdit {"
+            "  background: transparent;"
+            "  border: none;"
+            "  padding: 0px;"
+            "  color: %1;"
+            "  selection-background-color: %2;"
+            "  selection-color: %3;"
+            "}"
+        ).arg(theme->onSurface().name(),
+              theme->primary().name(),
+              theme->onPrimary().name()));
+
+        QPalette pal = lineEdit_->palette();
+        pal.setColor(QPalette::Text, theme->onSurface());
+        pal.setColor(QPalette::PlaceholderText, theme->onSurfaceVariant());
+        pal.setColor(QPalette::Highlight, theme->primary());
+        pal.setColor(QPalette::HighlightedText, theme->onPrimary());
+        lineEdit_->setPalette(pal);
+    }
 }
 
 InputDock::~InputDock() = default;

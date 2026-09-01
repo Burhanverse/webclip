@@ -4,31 +4,66 @@
 #include "../../util/display_scale.hpp"
 
 #include <QtGui/QPainter>
+#include <QtCore/QEvent>
 
 namespace Ui {
 
 Md3TextField::Md3TextField(QWidget* parent, const QString& label, const QString& placeholder)
     : RpWidget(parent)
     , label_(label) {
-    auto* theme = webclip::MD3Theme::instance();
-    setFont(theme->bodyMedium());
-
     lineEdit_ = new QLineEdit(this);
     lineEdit_->setFrame(false);
-    lineEdit_->setStyleSheet(QStringLiteral("QLineEdit { background: transparent; border: none; padding: 0px; }"));
     lineEdit_->setPlaceholderText(placeholder);
-    lineEdit_->setFont(theme->bodyMedium());
+    lineEdit_->installEventFilter(this);
+
+    updateTheme();
 
     connect(lineEdit_, &QLineEdit::textChanged, this, [this](const QString& txt) {
         emit textChanged(txt);
         update();
     });
     connect(lineEdit_, &QLineEdit::returnPressed, this, &Md3TextField::returnPressed);
+    connect(webclip::MD3Theme::instance(), &webclip::MD3Theme::themeChanged, this, &Md3TextField::updateTheme);
 
     setFixedHeight(label_.isEmpty() ? webclip::scale::px(36) : webclip::scale::px(44));
 }
 
 Md3TextField::~Md3TextField() = default;
+
+bool Md3TextField::eventFilter(QObject* obj, QEvent* e) {
+    if (obj == lineEdit_ && (e->type() == QEvent::FocusIn || e->type() == QEvent::FocusOut)) {
+        update();
+    }
+    return RpWidget::eventFilter(obj, e);
+}
+
+void Md3TextField::updateTheme() {
+    auto* theme = webclip::MD3Theme::instance();
+    setFont(theme->bodyMedium());
+    if (lineEdit_) {
+        lineEdit_->setFont(theme->bodyMedium());
+        lineEdit_->setStyleSheet(QStringLiteral(
+            "QLineEdit {"
+            "  background: transparent;"
+            "  border: none;"
+            "  padding: 0px;"
+            "  color: %1;"
+            "  selection-background-color: %2;"
+            "  selection-color: %3;"
+            "}"
+        ).arg(theme->onSurface().name(),
+              theme->primary().name(),
+              theme->onPrimary().name()));
+
+        QPalette pal = lineEdit_->palette();
+        pal.setColor(QPalette::Text, theme->onSurface());
+        pal.setColor(QPalette::PlaceholderText, theme->onSurfaceVariant());
+        pal.setColor(QPalette::Highlight, theme->primary());
+        pal.setColor(QPalette::HighlightedText, theme->onPrimary());
+        lineEdit_->setPalette(pal);
+    }
+    update();
+}
 
 QString Md3TextField::text() const {
     return lineEdit_->text();

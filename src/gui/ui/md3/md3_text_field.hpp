@@ -39,6 +39,8 @@ public:
         return sizeHint();
     }
 
+    void updateTheme();
+
 signals:
     void textChanged(const QString& text);
     void returnPressed();
@@ -46,6 +48,7 @@ signals:
 protected:
     void paintEvent(QPaintEvent* e) override;
     void resizeEvent(QResizeEvent* e) override;
+    bool eventFilter(QObject* obj, QEvent* e) override;
 
 private:
     void updateLayout();
