@@ -8,6 +8,7 @@
 #include <chrono>
 #include <iomanip>
 #include <sstream>
+#include <atomic>
 #include <QDir>
 #include <QDateTime>
 
@@ -19,11 +20,21 @@ namespace webclip {
 
 class DebugLogger {
 public:
+    static void setEnabled(bool enabled) noexcept {
+        enabledRef().store(enabled, std::memory_order_relaxed);
+    }
+
+    [[nodiscard]] static bool isEnabled() noexcept {
+        return enabledRef().load(std::memory_order_relaxed);
+    }
+
     static void log(const QString& msg) {
+        if (!isEnabled()) return;
         log(msg.toStdString());
     }
 
     static void log(const std::string& msg) {
+        if (!isEnabled()) return;
         static std::mutex s_mutex;
         std::lock_guard<std::mutex> lock(s_mutex);
         auto now = std::chrono::system_clock::now();
@@ -64,6 +75,12 @@ public:
         if (logFile.is_open()) {
             logFile << formatted << std::flush;
         }
+    }
+
+private:
+    static std::atomic<bool>& enabledRef() {
+        static std::atomic<bool> s_enabled{true};
+        return s_enabled;
     }
 };
 

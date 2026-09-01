@@ -1412,6 +1412,15 @@ bool WebClipController::saveImage(int index, const QString& destinationPath) {
     return true;
 }
 
+void WebClipController::setDebugLogging(bool enabled) {
+    if (debugLogging_ != enabled) {
+        debugLogging_ = enabled;
+        DebugLogger::setEnabled(enabled);
+        saveSettings();
+        emit debugLoggingChanged();
+    }
+}
+
 void WebClipController::saveSettings() {
     QSettings s("Burhanverse", "WebClip");
     s.setValue("host", host_);
@@ -1422,6 +1431,7 @@ void WebClipController::saveSettings() {
     s.setValue("autoSync", autoSync_);
     s.setValue("autoConnect", autoConnect_);
     s.setValue("pollInterval", pollInterval_);
+    s.setValue("debugLogging", debugLogging_);
     s.setValue("themeMode", themeMode_);
     s.setValue("accentPreset", accentPreset_);
     s.setValue("customColor", customColor_.name());
@@ -1438,6 +1448,8 @@ void WebClipController::loadSettings() {
     autoSync_ = s.value("autoSync", true).toBool();
     autoConnect_ = s.value("autoConnect", false).toBool();
     pollInterval_ = s.value("pollInterval", 1.0).toDouble();
+    debugLogging_ = s.value("debugLogging", true).toBool();
+    DebugLogger::setEnabled(debugLogging_);
     themeMode_ = s.value("themeMode", 0).toInt();
     accentPreset_ = s.value("accentPreset", "purple").toString();
     customColor_ = QColor(s.value("customColor", "#6750A4").toString());

@@ -64,6 +64,11 @@
       "clipboard_engine": "Clipboard Engine",
       "btn_clear_history": "Clear All History"
     },
+    "logs": {
+      "section_title": "Logs",
+      "debug_logging_title": "Debug Logging",
+      "debug_logging_subtitle": "Print sync diagnostics in real-time"
+    },
     "about": {
       "section_title": "About",
       "app_name": "WebClip Sync",

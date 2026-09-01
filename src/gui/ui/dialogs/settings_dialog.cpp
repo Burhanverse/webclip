@@ -524,7 +524,27 @@ void SettingsDialog::setupContent() {
     mainLayout_->addWidget(clearHistoryBtn_);
 
     // ==========================================
-    // 5. About WebClip Section
+    // 5. Logs Section
+    // ==========================================
+    mainLayout_->addWidget(createSectionHeader(webclip::I18n::instance()->tr(QStringLiteral("settings.logs.section_title"))));
+    logsCard_ = new CardContainer(scrollContent_);
+
+    debugLoggingRow_ = new CardToggleRow(
+        logsCard_,
+        webclip::I18n::instance()->tr(QStringLiteral("settings.logs.debug_logging_title")),
+        webclip::I18n::instance()->tr(QStringLiteral("settings.logs.debug_logging_subtitle")),
+        QStringLiteral("settings"),
+        true
+    );
+    connect(debugLoggingRow_, &CardToggleRow::toggled, this, [this](bool val) {
+        if (controller_) controller_->setDebugLogging(val);
+    });
+
+    logsCard_->addRow(debugLoggingRow_);
+    mainLayout_->addWidget(logsCard_);
+
+    // ==========================================
+    // 6. About WebClip Section
     // ==========================================
     mainLayout_->addWidget(createSectionHeader(webclip::I18n::instance()->tr(QStringLiteral("settings.about.section_title"))));
     aboutCard_ = new CardContainer(scrollContent_);
@@ -595,6 +615,7 @@ void SettingsDialog::setController(webclip::WebClipController* controller) {
     insecureRow_->setChecked(controller_->insecure(), anim::type::instant);
     autoSyncRow_->setChecked(controller_->autoSync(), anim::type::instant);
     autoConnectRow_->setChecked(controller_->autoConnect(), anim::type::instant);
+    debugLoggingRow_->setChecked(controller_->debugLogging(), anim::type::instant);
 
     if (pollSlider_) {
         pollSlider_->setValue(controller_->pollInterval());
@@ -617,6 +638,12 @@ void SettingsDialog::setController(webclip::WebClipController* controller) {
 
     connect(controller_, &webclip::WebClipController::connectedChanged, this, &SettingsDialog::updateConnectionButton);
     connect(controller_, &webclip::WebClipController::connectingChanged, this, &SettingsDialog::updateConnectionButton);
+
+    connect(controller_, &webclip::WebClipController::debugLoggingChanged, this, [this] {
+        if (debugLoggingRow_ && controller_) {
+            debugLoggingRow_->setChecked(controller_->debugLogging());
+        }
+    });
 
     connect(controller_, &webclip::WebClipController::themeModeChanged, this, &SettingsDialog::updateThemeSelection);
     connect(controller_, &webclip::WebClipController::accentPresetChanged, this, &SettingsDialog::updateAccentSelection);

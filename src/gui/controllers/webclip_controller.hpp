@@ -62,6 +62,7 @@ public:
     QString accentPreset() const { return accentPreset_; }
     QColor customColor() const { return customColor_; }
     double displayScale() const { return displayScale_; }
+    bool debugLogging() const { return debugLogging_; }
     ClipboardHistoryModel* clipModel() { return &clipModel_; }
     QString appVersion() const { return QString::fromUtf8(VERSION_STRING.data(), VERSION_STRING.size()); }
     QString qtVersion() const { return QString::fromLatin1(qVersion()); }
@@ -76,6 +77,7 @@ public:
     void setAutoConnect(bool autoConnect);
     void setAutoSync(bool autoSync);
     void setPollInterval(double interval);
+    void setDebugLogging(bool enabled);
     Q_INVOKABLE void setThemeMode(int mode);
     Q_INVOKABLE void setAccentPreset(const QString& preset);
     Q_INVOKABLE void setCustomColor(const QColor& color);
@@ -108,6 +110,7 @@ signals:
     void autoConnectChanged();
     void autoSyncChanged();
     void pollIntervalChanged();
+    void debugLoggingChanged();
     void themeModeChanged();
     void accentPresetChanged();
     void customColorChanged();
@@ -141,6 +144,7 @@ private:
     bool insecure_ = true;
     bool autoConnect_ = false;
     bool autoSync_ = true;
+    bool debugLogging_ = true;
     double pollInterval_ = 1.0;
     int themeMode_ = 0;
     QString accentPreset_ = "purple";

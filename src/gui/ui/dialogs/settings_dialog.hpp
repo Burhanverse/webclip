@@ -102,6 +102,10 @@ private:
 
     Md3Button* clearHistoryBtn_ = nullptr;
 
+    // Logs
+    CardContainer* logsCard_ = nullptr;
+    CardToggleRow* debugLoggingRow_ = nullptr;
+
     // About
     CardContainer* aboutCard_ = nullptr;
     CardButtonRow* appRow_ = nullptr;
