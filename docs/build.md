@@ -70,7 +70,7 @@ windeployqt deploy\webclip.exe --qmldir src\gui\qml --no-translations --no-openg
 Compress-Archive deploy\* webclip-windows-x64-portable.zip
 
 # Optional Inno Setup installer
-iscc.exe /DMyAppVersion="1.6.1" packaging\setup.iss
+iscc.exe /DMyAppVersion="1.7.0" packaging\setup.iss
 ```
 
 ---

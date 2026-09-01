@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(webclip VERSION 1.6.1 LANGUAGES CXX)
+project(webclip VERSION 1.7.0 LANGUAGES CXX)
 
 option(USE_LEGACY_TOOLCHAIN "Use legacy toolchain (GCC on Linux, MSVC cl.exe on Windows)" OFF)
 
