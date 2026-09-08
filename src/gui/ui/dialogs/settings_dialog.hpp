@@ -65,6 +65,7 @@ private:
 
     // Connection
     Md3TextField* hostInput_ = nullptr;
+    Md3IconButton* scanBtn_ = nullptr;
     Md3TextField* portInput_ = nullptr;
     Md3TextField* pinInput_ = nullptr;
     Md3Button* connectBtn_ = nullptr;

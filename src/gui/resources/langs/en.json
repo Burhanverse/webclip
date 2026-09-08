@@ -32,6 +32,7 @@
       "btn_connect": "Connect",
       "btn_connecting": "Connecting...",
       "btn_disconnect": "Disconnect",
+      "scan_tooltip": "Scan Wi-Fi network for phone",
       "autoconnect_title": "Auto-Connect on Startup",
       "autoconnect_subtitle": "Automatically connect using saved settings"
     },

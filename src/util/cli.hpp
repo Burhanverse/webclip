@@ -48,10 +48,25 @@ inline void print_usage(const char* prog_name) {
 inline void sanitize_host_and_port(SyncConfig& config, bool port_explicitly_set) {
     std::string host = config.host;
 
+    while (!host.empty() && (host.front() == ' ' || host.front() == '\t' || host.front() == '\r' || host.front() == '\n')) {
+        host.erase(host.begin());
+    }
+    while (!host.empty() && (host.back() == ' ' || host.back() == '\t' || host.back() == '\r' || host.back() == '\n')) {
+        host.pop_back();
+    }
+
+    while (!config.code.empty() && (config.code.front() == ' ' || config.code.front() == '\t' || config.code.front() == '\r' || config.code.front() == '\n')) {
+        config.code.erase(config.code.begin());
+    }
+    while (!config.code.empty() && (config.code.back() == ' ' || config.code.back() == '\t' || config.code.back() == '\r' || config.code.back() == '\n')) {
+        config.code.pop_back();
+    }
+
     if (host.rfind("https://", 0) == 0) {
         config.use_https = true;
         host = host.substr(8);
     } else if (host.rfind("http://", 0) == 0) {
+        config.use_https = false;
         host = host.substr(7);
     }
 
@@ -59,15 +74,35 @@ inline void sanitize_host_and_port(SyncConfig& config, bool port_explicitly_set)
     if (slash_pos != std::string::npos) {
         host = host.substr(0, slash_pos);
     }
+    size_t qmark_pos = host.find('?');
+    if (qmark_pos != std::string::npos) {
+        host = host.substr(0, qmark_pos);
+    }
 
-    size_t colon_pos = host.find(':');
-    if (colon_pos != std::string::npos) {
-        std::string port_str = host.substr(colon_pos + 1);
-        host = host.substr(0, colon_pos);
-        try {
-            config.port = std::stoi(port_str);
-            port_explicitly_set = true;
-        } catch (...) {}
+    if (host.rfind("[", 0) == 0) {
+        size_t close_bracket = host.find(']');
+        if (close_bracket != std::string::npos) {
+            std::string ip_inside = host.substr(1, close_bracket - 1);
+            if (close_bracket + 1 < host.size() && host[close_bracket + 1] == ':') {
+                std::string port_str = host.substr(close_bracket + 2);
+                try {
+                    config.port = std::stoi(port_str);
+                    port_explicitly_set = true;
+                } catch (...) {}
+            }
+            host = ip_inside;
+        }
+    } else {
+        size_t first_colon = host.find(':');
+        size_t last_colon = host.rfind(':');
+        if (first_colon != std::string::npos && first_colon == last_colon) {
+            std::string port_str = host.substr(first_colon + 1);
+            host = host.substr(0, first_colon);
+            try {
+                config.port = std::stoi(port_str);
+                port_explicitly_set = true;
+            } catch (...) {}
+        }
     }
 
     config.host = host;

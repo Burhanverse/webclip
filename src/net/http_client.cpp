@@ -74,6 +74,10 @@ HttpClient::HttpClient(std::string host, int port, std::string code, bool use_ht
 }
 
 HttpClient::~HttpClient() {
+    reset_connections();
+}
+
+void HttpClient::reset_connections() {
     std::lock_guard<std::mutex> guard(post_mutex_);
     if (post_curl_) {
         curl_easy_cleanup(static_cast<CURL*>(post_curl_));
@@ -87,7 +91,11 @@ HttpClient::~HttpClient() {
 
 std::string HttpClient::get_base_url() const {
     std::string scheme = use_https_ ? "https" : "http";
-    return scheme + "://" + host_ + ":" + std::to_string(port_);
+    std::string host_part = host_;
+    if (host_part.find(':') != std::string::npos && host_part.front() != '[') {
+        host_part = "[" + host_part + "]";
+    }
+    return scheme + "://" + host_part + ":" + std::to_string(port_);
 }
 
 std::string HttpClient::build_url(const std::string& path, const std::string& extra_query) const {
@@ -121,6 +129,7 @@ HttpResponse HttpClient::get_state() {
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp.body);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 6L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 60L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 30L);
@@ -128,6 +137,9 @@ HttpResponse HttpClient::get_state() {
     if (insecure_ || use_https_) {
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, insecure_ ? 0L : 2L);
+        if (insecure_) {
+            curl_easy_setopt(curl, CURLOPT_SSL_CIPHER_LIST, "DEFAULT@SECLEVEL=0");
+        }
     }
 
     CURLcode res = curl_easy_perform(curl);
@@ -172,6 +184,7 @@ HttpResponse HttpClient::get_image(const std::string& path_or_url) {
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp.binary_body);
     curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 6L);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 60L);
     curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 30L);
@@ -179,6 +192,9 @@ HttpResponse HttpClient::get_image(const std::string& path_or_url) {
     if (insecure_ || use_https_) {
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);
         curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, insecure_ ? 0L : 2L);
+        if (insecure_) {
+            curl_easy_setopt(curl, CURLOPT_SSL_CIPHER_LIST, "DEFAULT@SECLEVEL=0");
+        }
     }
 
     CURLcode res = curl_easy_perform(curl);
@@ -306,6 +322,7 @@ HttpResponse HttpClient::post_json_body(std::string json_body, long timeout_s, l
         curl_easy_setopt(curl, CURLOPT_POST, 1L);
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, post_headers_);
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_string_cb);
+        curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 60L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 30L);
@@ -313,6 +330,9 @@ HttpResponse HttpClient::post_json_body(std::string json_body, long timeout_s, l
         if (insecure_ || use_https_) {
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, insecure_ ? 0L : 2L);
+            if (insecure_) {
+                curl_easy_setopt(curl, CURLOPT_SSL_CIPHER_LIST, "DEFAULT@SECLEVEL=0");
+            }
         }
         post_curl_ = curl;
     }
@@ -376,6 +396,7 @@ void HttpClient::stream_events(
         curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_cb);
         curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &stop_flag);
         curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+        curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
 
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 15L);
@@ -386,6 +407,9 @@ void HttpClient::stream_events(
         if (insecure_ || use_https_) {
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);
             curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, insecure_ ? 0L : 2L);
+            if (insecure_) {
+                curl_easy_setopt(curl, CURLOPT_SSL_CIPHER_LIST, "DEFAULT@SECLEVEL=0");
+            }
         }
 
         if (on_status) {
@@ -406,7 +430,9 @@ void HttpClient::stream_events(
             if (on_status) {
                 on_status("SSE connection dropped (" + err + "); reconnecting...");
             }
-            std::this_thread::sleep_for(std::chrono::seconds(2));
+            for (int i = 0; i < 20 && !stop_flag.load(); ++i) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
         }
     }
 }

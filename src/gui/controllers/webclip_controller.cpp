@@ -22,6 +22,9 @@
 #include <QImageReader>
 #include <QProcess>
 #include <QCoreApplication>
+#include <QtNetwork/QNetworkInterface>
+#include <QtNetwork/QHostAddress>
+#include <QtNetwork/QAbstractSocket>
 
 namespace webclip {
 
@@ -499,6 +502,13 @@ void WebClipController::autoConnectOnStartup() {
     connectToPortal();
 }
 
+void WebClipController::setScanningLan(bool s) {
+    if (scanningLan_ != s) {
+        scanningLan_ = s;
+        emit scanningLanChanged();
+    }
+}
+
 void WebClipController::connectToPortal() {
     if (connected_ || connecting_) return;
 
@@ -525,8 +535,70 @@ void WebClipController::connectToPortal() {
     QPointer<WebClipController> self(this);
     std::thread([self, client]() {
         HttpResponse stateResp = client->get_state();
+
+        bool fallbackAttempted = false;
+        bool fallbackHttps = false;
+        int fallbackPort = 0;
+        std::shared_ptr<HttpClient> activeClient = client;
+
+        if (stateResp.status_code != 200 && stateResp.status_code != 401 && self) {
+            std::string hostStr;
+            std::string codeStr;
+            std::string clientIdStr;
+            bool currHttps = false;
+            int currPort = 8080;
+
+            QMetaObject::invokeMethod(self.data(), [&]() {
+                if (self) {
+                    hostStr = self->host_.trimmed().toStdString();
+                    codeStr = self->code_.trimmed().toStdString();
+                    clientIdStr = self->clientId_;
+                    currHttps = self->useHttps_;
+                    currPort = self->port_;
+                }
+            }, Qt::BlockingQueuedConnection);
+
+            if (self && !hostStr.empty()) {
+                if (currHttps || currPort == 8081) {
+                    fallbackHttps = false;
+                    fallbackPort = 8080;
+                } else {
+                    fallbackHttps = true;
+                    fallbackPort = 8081;
+                }
+
+                auto fallbackClient = std::make_shared<HttpClient>(
+                    hostStr,
+                    fallbackPort,
+                    codeStr,
+                    fallbackHttps,
+                    true,
+                    clientIdStr
+                );
+
+                HttpResponse fbResp = fallbackClient->get_state();
+                if (fbResp.status_code == 200 || fbResp.status_code == 401) {
+                    stateResp = fbResp;
+                    fallbackAttempted = true;
+                    activeClient = fallbackClient;
+
+                    QMetaObject::invokeMethod(self.data(), [self, fallbackHttps, fallbackPort, fallbackClient]() {
+                        if (!self) return;
+                        self->useHttps_ = fallbackHttps;
+                        self->port_ = fallbackPort;
+                        self->insecure_ = true;
+                        self->httpClient_ = fallbackClient;
+                        self->saveSettings();
+                        emit self->useHttpsChanged();
+                        emit self->portChanged();
+                        emit self->insecureChanged();
+                    });
+                }
+            }
+        }
+
         if (!self) return;
-        QMetaObject::invokeMethod(self.data(), [self, stateResp, client]() {
+        QMetaObject::invokeMethod(self.data(), [self, stateResp, activeClient, fallbackAttempted, fallbackPort, fallbackHttps]() {
             if (!self) return;
             if (stateResp.status_code == 200) {
                 JsonValue stateJson = JsonValue::parse(stateResp.body);
@@ -538,8 +610,8 @@ void WebClipController::connectToPortal() {
                     std::string mimeType = stateJson.get_string("mimeType");
                     if (mimeType.empty()) mimeType = "image/png";
 
-                    std::thread([self, client, imageUrl, mimeType]() {
-                        HttpResponse imgResp = client->get_image(imageUrl);
+                    std::thread([self, activeClient, imageUrl, mimeType]() {
+                        HttpResponse imgResp = activeClient->get_image(imageUrl);
                         if (!self) return;
                         if (imgResp.status_code != 200 || imgResp.binary_body.empty()) return;
                         QByteArray bytes(reinterpret_cast<const char*>(imgResp.binary_body.data()), static_cast<int>(imgResp.binary_body.size()));
@@ -600,7 +672,12 @@ void WebClipController::connectToPortal() {
 
                 self->setConnecting(false);
                 self->setConnected(true);
-                emit self->showToast("Connected to Gboard Web Clipboard", false);
+                if (fallbackAttempted) {
+                    QString scheme = fallbackHttps ? "HTTPS" : "HTTP";
+                    emit self->showToast("Connected to Gboard (auto-switched to " + scheme + " :" + QString::number(fallbackPort) + ")", false);
+                } else {
+                    emit self->showToast("Connected to Gboard Web Clipboard", false);
+                }
 
                 if (self->autoSync_) {
                     self->pollTimer_->start(static_cast<int>(self->pollInterval_ * 1000));
@@ -620,10 +697,15 @@ void WebClipController::connectToPortal() {
 }
 
 void WebClipController::disconnectFromPortal() {
+    cancelLanScan_.store(true);
     stopSseListener();
+    if (httpClient_) {
+        httpClient_->reset_connections();
+    }
     pollTimer_->stop();
     setConnecting(false);
     setConnected(false);
+    setScanningLan(false);
 }
 
 void WebClipController::toggleConnection() {
@@ -636,7 +718,7 @@ void WebClipController::toggleConnection() {
 
 void WebClipController::startSseListener() {
     stopSseListener();
-    sseStopFlag_->store(false);
+    sseStopFlag_ = std::make_shared<std::atomic<bool>>(false);
 
     QPointer<WebClipController> self(this);
     auto client = httpClient_;
@@ -828,19 +910,141 @@ void WebClipController::startSseListener() {
 }
 
 void WebClipController::stopSseListener() {
-    if (sseStopFlag_->exchange(true) == false) {
-        if (sseThread_ && sseThread_->joinable()) {
-
-            std::shared_ptr<std::thread> stale(sseThread_.release());
-            std::thread([stale]() {
-                if (stale && stale->joinable()) {
-                    stale->join();
-                }
-            }).detach();
-        } else {
-            sseThread_.reset();
-        }
+    if (sseStopFlag_) {
+        sseStopFlag_->store(true);
     }
+    if (sseThread_ && sseThread_->joinable()) {
+        std::shared_ptr<std::thread> stale(sseThread_.release());
+        std::thread([stale]() {
+            if (stale && stale->joinable()) {
+                stale->join();
+            }
+        }).detach();
+    } else {
+        sseThread_.reset();
+    }
+}
+
+void WebClipController::discoverPhoneOnLan() {
+    if (scanningLan_) return;
+    setScanningLan(true);
+    cancelLanScan_.store(false);
+    emit showToast("Scanning Wi-Fi network for phone...", false);
+
+    QPointer<WebClipController> self(this);
+    std::thread([self]() {
+        QList<QNetworkAddressEntry> activeEntries;
+        const auto interfaces = QNetworkInterface::allInterfaces();
+        for (const auto& iface : interfaces) {
+            if (!iface.flags().testFlag(QNetworkInterface::IsUp) ||
+                !iface.flags().testFlag(QNetworkInterface::IsRunning) ||
+                iface.flags().testFlag(QNetworkInterface::IsLoopBack)) {
+                continue;
+            }
+            for (const auto& entry : iface.addressEntries()) {
+                if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol &&
+                    entry.ip() != QHostAddress::LocalHost) {
+                    activeEntries.append(entry);
+                }
+            }
+        }
+
+        if (activeEntries.isEmpty()) {
+            QMetaObject::invokeMethod(self.data(), [self]() {
+                if (!self) return;
+                self->setScanningLan(false);
+                emit self->showToast("No active Wi-Fi / network connection found", true);
+                emit self->discoveryFinished(false, QString(), 0, false);
+            });
+            return;
+        }
+
+        QList<QString> candidateIps;
+        for (const auto& entry : activeEntries) {
+            quint32 ip = entry.ip().toIPv4Address();
+            quint32 mask = entry.netmask().toIPv4Address();
+            quint32 net = ip & mask;
+            quint32 bcast = net | (~mask);
+
+            quint32 startIp = (mask >= 0xFFFFFF00) ? (net + 1) : ((ip & 0xFFFFFF00) + 1);
+            quint32 endIp = (mask >= 0xFFFFFF00) ? (bcast - 1) : ((ip & 0xFFFFFF00) + 254);
+
+            for (quint32 cur = startIp; cur <= endIp; ++cur) {
+                if (cur != ip) {
+                    candidateIps.append(QHostAddress(cur).toString());
+                }
+            }
+        }
+
+        std::string pairingCode;
+        if (self) {
+            pairingCode = self->code_.trimmed().toStdString();
+        }
+
+        std::atomic<bool> found{false};
+        std::string foundHost;
+        int foundPort = 0;
+        bool foundHttps = false;
+
+        const int numWorkers = 32;
+        std::atomic<size_t> ipIndex{0};
+        std::vector<std::thread> workers;
+
+        for (int w = 0; w < numWorkers; ++w) {
+            workers.emplace_back([&]() {
+                while (!found.load() && (!self || !self->cancelLanScan_.load())) {
+                    size_t idx = ipIndex.fetch_add(1);
+                    if (idx >= static_cast<size_t>(candidateIps.size())) break;
+
+                    const std::string hostStr = candidateIps[static_cast<int>(idx)].toStdString();
+
+                    const int portsToTry[] = {8080, 8081};
+                    for (int p : portsToTry) {
+                        if (found.load() || (self && self->cancelLanScan_.load())) break;
+
+                        bool isHttps = (p == 8081);
+                        HttpClient probeClient(hostStr, p, pairingCode, isHttps, true, "probe-discovery");
+                        HttpResponse r = probeClient.get_state();
+
+                        if (r.status_code == 200 || r.status_code == 401) {
+                            foundHost = hostStr;
+                            foundPort = p;
+                            foundHttps = isHttps;
+                            found.store(true);
+                            break;
+                        }
+                    }
+                }
+            });
+        }
+
+        for (auto& worker : workers) {
+            if (worker.joinable()) worker.join();
+        }
+
+        if (!self) return;
+        QMetaObject::invokeMethod(self.data(), [self, found = found.load(), foundHost, foundPort, foundHttps]() {
+            if (!self) return;
+            self->setScanningLan(false);
+            if (found) {
+                QString hostQ = QString::fromStdString(foundHost);
+                self->setHost(hostQ);
+                self->setPort(foundPort);
+                self->setUseHttps(foundHttps);
+                self->setInsecure(true);
+                self->saveSettings();
+
+                QString scheme = foundHttps ? "HTTPS" : "HTTP";
+                emit self->showToast("Found phone at " + hostQ + " (" + scheme + " :" + QString::number(foundPort) + ")", false);
+                emit self->discoveryFinished(true, hostQ, foundPort, foundHttps);
+
+                self->connectToPortal();
+            } else {
+                emit self->showToast("No phone found on current Wi-Fi network", true);
+                emit self->discoveryFinished(false, QString(), 0, false);
+            }
+        });
+    }).detach();
 }
 
 void WebClipController::onClipboardDataChanged() {

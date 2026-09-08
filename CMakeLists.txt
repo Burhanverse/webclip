@@ -12,7 +12,7 @@ set(CMAKE_AUTOUIC ON)
 
 find_package(Threads REQUIRED)
 find_package(CURL REQUIRED)
-find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Svg Widgets)
+find_package(Qt6 6.2 REQUIRED COMPONENTS Core Gui Svg Widgets Network)
 
 if(QT_KNOWN_POLICY_QTP0004)
     qt_policy(SET QTP0004 NEW)
@@ -199,6 +199,7 @@ target_link_libraries(webclip PRIVATE
     Qt6::Gui
     Qt6::Svg
     Qt6::Widgets
+    Qt6::Network
 )
 
 if(MSVC)

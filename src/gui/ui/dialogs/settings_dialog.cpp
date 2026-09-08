@@ -197,9 +197,15 @@ void SettingsDialog::setupContent() {
     auto* row1 = new QHBoxLayout();
     row1->setSpacing(webclip::scale::px(8));
     hostInput_ = new Md3TextField(connRow, webclip::I18n::instance()->tr(QStringLiteral("settings.connection.host_label")), QStringLiteral("192.168.1.100"));
+    scanBtn_ = new Md3IconButton(connRow, QStringLiteral("phone"), webclip::scale::px(44), webclip::scale::px(20));
+    scanBtn_->setToolTip(webclip::I18n::instance()->tr(QStringLiteral("settings.connection.scan_tooltip")));
+    scanBtn_->addClickHandler([this] {
+        if (controller_) controller_->discoverPhoneOnLan();
+    });
     portInput_ = new Md3TextField(connRow, webclip::I18n::instance()->tr(QStringLiteral("settings.connection.port_label")), QStringLiteral("8080"));
     portInput_->setFixedWidth(webclip::scale::px(85));
     row1->addWidget(hostInput_, 1);
+    row1->addWidget(scanBtn_, 0);
     row1->addWidget(portInput_, 0);
     connBox->addLayout(row1);
 
@@ -248,7 +254,14 @@ void SettingsDialog::setupContent() {
         false
     );
     connect(httpsRow_, &CardToggleRow::toggled, this, [this](bool val) {
-        if (controller_) controller_->setUseHttps(val);
+        if (controller_) {
+            controller_->setUseHttps(val);
+            if (val && controller_->port() == 8080) {
+                controller_->setPort(8081);
+            } else if (!val && controller_->port() == 8081) {
+                controller_->setPort(8080);
+            }
+        }
     });
 
     insecureRow_ = new CardToggleRow(
@@ -634,6 +647,37 @@ void SettingsDialog::setController(webclip::WebClipController* controller) {
     });
     connect(pinInput_, &Md3TextField::textChanged, this, [this](const QString& p) {
         if (controller_) controller_->setCode(p);
+    });
+
+    connect(controller_, &webclip::WebClipController::hostChanged, this, [this] {
+        if (controller_ && hostInput_ && hostInput_->text() != controller_->host()) {
+            hostInput_->setText(controller_->host());
+        }
+    });
+    connect(controller_, &webclip::WebClipController::portChanged, this, [this] {
+        if (controller_ && portInput_ && portInput_->text() != QString::number(controller_->port())) {
+            portInput_->setText(QString::number(controller_->port()));
+        }
+    });
+    connect(controller_, &webclip::WebClipController::codeChanged, this, [this] {
+        if (controller_ && pinInput_ && pinInput_->text() != controller_->code()) {
+            pinInput_->setText(controller_->code());
+        }
+    });
+    connect(controller_, &webclip::WebClipController::useHttpsChanged, this, [this] {
+        if (controller_ && httpsRow_) {
+            httpsRow_->setChecked(controller_->useHttps(), anim::type::instant);
+        }
+    });
+    connect(controller_, &webclip::WebClipController::insecureChanged, this, [this] {
+        if (controller_ && insecureRow_) {
+            insecureRow_->setChecked(controller_->insecure(), anim::type::instant);
+        }
+    });
+    connect(controller_, &webclip::WebClipController::scanningLanChanged, this, [this] {
+        if (scanBtn_ && controller_) {
+            scanBtn_->setDisabled(controller_->scanningLan());
+        }
     });
 
     connect(controller_, &webclip::WebClipController::connectedChanged, this, &SettingsDialog::updateConnectionButton);

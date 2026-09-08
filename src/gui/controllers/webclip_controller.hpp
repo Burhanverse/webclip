@@ -39,6 +39,7 @@ class WebClipController : public QObject {
     Q_PROPERTY(QString accentPreset READ accentPreset WRITE setAccentPreset NOTIFY accentPresetChanged)
     Q_PROPERTY(QColor customColor READ customColor WRITE setCustomColor NOTIFY customColorChanged)
     Q_PROPERTY(double displayScale READ displayScale WRITE setDisplayScale NOTIFY displayScaleChanged)
+    Q_PROPERTY(bool scanningLan READ scanningLan NOTIFY scanningLanChanged)
     Q_PROPERTY(ClipboardHistoryModel* clipModel READ clipModel CONSTANT)
     Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
     Q_PROPERTY(QString qtVersion READ qtVersion CONSTANT)
@@ -62,6 +63,7 @@ public:
     QString accentPreset() const { return accentPreset_; }
     QColor customColor() const { return customColor_; }
     double displayScale() const { return displayScale_; }
+    bool scanningLan() const { return scanningLan_; }
     bool debugLogging() const { return debugLogging_; }
     ClipboardHistoryModel* clipModel() { return &clipModel_; }
     QString appVersion() const { return QString::fromUtf8(VERSION_STRING.data(), VERSION_STRING.size()); }
@@ -88,6 +90,7 @@ public:
     Q_INVOKABLE void disconnectFromPortal();
     Q_INVOKABLE void toggleConnection();
     Q_INVOKABLE void autoConnectOnStartup();
+    Q_INVOKABLE void discoverPhoneOnLan();
     Q_INVOKABLE bool pushClipboard(const QString& text, const QString& clipId = "");
     Q_INVOKABLE bool pushImage(const QString& filePathOrDataUrl);
     Q_INVOKABLE bool pushImageBytes(const QByteArray& bytes, const QString& mimeType = "image/png", const QString& clipId = "");
@@ -115,6 +118,9 @@ signals:
     void accentPresetChanged();
     void customColorChanged();
     void displayScaleChanged();
+    void scanningLanChanged();
+    void discoveryProgress(const QString& status);
+    void discoveryFinished(bool found, const QString& host, int port, bool useHttps);
     void clipReceived(const QString& text, const QString& source);
     void showToast(const QString& message, bool isError);
     void minimizedToTray();
@@ -157,7 +163,10 @@ private:
 
     QTimer* pollTimer_ = nullptr;
 
-    std::shared_ptr<std::atomic<bool>> sseStopFlag_{std::make_shared<std::atomic<bool>>(false)};
+    bool scanningLan_ = false;
+    std::atomic<bool> cancelLanScan_{false};
+
+    std::shared_ptr<std::atomic<bool>> sseStopFlag_;
     std::unique_ptr<std::thread> sseThread_;
     std::mutex syncLock_;
     std::string clientId_;
@@ -177,6 +186,7 @@ private:
 
     void setConnected(bool c);
     void setConnecting(bool c);
+    void setScanningLan(bool s);
     void startSseListener();
     void stopSseListener();
     void sanitizeHostInput();

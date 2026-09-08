@@ -28,6 +28,7 @@ public:
 
     std::string get_base_url() const;
     const std::string& get_client_id() const { return client_id_; }
+    void reset_connections();
 
     HttpResponse get_state();
 
