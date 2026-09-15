@@ -287,6 +287,8 @@ int main(int argc, char* argv[]) {
         if (!webclip::parse_cli_args(argc, argv, config)) {
             return 1;
         }
+        QSettings cliPersisted("Burhanverse", "WebClip");
+        config.instance_name = cliPersisted.value("mdnsInstanceName", "").toString().toStdString();
         auto clipboard = webclip::create_clipboard();
         if (!clipboard) {
             std::cerr << "Failed to initialize clipboard subsystem." << std::endl;

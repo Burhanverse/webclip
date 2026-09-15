@@ -206,11 +206,32 @@ void SyncManager::handle_sse_event(const SseEvent& event) {
 }
 
 void SyncManager::run() {
-    std::cout << "Connecting to Web Clipboard portal at " << client_->get_base_url() << std::endl;
+    std::cout << "Connecting to Web Clipboard portal at " << config_.host << ":" << config_.port << std::endl;
+
     std::cout << "Using clipboard backend: " << clipboard_->get_backend_name() << std::endl;
-    std::cout << "Client ID: " << client_->get_client_id() << std::endl;
+    std::cout << "Client ID: " << config_.client_id << std::endl;
+
+    client_ = std::make_unique<HttpClient>(
+        config_.host,
+        config_.port,
+        config_.code,
+        config_.use_https,
+        config_.insecure,
+        config_.client_id
+    );
 
     HttpResponse initial_state = client_->get_state();
+    if (initial_state.status_code == 200) {
+        JsonValue state_json = JsonValue::parse(initial_state.body);
+        std::string instance_name = state_json.get_string("instanceName");
+        if (instance_name.empty()) instance_name = state_json.get_string("deviceId");
+        if (instance_name.empty()) instance_name = state_json.get_string("instance");
+        if (!instance_name.empty()) {
+            config_.instance_name = instance_name;
+            std::cout << "[pairing] Captured device instance name: " << instance_name << std::endl;
+        }
+    }
+
     if (initial_state.status_code == 200) {
         JsonValue state_json = JsonValue::parse(initial_state.body);
         std::string type = state_json.get_string("type");
@@ -356,7 +377,6 @@ void SyncManager::run() {
 }
 
 void SyncManager::stop() {
-
     stop_flag_.store(true);
     if (sse_thread_ && sse_thread_->joinable()) {
         if (sse_thread_->get_id() == std::this_thread::get_id()) {

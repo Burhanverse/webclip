@@ -29,6 +29,7 @@ public:
     std::string get_base_url() const;
     const std::string& get_client_id() const { return client_id_; }
     void reset_connections();
+    void update_endpoint(const std::string& host, int port, const std::string& code, bool use_https, bool insecure);
 
     HttpResponse get_state();
 

@@ -479,6 +479,7 @@ void WebClipController::sanitizeHostInput() {
     SyncConfig config;
     config.host = host_.toStdString();
     config.port = port_;
+    config.code = code_.toStdString();
     config.use_https = useHttps_;
     config.insecure = insecure_;
 
@@ -498,7 +499,10 @@ void WebClipController::sanitizeHostInput() {
 void WebClipController::autoConnectOnStartup() {
     if (!autoConnect_) return;
     if (connected_ || connecting_) return;
-    if (host_.trimmed().isEmpty() || code_.trimmed().isEmpty()) return;
+    if (host_.trimmed().isEmpty() || code_.trimmed().isEmpty()) {
+        discoverPhoneOnLan();
+        return;
+    }
     connectToPortal();
 }
 
@@ -691,6 +695,8 @@ void WebClipController::connectToPortal() {
                     ? "Invalid pairing code"
                     : (stateResp.error.empty() ? ("HTTP " + QString::number(stateResp.status_code)) : QString::fromStdString(stateResp.error));
                 emit self->showToast("Failed to connect: " + err, true);
+                // Discover fallback via LAN scan (no broadcast listener anymore).
+                self->discoverPhoneOnLan();
             }
         });
     }).detach();
@@ -901,8 +907,18 @@ void WebClipController::startSseListener() {
                     });
                 }
             },
-            [](const std::string&) {
-
+            [self](const std::string& status) {
+                std::cout << "[sse] " << status << std::endl;
+                if (self) {
+                    std::string s = status;
+                    if (s.find("dropped") != std::string::npos || s.find("Failed") != std::string::npos || s.find("reconnecting") != std::string::npos) {
+                        WebClipController* c = self.data();
+                        if (c) {
+                            std::cout << "[discover] SSE dropped; triggering LAN scan retry" << std::endl;
+                            c->discoverPhoneOnLan();
+                        }
+                    }
+                }
             },
             *stopFlag
         );
@@ -986,6 +1002,9 @@ void WebClipController::discoverPhoneOnLan() {
         int foundPort = 0;
         bool foundHttps = false;
 
+        int currentPort = self ? self->port_ : 8080;
+        bool currentHttps = self ? self->useHttps_ : false;
+
         const int numWorkers = 32;
         std::atomic<size_t> ipIndex{0};
         std::vector<std::thread> workers;
@@ -998,11 +1017,24 @@ void WebClipController::discoverPhoneOnLan() {
 
                     const std::string hostStr = candidateIps[static_cast<int>(idx)].toStdString();
 
-                    const int portsToTry[] = {8080, 8081};
-                    for (int p : portsToTry) {
+                    std::vector<std::pair<int,bool>> portsToTry;
+                    portsToTry.emplace_back(currentPort, currentHttps);
+                    portsToTry.emplace_back(8080, false);
+                    portsToTry.emplace_back(8081, true);
+                    std::vector<std::pair<int,bool>> cleanPorts;
+                    for (auto [p, httpsFlag] : portsToTry) {
+                        bool exists = false;
+                        for (auto [ep, ehttps] : cleanPorts) {
+                            if (ep == p && ehttps == httpsFlag) { exists = true; break; }
+                        }
+                        if (!exists) cleanPorts.emplace_back(p, httpsFlag);
+                    }
+                    portsToTry = std::move(cleanPorts);
+
+                    for (auto [p, httpsFlag] : portsToTry) {
                         if (found.load() || (self && self->cancelLanScan_.load())) break;
 
-                        bool isHttps = (p == 8081);
+                        bool isHttps = httpsFlag;
                         HttpClient probeClient(hostStr, p, pairingCode, isHttps, true, "probe-discovery");
                         HttpResponse r = probeClient.get_state();
 
@@ -1028,11 +1060,17 @@ void WebClipController::discoverPhoneOnLan() {
             self->setScanningLan(false);
             if (found) {
                 QString hostQ = QString::fromStdString(foundHost);
-                self->setHost(hostQ);
-                self->setPort(foundPort);
-                self->setUseHttps(foundHttps);
-                self->setInsecure(true);
+                // LAN-scan-found host is not a manual user edit; keep pairing intact.
+                self->host_ = hostQ;
+                self->port_ = foundPort;
+                self->useHttps_ = foundHttps;
+                self->insecure_ = true;
                 self->saveSettings();
+
+                emit self->hostChanged();
+                emit self->portChanged();
+                emit self->useHttpsChanged();
+                emit self->insecureChanged();
 
                 QString scheme = foundHttps ? "HTTPS" : "HTTP";
                 emit self->showToast("Found phone at " + hostQ + " (" + scheme + " :" + QString::number(foundPort) + ")", false);
@@ -1670,7 +1708,6 @@ void WebClipController::loadSettings() {
     if (displayScale_ > 0.0) {
         displayScale_ = (std::clamp)(displayScale_, 0.75, 1.40);
     }
-
     MD3Theme::instance()->setCustomColor(customColor_);
     MD3Theme::instance()->setThemeMode(themeMode_);
     MD3Theme::instance()->setAccentPreset(accentPreset_);

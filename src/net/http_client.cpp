@@ -89,6 +89,16 @@ void HttpClient::reset_connections() {
     }
 }
 
+void HttpClient::update_endpoint(const std::string& host, int port, const std::string& code, bool use_https, bool insecure) {
+    std::lock_guard<std::mutex> guard(post_mutex_);
+    host_ = host;
+    port_ = port;
+    code_ = code;
+    use_https_ = use_https;
+    insecure_ = insecure;
+    post_url_ = build_url("/clipboard");
+}
+
 std::string HttpClient::get_base_url() const {
     std::string scheme = use_https_ ? "https" : "http";
     std::string host_part = host_;

@@ -197,20 +197,19 @@ void SettingsDialog::setupContent() {
     auto* row1 = new QHBoxLayout();
     row1->setSpacing(webclip::scale::px(8));
     hostInput_ = new Md3TextField(connRow, webclip::I18n::instance()->tr(QStringLiteral("settings.connection.host_label")), QStringLiteral("192.168.1.100"));
-    scanBtn_ = new Md3IconButton(connRow, QStringLiteral("phone"), webclip::scale::px(44), webclip::scale::px(20));
-    scanBtn_->setToolTip(webclip::I18n::instance()->tr(QStringLiteral("settings.connection.scan_tooltip")));
-    scanBtn_->addClickHandler([this] {
-        if (controller_) controller_->discoverPhoneOnLan();
-    });
     portInput_ = new Md3TextField(connRow, webclip::I18n::instance()->tr(QStringLiteral("settings.connection.port_label")), QStringLiteral("8080"));
     portInput_->setFixedWidth(webclip::scale::px(85));
     row1->addWidget(hostInput_, 1);
-    row1->addWidget(scanBtn_, 0);
     row1->addWidget(portInput_, 0);
     connBox->addLayout(row1);
 
     auto* row2 = new QHBoxLayout();
     row2->setSpacing(webclip::scale::px(8));
+    scanBtn_ = new Md3IconButton(connRow, QStringLiteral("phone"), webclip::scale::px(44), webclip::scale::px(20));
+    scanBtn_->setToolTip(webclip::I18n::instance()->tr(QStringLiteral("settings.connection.scan_tooltip")));
+    scanBtn_->addClickHandler([this] {
+        if (controller_) controller_->discoverPhoneOnLan();
+    });
     pinInput_ = new Md3TextField(connRow, webclip::I18n::instance()->tr(QStringLiteral("settings.connection.code_label")), QStringLiteral("4-digit code"));
     connectBtn_ = new Md3Button(connRow, webclip::I18n::instance()->tr(QStringLiteral("settings.connection.btn_connect")), ButtonVariant::Filled);
     connectBtn_->setFixedHeight(webclip::scale::px(44));
@@ -219,6 +218,7 @@ void SettingsDialog::setupContent() {
         if (controller_) controller_->toggleConnection();
     });
     row2->addWidget(pinInput_, 1);
+    row2->addWidget(scanBtn_, 0);
     row2->addWidget(connectBtn_, 0);
     connBox->addLayout(row2);
 

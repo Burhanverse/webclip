@@ -15,6 +15,7 @@ struct SyncConfig {
     std::string host;
     int port = 8080;
     std::string code;
+    std::string instance_name;
     bool use_https = false;
     bool insecure = false;
     double poll_interval_sec = 1.0;
@@ -33,6 +34,7 @@ public:
     void request_stop();
 
     std::atomic<bool>* stop_flag_for_signal() { return &stop_flag_; }
+    const std::string& instance_name() const { return config_.instance_name; }
 
 private:
     SyncConfig config_;
