@@ -8,7 +8,6 @@
 
 #include <QtGui/QPainter>
 #include <QtGui/QMouseEvent>
-#include <QtGui/QTouchEvent>
 #include <QtGui/QWindow>
 
 namespace Ui {
@@ -18,9 +17,15 @@ HeaderBar::HeaderBar(QWidget* parent, webclip::WebClipController* controller)
     , controller_(controller) {
     setFixedHeight(webclip::scale::px(58));
 
+    minimizeBtn_ = new Md3IconButton(this, QStringLiteral("minimize"), webclip::scale::px(34), webclip::scale::px(18));
     themeBtn_ = new Md3IconButton(this, QStringLiteral("dark_mode"), webclip::scale::px(34), webclip::scale::px(18));
     settingsBtn_ = new Md3IconButton(this, QStringLiteral("settings"), webclip::scale::px(34), webclip::scale::px(18));
 
+    minimizeBtn_->addClickHandler([this] {
+        if (window()) {
+            window()->showMinimized();
+        }
+    });
 
     themeBtn_->addClickHandler([this] {
         if (controller_) {
@@ -60,23 +65,20 @@ void HeaderBar::setController(webclip::WebClipController* controller) {
                 },
                 0.3,
                 1.0,
-                500,
+                800,
                 anim::sineInOut
             );
         } else {
             pulseAnim_.stop();
             pulseOpacity_ = 1.0;
+            update();
         }
-        updateButtons();
-        update();
     });
     connect(controller_, &webclip::WebClipController::themeModeChanged, this, [this] {
         updateButtons();
-        update();
     });
 
     updateButtons();
-    update();
 }
 
 void HeaderBar::updateButtons() {
@@ -102,50 +104,7 @@ void HeaderBar::updateButtons() {
     }
     themeBtn_->setIconColor(theme->onSurfaceVariant());
     settingsBtn_->setIconColor(theme->onSurfaceVariant());
-}
-
-void HeaderBar::touchEvent(QTouchEvent* e) {
-    if (e->type() == QEvent::TouchBegin && e->points().size() > 0) {
-        const QPointF pt = e->points().first().position();
-        const int64_t now = QDateTime::currentMSecsSinceEpoch();
-        const bool isSameArea = (pt - lastTouchPoint_).manhattanLength() < kDoubleTapDist;
-        const bool isQuick = (now - lastTouchMs_ < kDoubleTapMs);
-        lastTouchPoint_ = pt.toPoint();
-        lastTouchMs_ = now;
-
-        if (isSameArea && isQuick) {
-            // Double-tap on empty area -> minimize
-            if (!themeBtn_->geometry().contains(pt.toPoint()) &&
-                !settingsBtn_->geometry().contains(pt.toPoint())) {
-                const QRect connArea(webclip::scale::px(16), webclip::scale::px(6), webclip::scale::px(200), webclip::scale::px(46));
-                if (!connArea.contains(pt.toPoint())) {
-                    if (window()) {
-                        window()->showMinimized();
-                    }
-                    e->accept();
-                    return;
-                }
-            }
-        }
-    }
-    e->ignore();
-}
-
-void HeaderBar::mouseDoubleClickEvent(QMouseEvent* e) {
-    if (e->button() == Qt::LeftButton) {
-        if (!themeBtn_->geometry().contains(e->pos()) &&
-            !settingsBtn_->geometry().contains(e->pos())) {
-            const QRect connArea(webclip::scale::px(16), webclip::scale::px(6), webclip::scale::px(200), webclip::scale::px(46));
-            if (!connArea.contains(e->pos())) {
-                if (window()) {
-                    window()->showMinimized();
-                }
-                e->accept();
-                return;
-            }
-        }
-    }
-    RpWidget::mouseDoubleClickEvent(e);
+    minimizeBtn_->setIconColor(theme->onSurfaceVariant());
 }
 
 void HeaderBar::resizeEvent(QResizeEvent* e) {
@@ -160,15 +119,17 @@ void HeaderBar::updateLayout() {
     const int y = (height() - btnSize) / 2;
 
     int rightX = width() - rightMargin - btnSize;
+    minimizeBtn_->setGeometry(rightX, y, btnSize, btnSize);
+    rightX -= (btnSize + spacing);
     settingsBtn_->setGeometry(rightX, y, btnSize, btnSize);
     rightX -= (btnSize + spacing);
     themeBtn_->setGeometry(rightX, y, btnSize, btnSize);
-    rightX -= (btnSize + spacing);
 }
 
 void HeaderBar::mousePressEvent(QMouseEvent* e) {
     if (e->button() == Qt::LeftButton) {
-        if (settingsBtn_->geometry().contains(e->pos()) ||
+        if (minimizeBtn_->geometry().contains(e->pos()) ||
+            settingsBtn_->geometry().contains(e->pos()) ||
             themeBtn_->geometry().contains(e->pos())) {
             e->accept();
             return;
@@ -190,7 +151,7 @@ void HeaderBar::mousePressEvent(QMouseEvent* e) {
     RpWidget::mousePressEvent(e);
 }
 
-void HeaderBar::paintEvent(QPaintEvent* /*e*/) {
+void HeaderBar::paintEvent(QPaintEvent*) {
     QPainter p(this);
     PainterHighQualityEnabler hq(p);
     auto* theme = webclip::MD3Theme::instance();
@@ -244,4 +205,4 @@ void HeaderBar::paintEvent(QPaintEvent* /*e*/) {
     p.drawLine(0, height() - 1, width(), height() - 1);
 }
 
-} // namespace Ui
+}

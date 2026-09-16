@@ -1,7 +1,5 @@
 #pragma once
 
-#include <QtGui/QTouchEvent>
-
 #include "../basic/rp_widget.hpp"
 #include "../basic/animation.hpp"
 #include "../md3/md3_icon_button.hpp"
@@ -30,6 +28,7 @@ public:
 
     [[nodiscard]] Md3IconButton* themeButton() const noexcept { return themeBtn_; }
     [[nodiscard]] Md3IconButton* settingsButton() const noexcept { return settingsBtn_; }
+    [[nodiscard]] Md3IconButton* minimizeButton() const noexcept { return minimizeBtn_; }
 
 signals:
     void openSettingsRequested();
@@ -37,8 +36,6 @@ signals:
 protected:
     void paintEvent(QPaintEvent* e) override;
     void mousePressEvent(QMouseEvent* e) override;
-    void mouseDoubleClickEvent(QMouseEvent* e) override;
-    void touchEvent(QTouchEvent* e);
     void resizeEvent(QResizeEvent* e) override;
 
 private:
@@ -48,15 +45,10 @@ private:
     webclip::WebClipController* controller_ = nullptr;
     Md3IconButton* themeBtn_ = nullptr;
     Md3IconButton* settingsBtn_ = nullptr;
+    Md3IconButton* minimizeBtn_ = nullptr;
 
     Ui::Animations::Simple pulseAnim_;
     double pulseOpacity_ = 1.0;
-
-    // Double-tap tracking for touchpads
-    QPoint lastTouchPoint_;
-    int64_t lastTouchMs_ = 0;
-    static constexpr int64_t kDoubleTapMs = 300;
-    static constexpr int kDoubleTapDist = 30; // pixels
 };
 
-} // namespace Ui
+}
