@@ -29,7 +29,7 @@ public:
 
     void setController(webclip::WebClipController* controller);
     void showToast(const QString& message, bool isError = false);
-    void showFirstMinimizeNotification();
+    void minimizeToTray();
 
     [[nodiscard]] HeaderBar* headerBar() const noexcept { return headerBar_; }
     [[nodiscard]] SettingsDialog* settingsDialog() const noexcept { return settingsDialog_; }
@@ -39,6 +39,7 @@ protected:
     void resizeEvent(QResizeEvent* e) override;
     void mousePressEvent(QMouseEvent* e) override;
     void mouseMoveEvent(QMouseEvent* e) override;
+    void changeEvent(QEvent* e) override;
 
 private:
     void setupUi();
@@ -56,4 +57,4 @@ private:
     ImagePreviewModal* imagePreviewModal_ = nullptr;
 };
 
-} // namespace Ui
+}

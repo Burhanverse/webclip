@@ -32,6 +32,7 @@ public:
 
 signals:
     void openSettingsRequested();
+    void minimizeRequested();
 
 protected:
     void paintEvent(QPaintEvent* e) override;

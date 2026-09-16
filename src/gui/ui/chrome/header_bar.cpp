@@ -22,8 +22,12 @@ HeaderBar::HeaderBar(QWidget* parent, webclip::WebClipController* controller)
     settingsBtn_ = new Md3IconButton(this, QStringLiteral("settings"), webclip::scale::px(34), webclip::scale::px(18));
 
     minimizeBtn_->addClickHandler([this] {
+        emit minimizeRequested();
         if (window()) {
-            window()->showMinimized();
+            window()->hide();
+        }
+        if (controller_) {
+            controller_->notifyMinimizedToTray();
         }
     });
 

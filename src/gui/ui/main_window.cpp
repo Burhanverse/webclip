@@ -51,12 +51,14 @@ void MainWindow::setupUi() {
     settingsDialog_ = new SettingsDialog(container_, controller_);
     imagePreviewModal_ = new ImagePreviewModal(container_);
 
-    // Header actions
     connect(headerBar_, &HeaderBar::openSettingsRequested, this, [this] {
         settingsDialog_->open();
     });
 
-    // Input actions
+    connect(headerBar_, &HeaderBar::minimizeRequested, this, [this] {
+        minimizeToTray();
+    });
+
     connect(inputDock_, &InputDock::sendRequested, this, [this](const QString& text) {
         if (controller_) controller_->pushClipboard(text);
     });
@@ -73,7 +75,6 @@ void MainWindow::setupUi() {
         }
     });
 
-    // Timeline actions
     connect(clipWidget_, &ClipWidget::fullPreviewRequested, this, [this](const QString& key) {
         imagePreviewModal_->showImage(key);
     });
@@ -111,6 +112,13 @@ void MainWindow::showToast(const QString& message, bool isError) {
     }
 }
 
+void MainWindow::minimizeToTray() {
+    hide();
+    if (controller_) {
+        controller_->notifyMinimizedToTray();
+    }
+}
+
 void MainWindow::ensureOnScreen() {
     const auto screens = QGuiApplication::screens();
     if (screens.isEmpty()) return;
@@ -123,6 +131,15 @@ void MainWindow::ensureOnScreen() {
 void MainWindow::resizeEvent(QResizeEvent* e) {
     QMainWindow::resizeEvent(e);
     updateLayout();
+}
+
+void MainWindow::changeEvent(QEvent* e) {
+    if (e->type() == QEvent::WindowStateChange) {
+        if (isMinimized()) {
+            minimizeToTray();
+        }
+    }
+    QMainWindow::changeEvent(e);
 }
 
 void MainWindow::updateLayout() {
@@ -152,16 +169,15 @@ void MainWindow::mouseMoveEvent(QMouseEvent* e) {
     QMainWindow::mouseMoveEvent(e);
 }
 
-void MainWindow::paintEvent(QPaintEvent* /*e*/) {
+void MainWindow::paintEvent(QPaintEvent*) {
     QPainter p(this);
     PainterHighQualityEnabler hq(p);
     auto* theme = webclip::MD3Theme::instance();
 
-    // Rounded window container without outer outline
     const QRectF r(0.0, 0.0, width(), height());
     p.setPen(Qt::NoPen);
     p.setBrush(theme->surface());
     p.drawRoundedRect(r, webclip::scale::pxF(18.0), webclip::scale::pxF(18.0));
 }
 
-} // namespace Ui
+}
