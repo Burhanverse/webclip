@@ -205,8 +205,10 @@ void SettingsDialog::setupContent() {
 
     auto* row2 = new QHBoxLayout();
     row2->setSpacing(webclip::scale::px(8));
-    scanBtn_ = new Md3IconButton(connRow, QStringLiteral("phone"), webclip::scale::px(44), webclip::scale::px(20));
+    scanBtn_ = new Md3IconButton(connRow, QStringLiteral("sync"), webclip::scale::px(44), webclip::scale::px(20));
     scanBtn_->setToolTip(webclip::I18n::instance()->tr(QStringLiteral("settings.connection.scan_tooltip")));
+    scanBtn_->setCustomBgColor(webclip::MD3Theme::instance()->primary());
+    scanBtn_->setIconColor(webclip::MD3Theme::instance()->onPrimary());
     scanBtn_->addClickHandler([this] {
         if (controller_) controller_->discoverPhoneOnLan();
     });
@@ -612,6 +614,15 @@ void SettingsDialog::setupContent() {
         if (controller_) controller_->openUrl(QStringLiteral("https://github.com/burhanverse/webclip"));
     });
     mainLayout_->addWidget(githubBtn_);
+
+    // Footer
+    auto* footerLabel = new QLabel(scrollContent_);
+    footerLabel->setText(QStringLiteral("Made with ❤️ by Burhanverse"));
+    footerLabel->setFont(webclip::MD3Theme::instance()->labelSmall());
+    footerLabel->setStyleSheet(QStringLiteral("color: %1; background: transparent; padding-top: 8px;").arg(webclip::MD3Theme::instance()->onSurfaceVariant().name()));
+    footerLabel->setAlignment(Qt::AlignCenter);
+    footerLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    mainLayout_->addWidget(footerLabel);
 
     mainLayout_->addStretch();
 }

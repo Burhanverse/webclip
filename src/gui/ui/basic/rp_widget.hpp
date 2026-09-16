@@ -1,5 +1,6 @@
 #pragma once
 
+#include <QtGui/QTouchEvent>
 #include <QtWidgets/QWidget>
 #include "rpl_lite.hpp"
 
