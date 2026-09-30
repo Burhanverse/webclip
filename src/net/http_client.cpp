@@ -407,8 +407,8 @@ void HttpClient::stream_events(
         curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &stop_flag);
         curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
         curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+        curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
-
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 15L);
         curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 5L);
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, 0L);
@@ -435,14 +435,11 @@ void HttpClient::stream_events(
             break;
         }
 
-        if (res != CURLE_OK) {
-            std::string err = curl_easy_strerror(res);
-            if (on_status) {
-                on_status("SSE connection dropped (" + err + "); reconnecting...");
-            }
-            for (int i = 0; i < 20 && !stop_flag.load(); ++i) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            }
+        if (res != CURLE_OK && on_status) {
+            on_status("SSE connection dropped (" + std::string(curl_easy_strerror(res)) + "); reconnecting...");
+        }
+        for (int i = 0; i < 20 && !stop_flag.load(); ++i) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }
 }

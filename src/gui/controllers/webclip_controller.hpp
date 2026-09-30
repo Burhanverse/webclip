@@ -162,9 +162,13 @@ private:
     std::shared_ptr<HttpClient> httpClient_;
 
     QTimer* pollTimer_ = nullptr;
+    QTimer* reconnectTimer_ = nullptr;
+    int reconnectAttempts_ = 0;
+    bool wantConnected_ = false;
+    quint64 connectGeneration_ = 0;
 
     bool scanningLan_ = false;
-    std::atomic<bool> cancelLanScan_{false};
+    std::shared_ptr<std::atomic<bool>> lanScanCancel_;
 
     std::shared_ptr<std::atomic<bool>> sseStopFlag_;
     std::unique_ptr<std::thread> sseThread_;
@@ -189,6 +193,8 @@ private:
     void setScanningLan(bool s);
     void startSseListener();
     void stopSseListener();
+    void onConnectionLost();
+    void scheduleReconnect();
     void sanitizeHostInput();
     static QString computeImageHash(const QByteArray& data);
     static QString computePixelFingerprint(const QImage& img);
