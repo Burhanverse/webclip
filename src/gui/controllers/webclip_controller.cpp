@@ -310,28 +310,37 @@ WebClipController::WebClipController(QObject* parent)
     }
 
     loadSettings();
+    captureClipboardToHistory();
+}
 
-    if (QGuiApplication::clipboard()) {
-        QImage img = QGuiApplication::clipboard()->image();
-        if (!img.isNull()) {
-            QByteArray ba;
-            QBuffer buf(&ba);
-            buf.open(QIODevice::WriteOnly);
-            img.save(&buf, "PNG");
+void WebClipController::captureClipboardToHistory() {
+    QClipboard* clipboard = QGuiApplication::clipboard();
+    if (!clipboard) return;
+
+    const QImage img = clipboard->image();
+    if (!img.isNull()) {
+        QByteArray ba;
+        QBuffer buf(&ba);
+        buf.open(QIODevice::WriteOnly);
+        img.save(&buf, "PNG");
+        {
+            std::lock_guard<std::mutex> guard(syncLock_);
             lastLocalImgHash_ = computeImageHash(ba);
-            QString fileUrl = saveImageBytesToCache(ba, "image/png");
-            clipModel_.addClipImage(fileUrl, "image/png", ba.size(), "local");
-        } else {
-            QString current = QGuiApplication::clipboard()->text(QClipboard::Clipboard);
-            if (current.isEmpty() && nativeClipboard_) {
-                current = QString::fromStdString(nativeClipboard_->get_text());
-            }
-            if (!current.isEmpty()) {
-                lastLocalText_ = current;
-                clipModel_.addClip(lastLocalText_, "local");
-            }
         }
+        clipModel_.addClipImage(saveImageBytesToCache(ba, "image/png"), "image/png", ba.size(), "local");
+        return;
     }
+
+    QString current = clipboard->text(QClipboard::Clipboard);
+    if (current.isEmpty() && nativeClipboard_) {
+        current = QString::fromStdString(nativeClipboard_->get_text());
+    }
+    if (current.isEmpty()) return;
+    {
+        std::lock_guard<std::mutex> guard(syncLock_);
+        lastLocalText_ = current;
+    }
+    clipModel_.addClip(current, "local");
 }
 
 WebClipController::~WebClipController() {
@@ -556,8 +565,7 @@ void WebClipController::connectToPortal() {
             std::string hostStr;
             std::string codeStr;
             std::string clientIdStr;
-            bool currHttps = false;
-            int currPort = 8080;
+            bool currHttps = true;
 
             QMetaObject::invokeMethod(self.data(), [&]() {
                 if (self) {
@@ -565,18 +573,12 @@ void WebClipController::connectToPortal() {
                     codeStr = self->code_.trimmed().toStdString();
                     clientIdStr = self->clientId_;
                     currHttps = self->useHttps_;
-                    currPort = self->port_;
                 }
             }, Qt::BlockingQueuedConnection);
 
-            if (self && !hostStr.empty()) {
-                if (currHttps || currPort == 8081) {
-                    fallbackHttps = false;
-                    fallbackPort = 8080;
-                } else {
-                    fallbackHttps = true;
-                    fallbackPort = 8081;
-                }
+            if (self && !hostStr.empty() && !currHttps) {
+                fallbackHttps = true;
+                fallbackPort = 8081;
 
                 auto fallbackClient = std::make_shared<HttpClient>(
                     hostStr,
@@ -615,8 +617,13 @@ void WebClipController::connectToPortal() {
                 JsonValue stateJson = JsonValue::parse(stateResp.body);
                 std::string type = stateJson.get_string("type");
                 bool hasImage = (type == "image") || stateJson.get_bool("hasImage");
+                const bool preferLocal = self->hasOfflineCopy_;
+                self->hasOfflineCopy_ = false;
 
-                if (hasImage) {
+                if (preferLocal) {
+                    std::lock_guard<std::mutex> guard(self->syncLock_);
+                    self->lastLocalText_.clear();
+                } else if (hasImage) {
                     std::string imageUrl = stateJson.get_string("imageUrl");
                     std::string mimeType = stateJson.get_string("mimeType");
                     if (mimeType.empty()) mimeType = "image/png";
@@ -1063,7 +1070,9 @@ void WebClipController::discoverPhoneOnLan() {
 
                     std::vector<std::pair<int,bool>> portsToTry;
                     portsToTry.emplace_back(currentPort, currentHttps);
-                    portsToTry.emplace_back(8080, false);
+                    if (!currentHttps) {
+                        portsToTry.emplace_back(8080, false);
+                    }
                     portsToTry.emplace_back(8081, true);
                     std::vector<std::pair<int,bool>> cleanPorts;
                     for (auto [p, httpsFlag] : portsToTry) {
@@ -1130,7 +1139,7 @@ void WebClipController::discoverPhoneOnLan() {
 }
 
 void WebClipController::onClipboardDataChanged() {
-    if (!connected_ || !autoSync_) return;
+    if (!autoSync_) return;
 
     int64_t nowMs = QDateTime::currentMSecsSinceEpoch();
     bool flagSuppressed = suppressNextLocalChange_.exchange(false);
@@ -1142,6 +1151,12 @@ void WebClipController::onClipboardDataChanged() {
                     QStringLiteral(", timeSuppressed=") +
                     (timeSuppressed ? QStringLiteral("true") : QStringLiteral("false")) +
                     QStringLiteral(")"));
+        return;
+    }
+
+    if (!connected_) {
+        captureClipboardToHistory();
+        hasOfflineCopy_ = true;
         return;
     }
 
@@ -1727,9 +1742,9 @@ void WebClipController::saveSettings() {
 void WebClipController::loadSettings() {
     QSettings s("Burhanverse", "WebClip");
     host_ = s.value("host", "192.168.1.50").toString();
-    port_ = s.value("port", 8080).toInt();
+    port_ = s.value("port", 8081).toInt();
     code_ = s.value("code", "").toString();
-    useHttps_ = s.value("useHttps", false).toBool();
+    useHttps_ = s.value("useHttps", true).toBool();
     insecure_ = s.value("insecure", true).toBool();
     autoSync_ = s.value("autoSync", true).toBool();
     autoConnect_ = s.value("autoConnect", false).toBool();

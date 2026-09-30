@@ -144,9 +144,9 @@ private:
     bool connected_ = false;
     bool connecting_ = false;
     QString host_ = "192.168.1.50";
-    int port_ = 8080;
+    int port_ = 8081;
     QString code_ = "";
-    bool useHttps_ = false;
+    bool useHttps_ = true;
     bool insecure_ = true;
     bool autoConnect_ = false;
     bool autoSync_ = true;
@@ -165,6 +165,7 @@ private:
     QTimer* reconnectTimer_ = nullptr;
     int reconnectAttempts_ = 0;
     bool wantConnected_ = false;
+    bool hasOfflineCopy_ = false;
     quint64 connectGeneration_ = 0;
 
     bool scanningLan_ = false;
@@ -194,6 +195,7 @@ private:
     void startSseListener();
     void stopSseListener();
     void onConnectionLost();
+    void captureClipboardToHistory();
     void scheduleReconnect();
     void sanitizeHostInput();
     static QString computeImageHash(const QByteArray& data);
