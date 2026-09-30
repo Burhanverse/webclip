@@ -20,7 +20,6 @@
 #include <QMimeData>
 #include <QRandomGenerator>
 #include <QImageReader>
-#include <QProcess>
 #include <QCoreApplication>
 #include <QtNetwork/QNetworkInterface>
 #include <QtNetwork/QHostAddress>
@@ -470,7 +469,7 @@ void WebClipController::setDisplayScale(double scale) {
 
 void WebClipController::restartApplication() {
     saveSettings();
-    QProcess::startDetached(QCoreApplication::applicationFilePath(), QCoreApplication::arguments());
+    restartRequested_ = true;
     QCoreApplication::quit();
 }
 

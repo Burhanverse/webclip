@@ -3,6 +3,9 @@
 #include <QFontDatabase>
 #include <QIcon>
 #include <QBuffer>
+#include <QLocalServer>
+#include <QLocalSocket>
+#include <QProcess>
 #include <QScreen>
 #include "util/debug_logger.hpp"
 #include <QLoggingCategory>
@@ -345,6 +348,19 @@ int main(int argc, char* argv[]) {
     app.setQuitOnLastWindowClosed(false);
     app.setApplicationDisplayName(QString::fromUtf8(webclip::APP_DISPLAY_NAME.data(), webclip::APP_DISPLAY_NAME.size()));
 
+    const QString instanceKey = QStringLiteral("webclip-") + qEnvironmentVariable("USERNAME", qEnvironmentVariable("USER"));
+    {
+        QLocalSocket runningInstance;
+        runningInstance.connectToServer(instanceKey);
+        if (runningInstance.waitForConnected(500)) {
+            return 0;
+        }
+    }
+    QLocalServer instanceServer;
+    instanceServer.setSocketOptions(QLocalServer::UserAccessOption);
+    QLocalServer::removeServer(instanceKey);
+    instanceServer.listen(instanceKey);
+
     double initialAppScale = 0.0;
     bool initialDebugLogging = false;
     {
@@ -477,9 +493,21 @@ int main(int argc, char* argv[]) {
     auto trayManager = std::make_unique<webclip::TrayIconManager>(controller);
     trayManager->setMainWindow(mainWindow);
 
+    QObject::connect(&instanceServer, &QLocalServer::newConnection, trayManager.get(), [&instanceServer, tray = trayManager.get()] {
+        while (QLocalSocket* socket = instanceServer.nextPendingConnection()) {
+            socket->deleteLater();
+        }
+        tray->showWindow();
+    });
+
     mainWindow->show();
 
     QTimer::singleShot(0, controller, &webclip::WebClipController::autoConnectOnStartup);
 
-    return app.exec();
+    const int exitCode = app.exec();
+    instanceServer.close();
+    if (controller->restartRequested()) {
+        QProcess::startDetached(QCoreApplication::applicationFilePath(), QCoreApplication::arguments().mid(1));
+    }
+    return exitCode;
 }

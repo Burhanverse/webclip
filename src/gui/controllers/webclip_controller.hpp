@@ -64,6 +64,7 @@ public:
     QColor customColor() const { return customColor_; }
     double displayScale() const { return displayScale_; }
     bool scanningLan() const { return scanningLan_; }
+    bool restartRequested() const { return restartRequested_; }
     bool debugLogging() const { return debugLogging_; }
     ClipboardHistoryModel* clipModel() { return &clipModel_; }
     QString appVersion() const { return QString::fromUtf8(VERSION_STRING.data(), VERSION_STRING.size()); }
@@ -166,6 +167,7 @@ private:
     int reconnectAttempts_ = 0;
     bool wantConnected_ = false;
     bool hasOfflineCopy_ = false;
+    bool restartRequested_ = false;
     quint64 connectGeneration_ = 0;
 
     bool scanningLan_ = false;
