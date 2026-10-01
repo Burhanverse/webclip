@@ -140,6 +140,7 @@ void TrayIconManager::toggleWindowVisibility() {
 void TrayIconManager::showWindow() {
     if (!mainWindow_) return;
 
+    mainWindow_->setWindowState(mainWindow_->windowState() & ~Qt::WindowMinimized);
     mainWindow_->show();
     mainWindow_->raise();
     mainWindow_->activateWindow();

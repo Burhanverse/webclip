@@ -10,6 +10,7 @@
 #include "../controllers/webclip_controller.hpp"
 #include "../util/display_scale.hpp"
 
+#include <QtCore/QTimer>
 #include <QtGui/QGuiApplication>
 #include <QtGui/QMouseEvent>
 #include <QtGui/QPainter>
@@ -136,7 +137,7 @@ void MainWindow::resizeEvent(QResizeEvent* e) {
 void MainWindow::changeEvent(QEvent* e) {
     if (e->type() == QEvent::WindowStateChange) {
         if (isMinimized()) {
-            minimizeToTray();
+            QTimer::singleShot(0, this, &MainWindow::minimizeToTray);
         }
     }
     QMainWindow::changeEvent(e);

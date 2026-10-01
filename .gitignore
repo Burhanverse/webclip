@@ -17,3 +17,6 @@ webclip_sync
 .DS_Store
 .vscode/
 .idea/
+graphify-out/
+.claude/settings.json
+CLAUDE.md

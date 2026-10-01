@@ -34,11 +34,14 @@
       "btn_disconnect": "Disconnect",
       "scan_tooltip": "Scan Wi-Fi network for phone",
       "autoconnect_title": "Auto-Connect on Startup",
-      "autoconnect_subtitle": "Automatically connect using saved settings"
+      "autoconnect_subtitle": "Automatically connect using saved settings",
+      "known_hosts_title": "Saved Phone IPs",
+      "known_hosts_empty": "None yet. IPs are saved after each connect",
+      "known_hosts_clear": "Clear"
     },
     "security": {
       "section_title": "Security & Network",
-      "https_title": "Use HTTPS (Port 8081)",
+      "https_title": "Use HTTPS (HTTP port + 1)",
       "https_subtitle": "Encrypt connection between PC and phone",
       "ssl_title": "Allow Self-Signed SSL",
       "ssl_subtitle": "Required for Gboard local certificates"

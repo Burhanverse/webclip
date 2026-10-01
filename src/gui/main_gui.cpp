@@ -3,6 +3,11 @@
 #include <QFontDatabase>
 #include <QIcon>
 #include <QBuffer>
+#include <QDir>
+#include <QLockFile>
+#include <QLocalServer>
+#include <QLocalSocket>
+#include <QProcess>
 #include <QScreen>
 #include "util/debug_logger.hpp"
 #include <QLoggingCategory>
@@ -345,6 +350,26 @@ int main(int argc, char* argv[]) {
     app.setQuitOnLastWindowClosed(false);
     app.setApplicationDisplayName(QString::fromUtf8(webclip::APP_DISPLAY_NAME.data(), webclip::APP_DISPLAY_NAME.size()));
 
+    const QString instanceKey = QStringLiteral("webclip-") + qEnvironmentVariable("USERNAME", qEnvironmentVariable("USER"));
+    QLockFile instanceLock(QDir::temp().filePath(instanceKey + QStringLiteral(".lock")));
+    instanceLock.setStaleLockTime(0);
+    if (!instanceLock.tryLock(0)) {
+        if (instanceLock.error() != QLockFile::LockFailedError) {
+            qCritical("Single-instance lock failed (error %d)", static_cast<int>(instanceLock.error()));
+            return 1;
+        }
+        QLocalSocket runningInstance;
+        runningInstance.connectToServer(instanceKey);
+        runningInstance.waitForConnected(500);
+        return 0;
+    }
+    QLocalServer instanceServer;
+    instanceServer.setSocketOptions(QLocalServer::UserAccessOption);
+    QLocalServer::removeServer(instanceKey);
+    if (!instanceServer.listen(instanceKey)) {
+        qWarning("Single-instance server failed to listen: %s", qPrintable(instanceServer.errorString()));
+    }
+
     double initialAppScale = 0.0;
     bool initialDebugLogging = false;
     {
@@ -477,9 +502,26 @@ int main(int argc, char* argv[]) {
     auto trayManager = std::make_unique<webclip::TrayIconManager>(controller);
     trayManager->setMainWindow(mainWindow);
 
+    const auto activateFromSecondInstance = [&instanceServer, tray = trayManager.get()] {
+        while (QLocalSocket* socket = instanceServer.nextPendingConnection()) {
+            socket->deleteLater();
+        }
+        tray->showWindow();
+    };
+    QObject::connect(&instanceServer, &QLocalServer::newConnection, trayManager.get(), activateFromSecondInstance);
+    if (instanceServer.hasPendingConnections()) {
+        activateFromSecondInstance();
+    }
+
     mainWindow->show();
 
     QTimer::singleShot(0, controller, &webclip::WebClipController::autoConnectOnStartup);
 
-    return app.exec();
+    const int exitCode = app.exec();
+    instanceServer.close();
+    instanceLock.unlock();
+    if (controller->restartRequested()) {
+        QProcess::startDetached(QCoreApplication::applicationFilePath(), QCoreApplication::arguments().mid(1));
+    }
+    return exitCode;
 }

@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QColor>
 #include <QTimer>
 #include <QThread>
@@ -53,6 +54,7 @@ public:
     QString host() const { return host_; }
     int port() const { return port_; }
     QString code() const { return code_; }
+    QStringList knownHosts() const { return knownHosts_; }
     bool useHttps() const { return useHttps_; }
     bool insecure() const { return insecure_; }
     bool autoConnect() const { return autoConnect_; }
@@ -64,6 +66,7 @@ public:
     QColor customColor() const { return customColor_; }
     double displayScale() const { return displayScale_; }
     bool scanningLan() const { return scanningLan_; }
+    bool restartRequested() const { return restartRequested_; }
     bool debugLogging() const { return debugLogging_; }
     ClipboardHistoryModel* clipModel() { return &clipModel_; }
     QString appVersion() const { return QString::fromUtf8(VERSION_STRING.data(), VERSION_STRING.size()); }
@@ -90,7 +93,8 @@ public:
     Q_INVOKABLE void disconnectFromPortal();
     Q_INVOKABLE void toggleConnection();
     Q_INVOKABLE void autoConnectOnStartup();
-    Q_INVOKABLE void discoverPhoneOnLan();
+    Q_INVOKABLE void discoverPhoneOnLan(bool knownHostsOnly = false, bool silent = false);
+    Q_INVOKABLE void clearKnownHosts();
     Q_INVOKABLE bool pushClipboard(const QString& text, const QString& clipId = "");
     Q_INVOKABLE bool pushImage(const QString& filePathOrDataUrl);
     Q_INVOKABLE bool pushImageBytes(const QByteArray& bytes, const QString& mimeType = "image/png", const QString& clipId = "");
@@ -106,6 +110,7 @@ signals:
     void connectedChanged();
     void connectingChanged();
     void hostChanged();
+    void knownHostsChanged();
     void portChanged();
     void codeChanged();
     void useHttpsChanged();
@@ -144,9 +149,9 @@ private:
     bool connected_ = false;
     bool connecting_ = false;
     QString host_ = "192.168.1.50";
-    int port_ = 8080;
+    int port_ = 8081;
     QString code_ = "";
-    bool useHttps_ = false;
+    bool useHttps_ = true;
     bool insecure_ = true;
     bool autoConnect_ = false;
     bool autoSync_ = true;
@@ -162,9 +167,16 @@ private:
     std::shared_ptr<HttpClient> httpClient_;
 
     QTimer* pollTimer_ = nullptr;
+    QTimer* reconnectTimer_ = nullptr;
+    int reconnectAttempts_ = 0;
+    bool wantConnected_ = false;
+    bool hasOfflineCopy_ = false;
+    bool restartRequested_ = false;
+    quint64 connectGeneration_ = 0;
 
+    QStringList knownHosts_;
     bool scanningLan_ = false;
-    std::atomic<bool> cancelLanScan_{false};
+    std::shared_ptr<std::atomic<bool>> lanScanCancel_;
 
     std::shared_ptr<std::atomic<bool>> sseStopFlag_;
     std::unique_ptr<std::thread> sseThread_;
@@ -189,6 +201,9 @@ private:
     void setScanningLan(bool s);
     void startSseListener();
     void stopSseListener();
+    void onConnectionLost();
+    void captureClipboardToHistory();
+    void scheduleReconnect();
     void sanitizeHostInput();
     static QString computeImageHash(const QByteArray& data);
     static QString computePixelFingerprint(const QImage& img);

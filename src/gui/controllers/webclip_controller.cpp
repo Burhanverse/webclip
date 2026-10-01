@@ -20,7 +20,6 @@
 #include <QMimeData>
 #include <QRandomGenerator>
 #include <QImageReader>
-#include <QProcess>
 #include <QCoreApplication>
 #include <QtNetwork/QNetworkInterface>
 #include <QtNetwork/QHostAddress>
@@ -301,33 +300,46 @@ WebClipController::WebClipController(QObject* parent)
     pollTimer_ = new QTimer(this);
     connect(pollTimer_, &QTimer::timeout, this, &WebClipController::onPollTimer);
 
+    reconnectTimer_ = new QTimer(this);
+    reconnectTimer_->setSingleShot(true);
+    connect(reconnectTimer_, &QTimer::timeout, this, &WebClipController::connectToPortal);
+
     if (QGuiApplication::clipboard()) {
         connect(QGuiApplication::clipboard(), &QClipboard::dataChanged, this, &WebClipController::onClipboardDataChanged);
     }
 
     loadSettings();
+    captureClipboardToHistory();
+}
 
-    if (QGuiApplication::clipboard()) {
-        QImage img = QGuiApplication::clipboard()->image();
-        if (!img.isNull()) {
-            QByteArray ba;
-            QBuffer buf(&ba);
-            buf.open(QIODevice::WriteOnly);
-            img.save(&buf, "PNG");
+void WebClipController::captureClipboardToHistory() {
+    QClipboard* clipboard = QGuiApplication::clipboard();
+    if (!clipboard) return;
+
+    const QImage img = clipboard->image();
+    if (!img.isNull()) {
+        QByteArray ba;
+        QBuffer buf(&ba);
+        buf.open(QIODevice::WriteOnly);
+        img.save(&buf, "PNG");
+        {
+            std::lock_guard<std::mutex> guard(syncLock_);
             lastLocalImgHash_ = computeImageHash(ba);
-            QString fileUrl = saveImageBytesToCache(ba, "image/png");
-            clipModel_.addClipImage(fileUrl, "image/png", ba.size(), "local");
-        } else {
-            QString current = QGuiApplication::clipboard()->text(QClipboard::Clipboard);
-            if (current.isEmpty() && nativeClipboard_) {
-                current = QString::fromStdString(nativeClipboard_->get_text());
-            }
-            if (!current.isEmpty()) {
-                lastLocalText_ = current;
-                clipModel_.addClip(lastLocalText_, "local");
-            }
         }
+        clipModel_.addClipImage(saveImageBytesToCache(ba, "image/png"), "image/png", ba.size(), "local");
+        return;
     }
+
+    QString current = clipboard->text(QClipboard::Clipboard);
+    if (current.isEmpty() && nativeClipboard_) {
+        current = QString::fromStdString(nativeClipboard_->get_text());
+    }
+    if (current.isEmpty()) return;
+    {
+        std::lock_guard<std::mutex> guard(syncLock_);
+        lastLocalText_ = current;
+    }
+    clipModel_.addClip(current, "local");
 }
 
 WebClipController::~WebClipController() {
@@ -457,7 +469,7 @@ void WebClipController::setDisplayScale(double scale) {
 
 void WebClipController::restartApplication() {
     saveSettings();
-    QProcess::startDetached(QCoreApplication::applicationFilePath(), QCoreApplication::arguments());
+    restartRequested_ = true;
     QCoreApplication::quit();
 }
 
@@ -515,6 +527,7 @@ void WebClipController::setScanningLan(bool s) {
 
 void WebClipController::connectToPortal() {
     if (connected_ || connecting_) return;
+    reconnectTimer_->stop();
 
     sanitizeHostInput();
 
@@ -523,7 +536,9 @@ void WebClipController::connectToPortal() {
         return;
     }
 
+    wantConnected_ = true;
     setConnecting(true);
+    const quint64 generation = ++connectGeneration_;
 
     clientId_ = generate_random_client_id();
     auto client = std::make_shared<HttpClient>(
@@ -537,7 +552,7 @@ void WebClipController::connectToPortal() {
     httpClient_ = client;
 
     QPointer<WebClipController> self(this);
-    std::thread([self, client]() {
+    std::thread([self, client, generation]() {
         HttpResponse stateResp = client->get_state();
 
         bool fallbackAttempted = false;
@@ -549,27 +564,22 @@ void WebClipController::connectToPortal() {
             std::string hostStr;
             std::string codeStr;
             std::string clientIdStr;
-            bool currHttps = false;
-            int currPort = 8080;
+            bool currHttps = true;
+            int currPort = 0;
 
             QMetaObject::invokeMethod(self.data(), [&]() {
                 if (self) {
+                    currPort = self->port_;
                     hostStr = self->host_.trimmed().toStdString();
                     codeStr = self->code_.trimmed().toStdString();
                     clientIdStr = self->clientId_;
                     currHttps = self->useHttps_;
-                    currPort = self->port_;
                 }
             }, Qt::BlockingQueuedConnection);
 
-            if (self && !hostStr.empty()) {
-                if (currHttps || currPort == 8081) {
-                    fallbackHttps = false;
-                    fallbackPort = 8080;
-                } else {
-                    fallbackHttps = true;
-                    fallbackPort = 8081;
-                }
+            if (self && !hostStr.empty() && !currHttps) {
+                fallbackHttps = true;
+                fallbackPort = currPort + 1;
 
                 auto fallbackClient = std::make_shared<HttpClient>(
                     hostStr,
@@ -586,8 +596,8 @@ void WebClipController::connectToPortal() {
                     fallbackAttempted = true;
                     activeClient = fallbackClient;
 
-                    QMetaObject::invokeMethod(self.data(), [self, fallbackHttps, fallbackPort, fallbackClient]() {
-                        if (!self) return;
+                    QMetaObject::invokeMethod(self.data(), [self, generation, fallbackHttps, fallbackPort, fallbackClient]() {
+                        if (!self || self->connectGeneration_ != generation) return;
                         self->useHttps_ = fallbackHttps;
                         self->port_ = fallbackPort;
                         self->insecure_ = true;
@@ -602,14 +612,26 @@ void WebClipController::connectToPortal() {
         }
 
         if (!self) return;
-        QMetaObject::invokeMethod(self.data(), [self, stateResp, activeClient, fallbackAttempted, fallbackPort, fallbackHttps]() {
-            if (!self) return;
+        QMetaObject::invokeMethod(self.data(), [self, generation, stateResp, activeClient, fallbackAttempted, fallbackPort, fallbackHttps]() {
+            if (!self || self->connectGeneration_ != generation) return;
             if (stateResp.status_code == 200) {
                 JsonValue stateJson = JsonValue::parse(stateResp.body);
                 std::string type = stateJson.get_string("type");
                 bool hasImage = (type == "image") || stateJson.get_bool("hasImage");
+                const bool preferLocal = self->hasOfflineCopy_;
+                self->hasOfflineCopy_ = false;
 
-                if (hasImage) {
+                if (preferLocal) {
+                    std::lock_guard<std::mutex> guard(self->syncLock_);
+                    self->lastLocalText_.clear();
+                    self->lastLocalImgHash_.clear();
+                    self->lastLocalPixelFp_.clear();
+                    self->lastRemoteText_.clear();
+                    self->lastRemoteImgHash_.clear();
+                    self->lastRemotePixelFp_.clear();
+                    self->lastTextTimeMs_ = 0;
+                    self->lastImgTimeMs_ = 0;
+                } else if (hasImage) {
                     std::string imageUrl = stateJson.get_string("imageUrl");
                     std::string mimeType = stateJson.get_string("mimeType");
                     if (mimeType.empty()) mimeType = "image/png";
@@ -625,6 +647,10 @@ void WebClipController::connectToPortal() {
                         qimg.loadFromData(bytes);
                         QString pixelFp = computePixelFingerprint(qimg);
                         QString hash = computeImageHash(bytes);
+                        {
+                            std::lock_guard<std::mutex> guard(self->syncLock_);
+                            if (hash == self->lastRemoteImgHash_) return;
+                        }
                         int byteSize = bytes.size();
                         QString fileUrl = saveImageBytesToCache(bytes, QString::fromStdString(mimeType));
                         QString mimeQ = QString::fromStdString(mimeType);
@@ -658,8 +684,13 @@ void WebClipController::connectToPortal() {
                     }).detach();
                 } else {
                     std::string remoteText = stateJson.get_string("text");
-                    if (!remoteText.empty()) {
-                        QString qRemoteText = QString::fromStdString(remoteText);
+                    QString qRemoteText = QString::fromStdString(remoteText);
+                    bool alreadyApplied = false;
+                    {
+                        std::lock_guard<std::mutex> guard(self->syncLock_);
+                        alreadyApplied = qRemoteText == self->lastRemoteText_;
+                    }
+                    if (!remoteText.empty() && !alreadyApplied) {
                         int64_t nowMs = QDateTime::currentMSecsSinceEpoch();
                         self->markTextApplied(qRemoteText, nowMs);
 
@@ -674,6 +705,12 @@ void WebClipController::connectToPortal() {
                     }
                 }
 
+                self->reconnectAttempts_ = 0;
+                self->knownHosts_.removeAll(self->host_);
+                self->knownHosts_.prepend(self->host_);
+                while (self->knownHosts_.size() > 8) self->knownHosts_.removeLast();
+                self->saveSettings();
+                emit self->knownHostsChanged();
                 self->setConnecting(false);
                 self->setConnected(true);
                 if (fallbackAttempted) {
@@ -691,19 +728,54 @@ void WebClipController::connectToPortal() {
             } else {
                 self->setConnecting(false);
                 self->setConnected(false);
-                QString err = stateResp.status_code == 401
-                    ? "Invalid pairing code"
-                    : (stateResp.error.empty() ? ("HTTP " + QString::number(stateResp.status_code)) : QString::fromStdString(stateResp.error));
-                emit self->showToast("Failed to connect: " + err, true);
-                // Discover fallback via LAN scan (no broadcast listener anymore).
-                self->discoverPhoneOnLan();
+                if (stateResp.status_code == 401) {
+                    self->wantConnected_ = false;
+                    self->reconnectAttempts_ = 0;
+                    emit self->showToast("Failed to connect: Invalid pairing code", true);
+                    return;
+                }
+                if (self->reconnectAttempts_ == 0) {
+                    QString err = stateResp.error.empty() ? ("HTTP " + QString::number(stateResp.status_code)) : QString::fromStdString(stateResp.error);
+                    emit self->showToast("Failed to connect: " + err + ". Retrying...", true);
+                }
+                self->scheduleReconnect();
             }
         });
     }).detach();
 }
 
+void WebClipController::scheduleReconnect() {
+    if (!wantConnected_ || connected_ || connecting_) return;
+    ++reconnectAttempts_;
+    if (reconnectAttempts_ % 3 == 0) {
+        discoverPhoneOnLan(false, true);
+        return;
+    }
+    if (reconnectAttempts_ == 1 && !knownHosts_.isEmpty()) {
+        discoverPhoneOnLan(true, true);
+        return;
+    }
+    reconnectTimer_->start((std::min)(1000 << (std::min)(reconnectAttempts_, 5), 30000));
+}
+
+void WebClipController::onConnectionLost() {
+    if (!connected_) return;
+    stopSseListener();
+    pollTimer_->stop();
+    setConnected(false);
+    reconnectAttempts_ = 0;
+    emit showToast("Connection to phone lost. Reconnecting...", true);
+    scheduleReconnect();
+}
+
 void WebClipController::disconnectFromPortal() {
-    cancelLanScan_.store(true);
+    wantConnected_ = false;
+    reconnectAttempts_ = 0;
+    reconnectTimer_->stop();
+    ++connectGeneration_;
+    if (lanScanCancel_) {
+        lanScanCancel_->store(true);
+    }
     stopSseListener();
     if (httpClient_) {
         httpClient_->reset_connections();
@@ -750,7 +822,7 @@ void WebClipController::startSseListener() {
                         c->markClipIdHandled(clipId);
                     }
 
-                    if (source == "web" || (!evClientId.empty() && evClientId == c->clientId_)) {
+                    if (source == "web" || (!evClientId.empty() && evClientId == client->get_client_id())) {
                         return;
                     }
 
@@ -907,18 +979,16 @@ void WebClipController::startSseListener() {
                     });
                 }
             },
-            [self](const std::string& status) {
+            [self, stopFlag](const std::string& status) {
                 std::cout << "[sse] " << status << std::endl;
-                if (self) {
-                    std::string s = status;
-                    if (s.find("dropped") != std::string::npos || s.find("Failed") != std::string::npos || s.find("reconnecting") != std::string::npos) {
-                        WebClipController* c = self.data();
-                        if (c) {
-                            std::cout << "[discover] SSE dropped; triggering LAN scan retry" << std::endl;
-                            c->discoverPhoneOnLan();
-                        }
+                if (status.find("dropped") == std::string::npos) return;
+                WebClipController* c = self.data();
+                if (!c) return;
+                QMetaObject::invokeMethod(c, [self, stopFlag]() {
+                    if (self && !stopFlag->load()) {
+                        self->onConnectionLost();
                     }
-                }
+                });
             },
             *stopFlag
         );
@@ -941,14 +1011,26 @@ void WebClipController::stopSseListener() {
     }
 }
 
-void WebClipController::discoverPhoneOnLan() {
+void WebClipController::clearKnownHosts() {
+    knownHosts_.clear();
+    saveSettings();
+    emit knownHostsChanged();
+}
+
+void WebClipController::discoverPhoneOnLan(bool knownHostsOnly, bool silent) {
     if (scanningLan_) return;
     setScanningLan(true);
-    cancelLanScan_.store(false);
-    emit showToast("Scanning Wi-Fi network for phone...", false);
+    auto cancel = std::make_shared<std::atomic<bool>>(false);
+    lanScanCancel_ = cancel;
+    if (!silent) emit showToast("Scanning Wi-Fi network for phone...", false);
+
+    const std::string pairingCode = code_.trimmed().toStdString();
+    const int currentPort = port_;
+    const bool currentHttps = useHttps_;
+    const QStringList knownHosts = knownHosts_;
 
     QPointer<WebClipController> self(this);
-    std::thread([self]() {
+    std::thread([self, cancel, pairingCode, currentPort, currentHttps, knownHosts, knownHostsOnly, silent]() {
         QList<QNetworkAddressEntry> activeEntries;
         const auto interfaces = QNetworkInterface::allInterfaces();
         for (const auto& iface : interfaces) {
@@ -959,23 +1041,26 @@ void WebClipController::discoverPhoneOnLan() {
             }
             for (const auto& entry : iface.addressEntries()) {
                 if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol &&
-                    entry.ip() != QHostAddress::LocalHost) {
+                    entry.ip() != QHostAddress::LocalHost &&
+                    !entry.ip().isLinkLocal()) {
                     activeEntries.append(entry);
                 }
             }
         }
 
         if (activeEntries.isEmpty()) {
-            QMetaObject::invokeMethod(self.data(), [self]() {
-                if (!self) return;
+            QMetaObject::invokeMethod(self.data(), [self, cancel, silent]() {
+                if (!self || cancel->load()) return;
                 self->setScanningLan(false);
-                emit self->showToast("No active Wi-Fi / network connection found", true);
+                if (!silent) emit self->showToast("No active Wi-Fi / network connection found", true);
                 emit self->discoveryFinished(false, QString(), 0, false);
+                self->scheduleReconnect();
             });
             return;
         }
 
-        QList<QString> candidateIps;
+        if (knownHostsOnly) activeEntries.clear();
+        QList<QString> candidateIps = knownHosts;
         for (const auto& entry : activeEntries) {
             quint32 ip = entry.ip().toIPv4Address();
             quint32 mask = entry.netmask().toIPv4Address();
@@ -986,24 +1071,21 @@ void WebClipController::discoverPhoneOnLan() {
             quint32 endIp = (mask >= 0xFFFFFF00) ? (bcast - 1) : ((ip & 0xFFFFFF00) + 254);
 
             for (quint32 cur = startIp; cur <= endIp; ++cur) {
-                if (cur != ip) {
-                    candidateIps.append(QHostAddress(cur).toString());
+                const QString candidate = QHostAddress(cur).toString();
+                if (cur != ip && !knownHosts.contains(candidate)) {
+                    candidateIps.append(candidate);
                 }
             }
-        }
-
-        std::string pairingCode;
-        if (self) {
-            pairingCode = self->code_.trimmed().toStdString();
         }
 
         std::atomic<bool> found{false};
         std::string foundHost;
         int foundPort = 0;
         bool foundHttps = false;
-
-        int currentPort = self ? self->port_ : 8080;
-        bool currentHttps = self ? self->useHttps_ : false;
+        std::atomic<bool> unauthorizedFound{false};
+        std::string unauthorizedHost;
+        int unauthorizedPort = 0;
+        bool unauthorizedHttps = false;
 
         const int numWorkers = 32;
         std::atomic<size_t> ipIndex{0};
@@ -1011,7 +1093,7 @@ void WebClipController::discoverPhoneOnLan() {
 
         for (int w = 0; w < numWorkers; ++w) {
             workers.emplace_back([&]() {
-                while (!found.load() && (!self || !self->cancelLanScan_.load())) {
+                while (!found.load() && !cancel->load()) {
                     size_t idx = ipIndex.fetch_add(1);
                     if (idx >= static_cast<size_t>(candidateIps.size())) break;
 
@@ -1019,6 +1101,7 @@ void WebClipController::discoverPhoneOnLan() {
 
                     std::vector<std::pair<int,bool>> portsToTry;
                     portsToTry.emplace_back(currentPort, currentHttps);
+                    portsToTry.emplace_back(currentHttps ? currentPort - 1 : currentPort + 1, !currentHttps);
                     portsToTry.emplace_back(8080, false);
                     portsToTry.emplace_back(8081, true);
                     std::vector<std::pair<int,bool>> cleanPorts;
@@ -1032,17 +1115,29 @@ void WebClipController::discoverPhoneOnLan() {
                     portsToTry = std::move(cleanPorts);
 
                     for (auto [p, httpsFlag] : portsToTry) {
-                        if (found.load() || (self && self->cancelLanScan_.load())) break;
+                        if (found.load() || cancel->load()) break;
 
                         bool isHttps = httpsFlag;
                         HttpClient probeClient(hostStr, p, pairingCode, isHttps, true, "probe-discovery");
                         HttpResponse r = probeClient.get_state();
 
-                        if (r.status_code == 200 || r.status_code == 401) {
-                            foundHost = hostStr;
-                            foundPort = p;
-                            foundHttps = isHttps;
-                            found.store(true);
+                        const bool authorized = r.status_code == 200 || (r.status_code == 401 && pairingCode.empty());
+                        if (authorized) {
+                            bool expected = false;
+                            if (found.compare_exchange_strong(expected, true)) {
+                                foundHost = hostStr;
+                                foundPort = p;
+                                foundHttps = isHttps;
+                            }
+                            break;
+                        }
+                        if (r.status_code == 401) {
+                            bool expected = false;
+                            if (unauthorizedFound.compare_exchange_strong(expected, true)) {
+                                unauthorizedHost = hostStr;
+                                unauthorizedPort = p;
+                                unauthorizedHttps = isHttps;
+                            }
                             break;
                         }
                     }
@@ -1054,13 +1149,19 @@ void WebClipController::discoverPhoneOnLan() {
             if (worker.joinable()) worker.join();
         }
 
+        if (!found.load() && unauthorizedFound.load()) {
+            foundHost = unauthorizedHost;
+            foundPort = unauthorizedPort;
+            foundHttps = unauthorizedHttps;
+            found.store(true);
+        }
+
         if (!self) return;
-        QMetaObject::invokeMethod(self.data(), [self, found = found.load(), foundHost, foundPort, foundHttps]() {
-            if (!self) return;
+        QMetaObject::invokeMethod(self.data(), [self, cancel, silent, found = found.load(), foundHost, foundPort, foundHttps]() {
+            if (!self || cancel->load()) return;
             self->setScanningLan(false);
             if (found) {
                 QString hostQ = QString::fromStdString(foundHost);
-                // LAN-scan-found host is not a manual user edit; keep pairing intact.
                 self->host_ = hostQ;
                 self->port_ = foundPort;
                 self->useHttps_ = foundHttps;
@@ -1078,15 +1179,16 @@ void WebClipController::discoverPhoneOnLan() {
 
                 self->connectToPortal();
             } else {
-                emit self->showToast("No phone found on current Wi-Fi network", true);
+                if (!silent) emit self->showToast("No phone found on current Wi-Fi network", true);
                 emit self->discoveryFinished(false, QString(), 0, false);
+                self->scheduleReconnect();
             }
         });
     }).detach();
 }
 
 void WebClipController::onClipboardDataChanged() {
-    if (!connected_ || !autoSync_) return;
+    if (!autoSync_) return;
 
     int64_t nowMs = QDateTime::currentMSecsSinceEpoch();
     bool flagSuppressed = suppressNextLocalChange_.exchange(false);
@@ -1098,6 +1200,12 @@ void WebClipController::onClipboardDataChanged() {
                     QStringLiteral(", timeSuppressed=") +
                     (timeSuppressed ? QStringLiteral("true") : QStringLiteral("false")) +
                     QStringLiteral(")"));
+        return;
+    }
+
+    if (!connected_) {
+        captureClipboardToHistory();
+        hasOfflineCopy_ = true;
         return;
     }
 
@@ -1666,6 +1774,7 @@ void WebClipController::setDebugLogging(bool enabled) {
 void WebClipController::saveSettings() {
     QSettings s("Burhanverse", "WebClip");
     s.setValue("host", host_);
+    s.setValue("knownHosts", knownHosts_);
     s.setValue("port", port_);
     s.setValue("code", code_);
     s.setValue("useHttps", useHttps_);
@@ -1683,9 +1792,10 @@ void WebClipController::saveSettings() {
 void WebClipController::loadSettings() {
     QSettings s("Burhanverse", "WebClip");
     host_ = s.value("host", "192.168.1.50").toString();
-    port_ = s.value("port", 8080).toInt();
+    knownHosts_ = s.value("knownHosts").toStringList();
+    port_ = s.value("port", 8081).toInt();
     code_ = s.value("code", "").toString();
-    useHttps_ = s.value("useHttps", false).toBool();
+    useHttps_ = s.value("useHttps", true).toBool();
     insecure_ = s.value("insecure", true).toBool();
     autoSync_ = s.value("autoSync", true).toBool();
     autoConnect_ = s.value("autoConnect", false).toBool();
