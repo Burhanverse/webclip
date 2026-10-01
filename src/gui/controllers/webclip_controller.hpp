@@ -2,6 +2,7 @@
 
 #include <QObject>
 #include <QString>
+#include <QStringList>
 #include <QColor>
 #include <QTimer>
 #include <QThread>
@@ -170,6 +171,7 @@ private:
     bool restartRequested_ = false;
     quint64 connectGeneration_ = 0;
 
+    QStringList knownHosts_;  // most recent first; probed before the subnet sweep
     bool scanningLan_ = false;
     std::shared_ptr<std::atomic<bool>> lanScanCancel_;
 

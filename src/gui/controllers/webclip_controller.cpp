@@ -697,6 +697,10 @@ void WebClipController::connectToPortal() {
                 }
 
                 self->reconnectAttempts_ = 0;
+                self->knownHosts_.removeAll(self->host_);
+                self->knownHosts_.prepend(self->host_);
+                while (self->knownHosts_.size() > 8) self->knownHosts_.removeLast();
+                self->saveSettings();
                 self->setConnecting(false);
                 self->setConnected(true);
                 if (fallbackAttempted) {
@@ -733,7 +737,7 @@ void WebClipController::connectToPortal() {
 void WebClipController::scheduleReconnect() {
     if (!wantConnected_ || connected_ || connecting_) return;
     ++reconnectAttempts_;
-    if (reconnectAttempts_ % 3 == 0) {
+    if (reconnectAttempts_ % 3 == 1) {
         discoverPhoneOnLan();
         return;
     }
@@ -1003,9 +1007,10 @@ void WebClipController::discoverPhoneOnLan() {
     const std::string pairingCode = code_.trimmed().toStdString();
     const int currentPort = port_;
     const bool currentHttps = useHttps_;
+    const QStringList knownHosts = knownHosts_;
 
     QPointer<WebClipController> self(this);
-    std::thread([self, cancel, pairingCode, currentPort, currentHttps]() {
+    std::thread([self, cancel, pairingCode, currentPort, currentHttps, knownHosts]() {
         QList<QNetworkAddressEntry> activeEntries;
         const auto interfaces = QNetworkInterface::allInterfaces();
         for (const auto& iface : interfaces) {
@@ -1016,7 +1021,8 @@ void WebClipController::discoverPhoneOnLan() {
             }
             for (const auto& entry : iface.addressEntries()) {
                 if (entry.ip().protocol() == QAbstractSocket::IPv4Protocol &&
-                    entry.ip() != QHostAddress::LocalHost) {
+                    entry.ip() != QHostAddress::LocalHost &&
+                    !entry.ip().isLinkLocal()) {
                     activeEntries.append(entry);
                 }
             }
@@ -1033,7 +1039,8 @@ void WebClipController::discoverPhoneOnLan() {
             return;
         }
 
-        QList<QString> candidateIps;
+        // Known hosts first: workers pull in order, so they're all probed in the first wave.
+        QList<QString> candidateIps = knownHosts;
         for (const auto& entry : activeEntries) {
             quint32 ip = entry.ip().toIPv4Address();
             quint32 mask = entry.netmask().toIPv4Address();
@@ -1044,8 +1051,9 @@ void WebClipController::discoverPhoneOnLan() {
             quint32 endIp = (mask >= 0xFFFFFF00) ? (bcast - 1) : ((ip & 0xFFFFFF00) + 254);
 
             for (quint32 cur = startIp; cur <= endIp; ++cur) {
-                if (cur != ip) {
-                    candidateIps.append(QHostAddress(cur).toString());
+                const QString candidate = QHostAddress(cur).toString();
+                if (cur != ip && !knownHosts.contains(candidate)) {
+                    candidateIps.append(candidate);
                 }
             }
         }
@@ -1724,6 +1732,7 @@ void WebClipController::setDebugLogging(bool enabled) {
 void WebClipController::saveSettings() {
     QSettings s("Burhanverse", "WebClip");
     s.setValue("host", host_);
+    s.setValue("knownHosts", knownHosts_);
     s.setValue("port", port_);
     s.setValue("code", code_);
     s.setValue("useHttps", useHttps_);
@@ -1741,6 +1750,7 @@ void WebClipController::saveSettings() {
 void WebClipController::loadSettings() {
     QSettings s("Burhanverse", "WebClip");
     host_ = s.value("host", "192.168.1.50").toString();
+    knownHosts_ = s.value("knownHosts").toStringList();
     port_ = s.value("port", 8081).toInt();
     code_ = s.value("code", "").toString();
     useHttps_ = s.value("useHttps", true).toBool();
