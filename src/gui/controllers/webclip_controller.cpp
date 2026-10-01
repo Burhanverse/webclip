@@ -565,9 +565,11 @@ void WebClipController::connectToPortal() {
             std::string codeStr;
             std::string clientIdStr;
             bool currHttps = true;
+            int currPort = 0;
 
             QMetaObject::invokeMethod(self.data(), [&]() {
                 if (self) {
+                    currPort = self->port_;
                     hostStr = self->host_.trimmed().toStdString();
                     codeStr = self->code_.trimmed().toStdString();
                     clientIdStr = self->clientId_;
@@ -577,7 +579,7 @@ void WebClipController::connectToPortal() {
 
             if (self && !hostStr.empty() && !currHttps) {
                 fallbackHttps = true;
-                fallbackPort = 8081;
+                fallbackPort = currPort + 1;  // Gboard serves HTTPS on HTTP port + 1
 
                 auto fallbackClient = std::make_shared<HttpClient>(
                     hostStr,
@@ -1083,10 +1085,10 @@ void WebClipController::discoverPhoneOnLan() {
                     const std::string hostStr = candidateIps[static_cast<int>(idx)].toStdString();
 
                     std::vector<std::pair<int,bool>> portsToTry;
+                    // Gboard serves HTTPS on HTTP port + 1; also try the 8080/8081 defaults.
                     portsToTry.emplace_back(currentPort, currentHttps);
-                    if (!currentHttps) {
-                        portsToTry.emplace_back(8080, false);
-                    }
+                    portsToTry.emplace_back(currentHttps ? currentPort - 1 : currentPort + 1, !currentHttps);
+                    portsToTry.emplace_back(8080, false);
                     portsToTry.emplace_back(8081, true);
                     std::vector<std::pair<int,bool>> cleanPorts;
                     for (auto [p, httpsFlag] : portsToTry) {

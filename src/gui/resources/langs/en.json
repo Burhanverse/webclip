@@ -41,7 +41,7 @@
     },
     "security": {
       "section_title": "Security & Network",
-      "https_title": "Use HTTPS (Port 8081)",
+      "https_title": "Use HTTPS (HTTP port + 1)",
       "https_subtitle": "Encrypt connection between PC and phone",
       "ssl_title": "Allow Self-Signed SSL",
       "ssl_subtitle": "Required for Gboard local certificates"

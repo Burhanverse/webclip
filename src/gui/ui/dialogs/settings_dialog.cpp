@@ -269,12 +269,10 @@ void SettingsDialog::setupContent() {
     );
     connect(httpsRow_, &CardToggleRow::toggled, this, [this](bool val) {
         if (controller_) {
+            if (val == controller_->useHttps()) return;
             controller_->setUseHttps(val);
-            if (val && controller_->port() == 8080) {
-                controller_->setPort(8081);
-            } else if (!val && controller_->port() == 8081) {
-                controller_->setPort(8080);
-            }
+            // Gboard serves HTTPS on HTTP port + 1
+            controller_->setPort(controller_->port() + (val ? 1 : -1));
         }
     });
 
