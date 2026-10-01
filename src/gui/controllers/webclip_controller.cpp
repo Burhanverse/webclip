@@ -579,7 +579,7 @@ void WebClipController::connectToPortal() {
 
             if (self && !hostStr.empty() && !currHttps) {
                 fallbackHttps = true;
-                fallbackPort = currPort + 1;  // Gboard serves HTTPS on HTTP port + 1
+                fallbackPort = currPort + 1;
 
                 auto fallbackClient = std::make_shared<HttpClient>(
                     hostStr,
@@ -624,6 +624,13 @@ void WebClipController::connectToPortal() {
                 if (preferLocal) {
                     std::lock_guard<std::mutex> guard(self->syncLock_);
                     self->lastLocalText_.clear();
+                    self->lastLocalImgHash_.clear();
+                    self->lastLocalPixelFp_.clear();
+                    self->lastRemoteText_.clear();
+                    self->lastRemoteImgHash_.clear();
+                    self->lastRemotePixelFp_.clear();
+                    self->lastTextTimeMs_ = 0;
+                    self->lastImgTimeMs_ = 0;
                 } else if (hasImage) {
                     std::string imageUrl = stateJson.get_string("imageUrl");
                     std::string mimeType = stateJson.get_string("mimeType");
@@ -740,8 +747,12 @@ void WebClipController::connectToPortal() {
 void WebClipController::scheduleReconnect() {
     if (!wantConnected_ || connected_ || connecting_) return;
     ++reconnectAttempts_;
-    if (reconnectAttempts_ % 3 == 1) {
-        discoverPhoneOnLan();
+    if (reconnectAttempts_ % 3 == 0) {
+        discoverPhoneOnLan(false, true);
+        return;
+    }
+    if (reconnectAttempts_ == 1 && !knownHosts_.isEmpty()) {
+        discoverPhoneOnLan(true, true);
         return;
     }
     reconnectTimer_->start((std::min)(1000 << (std::min)(reconnectAttempts_, 5), 30000));
@@ -1006,12 +1017,12 @@ void WebClipController::clearKnownHosts() {
     emit knownHostsChanged();
 }
 
-void WebClipController::discoverPhoneOnLan() {
+void WebClipController::discoverPhoneOnLan(bool knownHostsOnly, bool silent) {
     if (scanningLan_) return;
     setScanningLan(true);
     auto cancel = std::make_shared<std::atomic<bool>>(false);
     lanScanCancel_ = cancel;
-    emit showToast("Scanning Wi-Fi network for phone...", false);
+    if (!silent) emit showToast("Scanning Wi-Fi network for phone...", false);
 
     const std::string pairingCode = code_.trimmed().toStdString();
     const int currentPort = port_;
@@ -1019,7 +1030,7 @@ void WebClipController::discoverPhoneOnLan() {
     const QStringList knownHosts = knownHosts_;
 
     QPointer<WebClipController> self(this);
-    std::thread([self, cancel, pairingCode, currentPort, currentHttps, knownHosts]() {
+    std::thread([self, cancel, pairingCode, currentPort, currentHttps, knownHosts, knownHostsOnly, silent]() {
         QList<QNetworkAddressEntry> activeEntries;
         const auto interfaces = QNetworkInterface::allInterfaces();
         for (const auto& iface : interfaces) {
@@ -1038,17 +1049,17 @@ void WebClipController::discoverPhoneOnLan() {
         }
 
         if (activeEntries.isEmpty()) {
-            QMetaObject::invokeMethod(self.data(), [self, cancel]() {
+            QMetaObject::invokeMethod(self.data(), [self, cancel, silent]() {
                 if (!self || cancel->load()) return;
                 self->setScanningLan(false);
-                emit self->showToast("No active Wi-Fi / network connection found", true);
+                if (!silent) emit self->showToast("No active Wi-Fi / network connection found", true);
                 emit self->discoveryFinished(false, QString(), 0, false);
                 self->scheduleReconnect();
             });
             return;
         }
 
-        // Known hosts first: workers pull in order, so they're all probed in the first wave.
+        if (knownHostsOnly) activeEntries.clear();
         QList<QString> candidateIps = knownHosts;
         for (const auto& entry : activeEntries) {
             quint32 ip = entry.ip().toIPv4Address();
@@ -1071,6 +1082,10 @@ void WebClipController::discoverPhoneOnLan() {
         std::string foundHost;
         int foundPort = 0;
         bool foundHttps = false;
+        std::atomic<bool> unauthorizedFound{false};
+        std::string unauthorizedHost;
+        int unauthorizedPort = 0;
+        bool unauthorizedHttps = false;
 
         const int numWorkers = 32;
         std::atomic<size_t> ipIndex{0};
@@ -1085,7 +1100,6 @@ void WebClipController::discoverPhoneOnLan() {
                     const std::string hostStr = candidateIps[static_cast<int>(idx)].toStdString();
 
                     std::vector<std::pair<int,bool>> portsToTry;
-                    // Gboard serves HTTPS on HTTP port + 1; also try the 8080/8081 defaults.
                     portsToTry.emplace_back(currentPort, currentHttps);
                     portsToTry.emplace_back(currentHttps ? currentPort - 1 : currentPort + 1, !currentHttps);
                     portsToTry.emplace_back(8080, false);
@@ -1107,11 +1121,23 @@ void WebClipController::discoverPhoneOnLan() {
                         HttpClient probeClient(hostStr, p, pairingCode, isHttps, true, "probe-discovery");
                         HttpResponse r = probeClient.get_state();
 
-                        if (r.status_code == 200 || r.status_code == 401) {
-                            foundHost = hostStr;
-                            foundPort = p;
-                            foundHttps = isHttps;
-                            found.store(true);
+                        const bool authorized = r.status_code == 200 || (r.status_code == 401 && pairingCode.empty());
+                        if (authorized) {
+                            bool expected = false;
+                            if (found.compare_exchange_strong(expected, true)) {
+                                foundHost = hostStr;
+                                foundPort = p;
+                                foundHttps = isHttps;
+                            }
+                            break;
+                        }
+                        if (r.status_code == 401) {
+                            bool expected = false;
+                            if (unauthorizedFound.compare_exchange_strong(expected, true)) {
+                                unauthorizedHost = hostStr;
+                                unauthorizedPort = p;
+                                unauthorizedHttps = isHttps;
+                            }
                             break;
                         }
                     }
@@ -1123,8 +1149,15 @@ void WebClipController::discoverPhoneOnLan() {
             if (worker.joinable()) worker.join();
         }
 
+        if (!found.load() && unauthorizedFound.load()) {
+            foundHost = unauthorizedHost;
+            foundPort = unauthorizedPort;
+            foundHttps = unauthorizedHttps;
+            found.store(true);
+        }
+
         if (!self) return;
-        QMetaObject::invokeMethod(self.data(), [self, cancel, found = found.load(), foundHost, foundPort, foundHttps]() {
+        QMetaObject::invokeMethod(self.data(), [self, cancel, silent, found = found.load(), foundHost, foundPort, foundHttps]() {
             if (!self || cancel->load()) return;
             self->setScanningLan(false);
             if (found) {
@@ -1146,7 +1179,7 @@ void WebClipController::discoverPhoneOnLan() {
 
                 self->connectToPortal();
             } else {
-                emit self->showToast("No phone found on current Wi-Fi network", true);
+                if (!silent) emit self->showToast("No phone found on current Wi-Fi network", true);
                 emit self->discoveryFinished(false, QString(), 0, false);
                 self->scheduleReconnect();
             }

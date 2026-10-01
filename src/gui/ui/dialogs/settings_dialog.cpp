@@ -241,7 +241,6 @@ void SettingsDialog::setupContent() {
     });
     startupCard->addRow(autoConnectRow_);
 
-    // Saved phone IPs, probed first when reconnecting. Tap to clear.
     knownHostsRow_ = new CardButtonRow(
         startupCard,
         webclip::I18n::instance()->tr(QStringLiteral("settings.connection.known_hosts_title")),
@@ -271,7 +270,6 @@ void SettingsDialog::setupContent() {
         if (controller_) {
             if (val == controller_->useHttps()) return;
             controller_->setUseHttps(val);
-            // Gboard serves HTTPS on HTTP port + 1
             controller_->setPort(controller_->port() + (val ? 1 : -1));
         }
     });

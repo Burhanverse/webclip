@@ -19,5 +19,4 @@ webclip_sync
 .idea/
 graphify-out/
 .claude/settings.json
-/.gitignore
 CLAUDE.md

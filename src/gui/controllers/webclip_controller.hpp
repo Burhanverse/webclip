@@ -93,7 +93,7 @@ public:
     Q_INVOKABLE void disconnectFromPortal();
     Q_INVOKABLE void toggleConnection();
     Q_INVOKABLE void autoConnectOnStartup();
-    Q_INVOKABLE void discoverPhoneOnLan();
+    Q_INVOKABLE void discoverPhoneOnLan(bool knownHostsOnly = false, bool silent = false);
     Q_INVOKABLE void clearKnownHosts();
     Q_INVOKABLE bool pushClipboard(const QString& text, const QString& clipId = "");
     Q_INVOKABLE bool pushImage(const QString& filePathOrDataUrl);
@@ -174,7 +174,7 @@ private:
     bool restartRequested_ = false;
     quint64 connectGeneration_ = 0;
 
-    QStringList knownHosts_;  // most recent first; probed before the subnet sweep
+    QStringList knownHosts_;
     bool scanningLan_ = false;
     std::shared_ptr<std::atomic<bool>> lanScanCancel_;
 
