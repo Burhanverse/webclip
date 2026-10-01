@@ -54,6 +54,7 @@ public:
     QString host() const { return host_; }
     int port() const { return port_; }
     QString code() const { return code_; }
+    QStringList knownHosts() const { return knownHosts_; }
     bool useHttps() const { return useHttps_; }
     bool insecure() const { return insecure_; }
     bool autoConnect() const { return autoConnect_; }
@@ -93,6 +94,7 @@ public:
     Q_INVOKABLE void toggleConnection();
     Q_INVOKABLE void autoConnectOnStartup();
     Q_INVOKABLE void discoverPhoneOnLan();
+    Q_INVOKABLE void clearKnownHosts();
     Q_INVOKABLE bool pushClipboard(const QString& text, const QString& clipId = "");
     Q_INVOKABLE bool pushImage(const QString& filePathOrDataUrl);
     Q_INVOKABLE bool pushImageBytes(const QByteArray& bytes, const QString& mimeType = "image/png", const QString& clipId = "");
@@ -108,6 +110,7 @@ signals:
     void connectedChanged();
     void connectingChanged();
     void hostChanged();
+    void knownHostsChanged();
     void portChanged();
     void codeChanged();
     void useHttpsChanged();

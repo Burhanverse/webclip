@@ -35,6 +35,7 @@ private:
     void updateThemeSelection();
     void updateAccentSelection();
     void updateConnectionButton();
+    void updateKnownHosts();
     void onThemeChanged();
     void updateLayout();
     QLabel* createSectionHeader(const QString& text);
@@ -54,6 +55,7 @@ private:
     Md3TextField* pinInput_ = nullptr;
     Md3Button* connectBtn_ = nullptr;
     CardToggleRow* autoConnectRow_ = nullptr;
+    CardButtonRow* knownHostsRow_ = nullptr;
     CardContainer* securityCard_ = nullptr;
     CardToggleRow* httpsRow_ = nullptr;
     CardToggleRow* insecureRow_ = nullptr;

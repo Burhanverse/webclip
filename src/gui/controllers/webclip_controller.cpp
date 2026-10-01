@@ -701,6 +701,7 @@ void WebClipController::connectToPortal() {
                 self->knownHosts_.prepend(self->host_);
                 while (self->knownHosts_.size() > 8) self->knownHosts_.removeLast();
                 self->saveSettings();
+                emit self->knownHostsChanged();
                 self->setConnecting(false);
                 self->setConnected(true);
                 if (fallbackAttempted) {
@@ -995,6 +996,12 @@ void WebClipController::stopSseListener() {
     } else {
         sseThread_.reset();
     }
+}
+
+void WebClipController::clearKnownHosts() {
+    knownHosts_.clear();
+    saveSettings();
+    emit knownHostsChanged();
 }
 
 void WebClipController::discoverPhoneOnLan() {

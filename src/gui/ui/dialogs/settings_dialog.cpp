@@ -240,6 +240,18 @@ void SettingsDialog::setupContent() {
         if (controller_) controller_->setAutoConnect(val);
     });
     startupCard->addRow(autoConnectRow_);
+
+    // Saved phone IPs, probed first when reconnecting. Tap to clear.
+    knownHostsRow_ = new CardButtonRow(
+        startupCard,
+        webclip::I18n::instance()->tr(QStringLiteral("settings.connection.known_hosts_title")),
+        QString(),
+        QStringLiteral("smartphone")
+    );
+    knownHostsRow_->addClickHandler([this] {
+        if (controller_) controller_->clearKnownHosts();
+    });
+    startupCard->addRow(knownHostsRow_);
     mainLayout_->addWidget(startupCard);
 
     // ==========================================
@@ -627,6 +639,18 @@ void SettingsDialog::setupContent() {
     mainLayout_->addStretch();
 }
 
+void SettingsDialog::updateKnownHosts() {
+    if (!controller_ || !knownHostsRow_) return;
+    const QStringList hosts = controller_->knownHosts();
+    auto* i18n = webclip::I18n::instance();
+    knownHostsRow_->setSubtitle(hosts.isEmpty()
+        ? i18n->tr(QStringLiteral("settings.connection.known_hosts_empty"))
+        : hosts.join(QStringLiteral(", ")));
+    knownHostsRow_->setTrailingValue(hosts.isEmpty()
+        ? QString()
+        : i18n->tr(QStringLiteral("settings.connection.known_hosts_clear")));
+}
+
 void SettingsDialog::setController(webclip::WebClipController* controller) {
     controller_ = controller;
     if (!controller_) return;
@@ -639,6 +663,8 @@ void SettingsDialog::setController(webclip::WebClipController* controller) {
     insecureRow_->setChecked(controller_->insecure(), anim::type::instant);
     autoSyncRow_->setChecked(controller_->autoSync(), anim::type::instant);
     autoConnectRow_->setChecked(controller_->autoConnect(), anim::type::instant);
+    updateKnownHosts();
+    connect(controller_, &webclip::WebClipController::knownHostsChanged, this, &SettingsDialog::updateKnownHosts, Qt::UniqueConnection);
     debugLoggingRow_->setChecked(controller_->debugLogging(), anim::type::instant);
 
     if (pollSlider_) {
