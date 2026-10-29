@@ -20,6 +20,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include "../models/clipboard_history_model.hpp"
+#include "../theme/matugen_watcher.hpp"
 #include "../../clipboard/clipboard.hpp"
 #include "../../net/http_client.hpp"
 #include "../../version.hpp"
@@ -69,6 +70,9 @@ public:
     QString accentPreset() const { return accentPreset_; }
     QColor customColor() const { return customColor_; }
     double displayScale() const { return displayScale_; }
+    QString matugenThemePath() const;
+    bool matugenAutoReload() const;
+    MatugenWatcher* matugenWatcher() { return &matugenWatcher_; }
     bool scanningLan() const { return scanningLan_; }
     bool restartRequested() const { return restartRequested_; }
     bool debugLogging() const { return debugLogging_; }
@@ -91,6 +95,9 @@ public:
     Q_INVOKABLE void setAccentPreset(const QString& preset);
     Q_INVOKABLE void setCustomColor(const QColor& color);
     Q_INVOKABLE void setDisplayScale(double scale);
+    Q_INVOKABLE void setMatugenThemePath(const QString& path);
+    Q_INVOKABLE void setMatugenAutoReload(bool autoReload);
+    Q_INVOKABLE void reloadMatugenTheme();
     Q_INVOKABLE void restartApplication();
 
     Q_INVOKABLE void connectToPortal();
@@ -133,6 +140,9 @@ signals:
     void clipReceived(const QString& text, const QString& source);
     void showToast(const QString& message, bool isError);
     void minimizedToTray();
+    void matugenThemePathChanged();
+    void matugenAutoReloadChanged();
+    void matugenStatusChanged();
 
 private slots:
     void onPollTimer();
@@ -238,6 +248,8 @@ private:
     void writeWaylandClipboard(const QString& text);
     void recordRecentRemoteText(const QString& text, int64_t nowMs);
     void applyRemoteTextToClipboard(const QString& text);
+
+    MatugenWatcher matugenWatcher_;
 };
 
 }

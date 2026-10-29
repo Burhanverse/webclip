@@ -379,6 +379,16 @@ WebClipController::WebClipController(QObject* parent)
         }
     });
 
+    connect(&matugenWatcher_, &MatugenWatcher::themeLoaded, this, [this] {
+        MD3Theme::instance()->setMatugenThemes(matugenWatcher_.currentThemes());
+        if (accentPreset_ == QLatin1String("matugen")) {
+            emit accentPresetChanged();
+        }
+    });
+    connect(&matugenWatcher_, &MatugenWatcher::statusChanged, this, [this] {
+        emit matugenStatusChanged();
+    });
+
     loadSettings();
     captureClipboardToHistory();
 }
@@ -523,10 +533,44 @@ void WebClipController::setThemeMode(int mode) {
 void WebClipController::setAccentPreset(const QString& preset) {
     if (accentPreset_ != preset) {
         accentPreset_ = preset;
+        if (preset == QLatin1String("matugen")) {
+            MD3Theme::instance()->setMatugenThemes(matugenWatcher_.currentThemes());
+            if (!matugenWatcher_.isLoaded()) {
+                matugenWatcher_.reloadNow();
+            }
+        }
         MD3Theme::instance()->setAccentPreset(preset);
         saveSettings();
         emit accentPresetChanged();
     }
+}
+
+QString WebClipController::matugenThemePath() const {
+    return matugenWatcher_.themePath();
+}
+
+bool WebClipController::matugenAutoReload() const {
+    return matugenWatcher_.autoReload();
+}
+
+void WebClipController::setMatugenThemePath(const QString& path) {
+    if (matugenWatcher_.themePath() != path) {
+        matugenWatcher_.setThemePath(path);
+        saveSettings();
+        emit matugenThemePathChanged();
+    }
+}
+
+void WebClipController::setMatugenAutoReload(bool autoReload) {
+    if (matugenWatcher_.autoReload() != autoReload) {
+        matugenWatcher_.setAutoReload(autoReload);
+        saveSettings();
+        emit matugenAutoReloadChanged();
+    }
+}
+
+void WebClipController::reloadMatugenTheme() {
+    matugenWatcher_.reloadNow();
 }
 
 void WebClipController::setCustomColor(const QColor& color) {
@@ -2049,6 +2093,8 @@ void WebClipController::saveSettings() {
     s.setValue("themeMode", themeMode_);
     s.setValue("accentPreset", accentPreset_);
     s.setValue("customColor", customColor_.name());
+    s.setValue("matugenThemePath", matugenWatcher_.themePath() == MatugenWatcher::defaultThemePath() ? QString() : matugenWatcher_.themePath());
+    s.setValue("matugenAutoReload", matugenWatcher_.autoReload());
     s.setValue("displayScale", displayScale_);
 }
 
@@ -2080,6 +2126,13 @@ void WebClipController::loadSettings() {
     }
     if (displayScale_ > 0.0) {
         displayScale_ = (std::clamp)(displayScale_, 0.75, 1.40);
+    }
+    QString matugenPath = s.value("matugenThemePath", "").toString();
+    bool matugenAuto = s.value("matugenAutoReload", true).toBool();
+    matugenWatcher_.setThemePath(matugenPath);
+    matugenWatcher_.setAutoReload(matugenAuto);
+    if (accentPreset_ == QLatin1String("matugen")) {
+        MD3Theme::instance()->setMatugenThemes(matugenWatcher_.currentThemes());
     }
     MD3Theme::instance()->setCustomColor(customColor_);
     MD3Theme::instance()->setThemeMode(themeMode_);

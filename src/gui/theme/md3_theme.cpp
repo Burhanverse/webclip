@@ -58,6 +58,21 @@ void MD3Theme::setCustomColor(const QColor& color) {
     }
 }
 
+void MD3Theme::setMatugenThemes(const MatugenThemes& themes) {
+    matugenThemes_ = themes;
+    hasMatugenThemes_ = themes.isValid();
+    if (accentPreset_ == QLatin1String("matugen")) {
+        emit themeChanged();
+    }
+}
+
+const MD3Palette* MD3Theme::activeMatugenPalette() const {
+    if (!isMatugen() || !hasValidMatugenTheme()) return nullptr;
+    if (isPitchBlack()) return &matugenThemes_.amoled;
+    if (isDark()) return &matugenThemes_.dark;
+    return &matugenThemes_.light;
+}
+
 bool MD3Theme::isDark() const {
     if (themeMode_ == 1) return false;
     if (themeMode_ == 2 || themeMode_ == 3) return true;
@@ -66,7 +81,6 @@ bool MD3Theme::isDark() const {
         return QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
     }
 #else
-
     if (QGuiApplication::palette().color(QPalette::Window).value() < 128) {
         return true;
     }
@@ -81,6 +95,13 @@ QColor MD3Theme::activeSeedColor() const {
     if (accentPreset_ == "orange") return QColor("#FF9800");
     if (accentPreset_ == "red") return QColor("#F44336");
     if (accentPreset_ == "pink") return QColor("#E91E63");
+
+    if (accentPreset_ == "matugen") {
+        if (hasValidMatugenTheme()) {
+            return isDark() ? matugenThemes_.dark.primary : matugenThemes_.light.primary;
+        }
+        return QColor("#6750A4");
+    }
 
     if (accentPreset_ == "custom" && customColor_.isValid()) return customColor_;
     if (accentPreset_.startsWith('#')) {
@@ -105,6 +126,9 @@ static QColor contrastTextColor(const QColor& bg) {
 }
 
 QColor MD3Theme::primary() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->primary.isValid()) return pal->primary;
+    }
     QColor seed = activeSeedColor();
     const float hue = safeHue(seed);
     if (usesDirectSeedColor()) {
@@ -127,6 +151,9 @@ QColor MD3Theme::primary() const {
 }
 
 QColor MD3Theme::onPrimary() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->onPrimary.isValid()) return pal->onPrimary;
+    }
     QColor seed = activeSeedColor();
     if (usesDirectSeedColor()) {
         return contrastTextColor(primary());
@@ -135,6 +162,9 @@ QColor MD3Theme::onPrimary() const {
 }
 
 QColor MD3Theme::primaryContainer() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->primaryContainer.isValid()) return pal->primaryContainer;
+    }
     QColor seed = activeSeedColor();
     const float hue = safeHue(seed);
     if (usesDirectSeedColor()) {
@@ -157,6 +187,9 @@ QColor MD3Theme::primaryContainer() const {
 }
 
 QColor MD3Theme::onPrimaryContainer() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->onPrimaryContainer.isValid()) return pal->onPrimaryContainer;
+    }
     QColor seed = activeSeedColor();
     if (usesDirectSeedColor()) {
         return contrastTextColor(primaryContainer());
@@ -172,17 +205,26 @@ QColor MD3Theme::onPrimaryContainer() const {
 }
 
 QColor MD3Theme::secondary() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->secondary.isValid()) return pal->secondary;
+    }
     QColor seed = activeSeedColor();
     const float hue = safeHue(seed);
     return isDark() ? QColor::fromHslF(hue, 0.20f, 0.78f) : QColor::fromHslF(hue, 0.25f, 0.40f);
 }
 
 QColor MD3Theme::onSecondary() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->onSecondary.isValid()) return pal->onSecondary;
+    }
     QColor seed = activeSeedColor();
     return isDark() ? QColor::fromHslF(safeHue(seed), 0.20f, 0.22f) : QColor("#FFFFFF");
 }
 
 QColor MD3Theme::secondaryContainer() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->secondaryContainer.isValid()) return pal->secondaryContainer;
+    }
     QColor seed = activeSeedColor();
     const float hue = safeHue(seed);
     if (isPitchBlack()) {
@@ -195,6 +237,9 @@ QColor MD3Theme::secondaryContainer() const {
 }
 
 QColor MD3Theme::onSecondaryContainer() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->onSecondaryContainer.isValid()) return pal->onSecondaryContainer;
+    }
     QColor seed = activeSeedColor();
     const float hue = safeHue(seed);
     if (isPitchBlack()) {
@@ -207,44 +252,71 @@ QColor MD3Theme::onSecondaryContainer() const {
 }
 
 QColor MD3Theme::tertiary() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->tertiary.isValid()) return pal->tertiary;
+    }
     QColor seed = activeSeedColor();
     float h = std::fmod(safeHue(seed) + 0.15f, 1.0f);
     return isDark() ? QColor::fromHslF(h, 0.45f, 0.80f) : QColor::fromHslF(h, 0.40f, 0.40f);
 }
 
 QColor MD3Theme::onTertiary() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->onTertiary.isValid()) return pal->onTertiary;
+    }
     return isDark() ? QColor("#381E72") : QColor("#FFFFFF");
 }
 
 QColor MD3Theme::tertiaryContainer() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->tertiaryContainer.isValid()) return pal->tertiaryContainer;
+    }
     QColor seed = activeSeedColor();
     float h = std::fmod(safeHue(seed) + 0.15f, 1.0f);
     return isDark() ? QColor::fromHslF(h, 0.35f, 0.28f) : QColor::fromHslF(h, 0.50f, 0.92f);
 }
 
 QColor MD3Theme::onTertiaryContainer() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->onTertiaryContainer.isValid()) return pal->onTertiaryContainer;
+    }
     QColor seed = activeSeedColor();
     float h = std::fmod(safeHue(seed) + 0.15f, 1.0f);
     return isDark() ? QColor::fromHslF(h, 0.50f, 0.92f) : QColor::fromHslF(h, 0.60f, 0.18f);
 }
 
 QColor MD3Theme::error() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->error.isValid()) return pal->error;
+    }
     return isDark() ? QColor("#F2B8B5") : QColor("#B3261E");
 }
 
 QColor MD3Theme::onError() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->onError.isValid()) return pal->onError;
+    }
     return isDark() ? QColor("#601410") : QColor("#FFFFFF");
 }
 
 QColor MD3Theme::errorContainer() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->errorContainer.isValid()) return pal->errorContainer;
+    }
     return isDark() ? QColor("#8C1D18") : QColor("#F9DEDC");
 }
 
 QColor MD3Theme::onErrorContainer() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->onErrorContainer.isValid()) return pal->onErrorContainer;
+    }
     return isDark() ? QColor("#F9DEDC") : QColor("#410E0B");
 }
 
 QColor MD3Theme::surface() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->surface.isValid()) return pal->surface;
+    }
     if (isPitchBlack()) return QColor("#000000");
     QColor seed = activeSeedColor();
     float h = safeHue(seed);
@@ -253,6 +325,9 @@ QColor MD3Theme::surface() const {
 }
 
 QColor MD3Theme::surfaceDim() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->surfaceDim.isValid()) return pal->surfaceDim;
+    }
     if (isPitchBlack()) return QColor("#000000");
     QColor seed = activeSeedColor();
     float h = safeHue(seed);
@@ -261,6 +336,9 @@ QColor MD3Theme::surfaceDim() const {
 }
 
 QColor MD3Theme::surfaceBright() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->surfaceBright.isValid()) return pal->surfaceBright;
+    }
     if (isPitchBlack()) return QColor("#161616");
     QColor seed = activeSeedColor();
     float h = safeHue(seed);
@@ -269,6 +347,9 @@ QColor MD3Theme::surfaceBright() const {
 }
 
 QColor MD3Theme::surfaceContainerLowest() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->surfaceContainerLowest.isValid()) return pal->surfaceContainerLowest;
+    }
     if (isPitchBlack()) return QColor("#000000");
     QColor seed = activeSeedColor();
     float h = safeHue(seed);
@@ -277,6 +358,9 @@ QColor MD3Theme::surfaceContainerLowest() const {
 }
 
 QColor MD3Theme::surfaceContainerLow() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->surfaceContainerLow.isValid()) return pal->surfaceContainerLow;
+    }
     if (isPitchBlack()) return QColor("#0A0A0A");
     QColor seed = activeSeedColor();
     float h = safeHue(seed);
@@ -285,6 +369,9 @@ QColor MD3Theme::surfaceContainerLow() const {
 }
 
 QColor MD3Theme::surfaceContainer() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->surfaceContainer.isValid()) return pal->surfaceContainer;
+    }
     if (isPitchBlack()) return QColor("#121212");
     QColor seed = activeSeedColor();
     float h = safeHue(seed);
@@ -293,6 +380,9 @@ QColor MD3Theme::surfaceContainer() const {
 }
 
 QColor MD3Theme::surfaceContainerHigh() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->surfaceContainerHigh.isValid()) return pal->surfaceContainerHigh;
+    }
     if (isPitchBlack()) return QColor("#181818");
     QColor seed = activeSeedColor();
     float h = safeHue(seed);
@@ -301,6 +391,9 @@ QColor MD3Theme::surfaceContainerHigh() const {
 }
 
 QColor MD3Theme::surfaceContainerHighest() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->surfaceContainerHighest.isValid()) return pal->surfaceContainerHighest;
+    }
     if (isPitchBlack()) return QColor("#222222");
     QColor seed = activeSeedColor();
     float h = safeHue(seed);
@@ -309,6 +402,9 @@ QColor MD3Theme::surfaceContainerHighest() const {
 }
 
 QColor MD3Theme::onSurface() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->onSurface.isValid()) return pal->onSurface;
+    }
     if (isPitchBlack()) return QColor("#FFFFFF");
     QColor seed = activeSeedColor();
     float h = safeHue(seed);
@@ -317,6 +413,9 @@ QColor MD3Theme::onSurface() const {
 }
 
 QColor MD3Theme::onSurfaceVariant() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->onSurfaceVariant.isValid()) return pal->onSurfaceVariant;
+    }
     if (isPitchBlack()) return QColor("#9E9E9E");
     QColor seed = activeSeedColor();
     float h = safeHue(seed);
@@ -325,6 +424,9 @@ QColor MD3Theme::onSurfaceVariant() const {
 }
 
 QColor MD3Theme::outline() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->outline.isValid()) return pal->outline;
+    }
     if (isPitchBlack()) return QColor("#383838");
     QColor seed = activeSeedColor();
     float h = safeHue(seed);
@@ -333,6 +435,9 @@ QColor MD3Theme::outline() const {
 }
 
 QColor MD3Theme::outlineVariant() const {
+    if (const auto* pal = activeMatugenPalette()) {
+        if (pal->outlineVariant.isValid()) return pal->outlineVariant;
+    }
     if (isPitchBlack()) return QColor("#222222");
     QColor seed = activeSeedColor();
     float h = safeHue(seed);

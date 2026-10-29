@@ -30,6 +30,7 @@
 #include "util/style_core_font.hpp"
 #include "util/display_scale.hpp"
 #include "theme/md3_theme.hpp"
+#include "theme/matugen_watcher.hpp"
 #include "controllers/webclip_controller.hpp"
 #include "util/cli.hpp"
 #include "sync/sync_manager.hpp"
@@ -493,7 +494,23 @@ int main(int argc, char* argv[]) {
         if (customAccent.isValid()) {
             webclip::MD3Theme::instance()->setCustomColor(customAccent);
         }
-        webclip::MD3Theme::instance()->setAccentPreset(persisted.value("accentPreset", "purple").toString());
+        const QString preset = persisted.value("accentPreset", "purple").toString();
+        if (preset == QLatin1String("matugen")) {
+            QString path = persisted.value("matugenThemePath", QString()).toString();
+            if (path.isEmpty()) {
+                path = webclip::MatugenWatcher::defaultThemePath();
+            } else if (path.contains(QLatin1String("/WebClip/")) && !QFile::exists(path)) {
+                const QString lower = QString(path).replace(QLatin1String("/WebClip/"), QLatin1String("/webclip/"));
+                if (QFile::exists(lower)) {
+                    path = lower;
+                }
+            }
+            webclip::MatugenThemes themes;
+            if (webclip::MatugenLoader::loadFromFile(path, themes) == webclip::MatugenParseStatus::Success) {
+                webclip::MD3Theme::instance()->setMatugenThemes(themes);
+            }
+        }
+        webclip::MD3Theme::instance()->setAccentPreset(preset);
         webclip::MD3Theme::instance()->setThemeMode(persisted.value("themeMode", 0).toInt());
     }
 

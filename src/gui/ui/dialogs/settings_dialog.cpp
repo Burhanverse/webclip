@@ -14,6 +14,9 @@
 #include <QtWidgets/QHBoxLayout>
 #include <QtWidgets/QVBoxLayout>
 #include <QtWidgets/QGraphicsDropShadowEffect>
+#include <QtWidgets/QFileDialog>
+#include <QtCore/QDir>
+#include "../../theme/matugen_watcher.hpp"
 
 namespace Ui {
 
@@ -24,13 +27,15 @@ public:
         const QString& name,
         const QString& label,
         const QColor& color,
-        bool isCustom = false
+        bool isCustom = false,
+        const QString& iconName = QString()
     )
         : RippleButton(parent)
         , name_(name)
         , label_(label)
         , color_(color)
-        , isCustom_(isCustom) {
+        , isCustom_(isCustom)
+        , iconName_(iconName) {
         setFixedHeight(webclip::scale::px(32));
         setFont(webclip::MD3Theme::instance()->labelSmall());
     }
@@ -81,7 +86,9 @@ protected:
         paintRipple(p, 0, 0, &textCol);
 
         // Icon or Color dot
-        if (isCustom_) {
+        if (!iconName_.isEmpty()) {
+            IconLoader::paint(p, iconName_, QRectF(webclip::scale::pxF(10), webclip::scale::pxF(8), webclip::scale::pxF(16), webclip::scale::pxF(16)), textCol);
+        } else if (isCustom_) {
             IconLoader::paint(p, QStringLiteral("palette"), QRectF(webclip::scale::pxF(10), webclip::scale::pxF(8), webclip::scale::pxF(16), webclip::scale::pxF(16)), textCol);
         } else {
             p.setPen(Qt::NoPen);
@@ -89,7 +96,6 @@ protected:
             p.drawEllipse(QRectF(webclip::scale::pxF(11), webclip::scale::pxF(10), webclip::scale::pxF(12), webclip::scale::pxF(12)));
         }
 
-        // Text label
         p.setFont(font());
         p.setPen(textCol);
         const QFontMetrics fm(font());
@@ -106,6 +112,7 @@ private:
     QString label_;
     QColor color_;
     bool isCustom_ = false;
+    QString iconName_;
     bool selected_ = false;
 };
 
@@ -359,10 +366,10 @@ void SettingsDialog::setupContent() {
     themeRowLayout->setContentsMargins(webclip::scale::px(16), webclip::scale::px(12), webclip::scale::px(16), webclip::scale::px(12));
     themeRowLayout->setSpacing(webclip::scale::px(8));
 
-    auto* themeTitle = new QLabel(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.theme_mode")), themeRow);
-    themeTitle->setFont(theme->bodyMedium());
-    themeTitle->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurface().name()));
-    themeRowLayout->addWidget(themeTitle);
+    themeTitle_ = new QLabel(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.theme_mode")), themeRow);
+    themeTitle_->setFont(theme->bodyMedium());
+    themeTitle_->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurface().name()));
+    themeRowLayout->addWidget(themeTitle_);
 
     auto* modeBox = new QHBoxLayout();
     modeBox->setSpacing(webclip::scale::px(6));
@@ -390,18 +397,17 @@ void SettingsDialog::setupContent() {
     themeCard->addRow(themeRow);
     mainLayout_->addWidget(themeCard);
 
-    // Accent Color Card
     auto* accentCard = new CardContainer(scrollContent_);
     auto* accentRow = new CardRow(accentCard, QString(), QString());
-    accentRow->setFixedHeight(webclip::scale::px(116));
+    accentRow->setFixedHeight(webclip::scale::px(156));
     auto* accentLayout = new QVBoxLayout(accentRow);
     accentLayout->setContentsMargins(webclip::scale::px(16), webclip::scale::px(12), webclip::scale::px(16), webclip::scale::px(14));
     accentLayout->setSpacing(webclip::scale::px(8));
 
-    auto* accentLabel = new QLabel(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.accent_color")), accentRow);
-    accentLabel->setFont(theme->bodyMedium());
-    accentLabel->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurface().name()));
-    accentLayout->addWidget(accentLabel);
+    accentLabel_ = new QLabel(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.accent_color")), accentRow);
+    accentLabel_->setFont(theme->bodyMedium());
+    accentLabel_->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurface().name()));
+    accentLayout->addWidget(accentLabel_);
 
     auto* flowLayout1 = new QHBoxLayout();
     flowLayout1->setSpacing(webclip::scale::px(6));
@@ -451,10 +457,82 @@ void SettingsDialog::setupContent() {
     });
     flowLayout2->addWidget(customAccentPill_);
 
+    auto* flowLayout3 = new QHBoxLayout();
+    flowLayout3->setSpacing(webclip::scale::px(6));
+
+    matugenAccentPill_ = new AccentPill(
+        accentRow,
+        QStringLiteral("matugen"),
+        webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.accent_matugen")),
+        QColor(QStringLiteral("#D0BCFF")),
+        false,
+        QStringLiteral("sync")
+    );
+    matugenAccentPill_->addClickHandler([this] {
+        if (controller_) {
+            controller_->setAccentPreset(QStringLiteral("matugen"));
+        }
+        updateAccentSelection();
+    });
+    flowLayout3->addWidget(matugenAccentPill_);
+    flowLayout3->addStretch(1);
+
     accentLayout->addLayout(flowLayout1);
     accentLayout->addLayout(flowLayout2);
+    accentLayout->addLayout(flowLayout3);
     accentCard->addRow(accentRow);
     mainLayout_->addWidget(accentCard);
+
+    matugenCard_ = new CardContainer(scrollContent_);
+    auto* matugenRow = new CardRow(matugenCard_, QString(), QString());
+    matugenRow->setFixedHeight(webclip::scale::px(86));
+    auto* matugenLayout = new QVBoxLayout(matugenRow);
+    matugenLayout->setContentsMargins(webclip::scale::px(16), webclip::scale::px(10), webclip::scale::px(16), webclip::scale::px(12));
+    matugenLayout->setSpacing(webclip::scale::px(6));
+
+    auto* matugenTopRow = new QHBoxLayout();
+    matugenTopRow->setSpacing(webclip::scale::px(6));
+    matugenPathLabel_ = new QLabel(matugenRow);
+    matugenPathLabel_->setFont(theme->bodySmall());
+
+    matugenBrowseBtn_ = new Md3IconButton(matugenRow, QStringLiteral("edit"), webclip::scale::px(28), webclip::scale::px(16));
+    matugenBrowseBtn_->setToolTip(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.matugen_btn_browse")));
+    matugenBrowseBtn_->addClickHandler([this] {
+        if (!controller_) return;
+        const QString cur = controller_->matugenThemePath();
+        const QString path = QFileDialog::getOpenFileName(
+            this,
+            webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.matugen_btn_browse")),
+            cur.isEmpty() ? QDir::homePath() : cur,
+            QStringLiteral("Theme JSON (*.json);;All Files (*)")
+        );
+        if (!path.isEmpty()) {
+            controller_->setMatugenThemePath(path);
+            updateMatugenCard();
+        }
+    });
+
+    matugenReloadBtn_ = new Md3IconButton(matugenRow, QStringLiteral("sync"), webclip::scale::px(28), webclip::scale::px(16));
+    matugenReloadBtn_->setToolTip(webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.matugen_btn_reload")));
+    matugenReloadBtn_->addClickHandler([this] {
+        if (!controller_) return;
+        controller_->reloadMatugenTheme();
+        updateMatugenCard();
+        controller_->showToast(webclip::I18n::instance()->tr(QStringLiteral("toast.matugen_reloaded")), false);
+    });
+
+    matugenTopRow->addWidget(matugenPathLabel_, 1);
+    matugenTopRow->addWidget(matugenBrowseBtn_, 0);
+    matugenTopRow->addWidget(matugenReloadBtn_, 0);
+
+    matugenStatusLabel_ = new QLabel(matugenRow);
+    matugenStatusLabel_->setFont(theme->labelSmall());
+
+    matugenLayout->addLayout(matugenTopRow);
+    matugenLayout->addWidget(matugenStatusLabel_);
+    matugenCard_->addRow(matugenRow);
+    mainLayout_->addWidget(matugenCard_);
+    matugenCard_->setVisible(controller_ && controller_->accentPreset() == QLatin1String("matugen"));
 
     // Display Scale Card
     displayScaleCard_ = new CardContainer(scrollContent_);
@@ -624,13 +702,13 @@ void SettingsDialog::setupContent() {
     mainLayout_->addWidget(githubBtn_);
 
     // Footer
-    auto* footerLabel = new QLabel(scrollContent_);
-    footerLabel->setText(QStringLiteral("Made with ❤️ by Burhanverse"));
-    footerLabel->setFont(webclip::MD3Theme::instance()->labelSmall());
-    footerLabel->setStyleSheet(QStringLiteral("color: %1; background: transparent; padding-top: 8px;").arg(webclip::MD3Theme::instance()->onSurfaceVariant().name()));
-    footerLabel->setAlignment(Qt::AlignCenter);
-    footerLabel->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-    mainLayout_->addWidget(footerLabel);
+    footerLabel_ = new QLabel(scrollContent_);
+    footerLabel_->setText(QStringLiteral("Made with ❤️ by Burhanverse"));
+    footerLabel_->setFont(webclip::MD3Theme::instance()->labelSmall());
+    footerLabel_->setStyleSheet(QStringLiteral("color: %1; background: transparent; padding-top: 8px;").arg(webclip::MD3Theme::instance()->onSurfaceVariant().name()));
+    footerLabel_->setAlignment(Qt::AlignCenter);
+    footerLabel_->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    mainLayout_->addWidget(footerLabel_);
 
     mainLayout_->addStretch();
 }
@@ -730,6 +808,8 @@ void SettingsDialog::setController(webclip::WebClipController* controller) {
         }
         updateAccentSelection();
     });
+    connect(controller_, &webclip::WebClipController::matugenStatusChanged, this, &SettingsDialog::updateMatugenCard);
+    connect(controller_, &webclip::WebClipController::matugenThemePathChanged, this, &SettingsDialog::updateMatugenCard);
 
     connect(controller_, &webclip::WebClipController::displayScaleChanged, this, [this] {
         if (controller_ && displayScaleSlider_) {
@@ -775,6 +855,7 @@ void SettingsDialog::setController(webclip::WebClipController* controller) {
     updateThemeSelection();
     updateAccentSelection();
     updateConnectionButton();
+    updateMatugenCard();
 }
 
 void SettingsDialog::updateConnectionButton() {
@@ -799,10 +880,22 @@ void SettingsDialog::updateThemeSelection() {
     if (!controller_) return;
     const int mode = controller_->themeMode();
 
-    if (themeAutoBtn_) themeAutoBtn_->setVariant(mode == 0 ? ButtonVariant::Filled : ButtonVariant::Tonal);
-    if (themeLightBtn_) themeLightBtn_->setVariant(mode == 1 ? ButtonVariant::Filled : ButtonVariant::Tonal);
-    if (themeDarkBtn_) themeDarkBtn_->setVariant(mode == 2 ? ButtonVariant::Filled : ButtonVariant::Tonal);
-    if (themePitchBtn_) themePitchBtn_->setVariant(mode == 3 ? ButtonVariant::Filled : ButtonVariant::Tonal);
+    if (themeAutoBtn_) {
+        themeAutoBtn_->setVariant(mode == 0 ? ButtonVariant::Filled : ButtonVariant::Tonal);
+        themeAutoBtn_->update();
+    }
+    if (themeLightBtn_) {
+        themeLightBtn_->setVariant(mode == 1 ? ButtonVariant::Filled : ButtonVariant::Tonal);
+        themeLightBtn_->update();
+    }
+    if (themeDarkBtn_) {
+        themeDarkBtn_->setVariant(mode == 2 ? ButtonVariant::Filled : ButtonVariant::Tonal);
+        themeDarkBtn_->update();
+    }
+    if (themePitchBtn_) {
+        themePitchBtn_->setVariant(mode == 3 ? ButtonVariant::Filled : ButtonVariant::Tonal);
+        themePitchBtn_->update();
+    }
 }
 
 void SettingsDialog::updateAccentSelection() {
@@ -817,6 +910,52 @@ void SettingsDialog::updateAccentSelection() {
     if (customAccentPill_) {
         customAccentPill_->setSelected(currentPreset == QStringLiteral("custom"));
     }
+    const bool isMatugen = (currentPreset == QStringLiteral("matugen"));
+    if (matugenAccentPill_) {
+        matugenAccentPill_->setSelected(isMatugen);
+    }
+    if (matugenCard_) {
+        matugenCard_->setVisible(isMatugen);
+    }
+    if (isMatugen) {
+        updateMatugenCard();
+    }
+}
+
+void SettingsDialog::updateMatugenCard() {
+    if (!controller_ || !matugenCard_) return;
+    auto* theme = webclip::MD3Theme::instance();
+    auto* watcher = controller_->matugenWatcher();
+
+    QString path = controller_->matugenThemePath();
+    if (path.isEmpty()) {
+        path = webclip::MatugenWatcher::defaultThemePath();
+    }
+
+    if (matugenPathLabel_) {
+        const QFontMetrics fm(matugenPathLabel_->font());
+        const QString elided = fm.elidedText(path, Qt::ElideMiddle, webclip::scale::px(250));
+        matugenPathLabel_->setText(elided);
+        matugenPathLabel_->setToolTip(path);
+        matugenPathLabel_->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurface().name()));
+    }
+
+    if (matugenStatusLabel_) {
+        QString statusText;
+        QColor statusColor;
+        if (!watcher || watcher->status() == webclip::MatugenStatus::Waiting) {
+            statusText = QStringLiteral("● ") + webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.matugen_status_waiting"));
+            statusColor = QColor(QStringLiteral("#FFB74D"));
+        } else if (watcher->status() == webclip::MatugenStatus::Loaded) {
+            statusText = QStringLiteral("● ") + webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.matugen_status_loaded"));
+            statusColor = QColor(QStringLiteral("#81C784"));
+        } else {
+            statusText = QStringLiteral("● ") + webclip::I18n::instance()->tr(QStringLiteral("settings.appearance.matugen_status_error"));
+            statusColor = theme->error();
+        }
+        matugenStatusLabel_->setText(statusText);
+        matugenStatusLabel_->setStyleSheet(QStringLiteral("color: %1; font-weight: bold; background: transparent;").arg(statusColor.name()));
+    }
 }
 
 void SettingsDialog::onThemeChanged() {
@@ -827,9 +966,38 @@ void SettingsDialog::onThemeChanged() {
             hdr->setStyleSheet(QStringLiteral("color: %1; font-weight: bold; background: transparent; margin-top: 4px;").arg(theme->primary().name()));
         }
     }
+    if (pollingLabel_) {
+        pollingLabel_->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurface().name()));
+    }
+    if (themeTitle_) {
+        themeTitle_->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurface().name()));
+    }
+    if (accentLabel_) {
+        accentLabel_->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurface().name()));
+    }
+    if (displayScaleLabel_) {
+        displayScaleLabel_->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurface().name()));
+    }
+    if (restartNoticeLabel_) {
+        restartNoticeLabel_->setStyleSheet(QStringLiteral("color: %1; background: transparent;").arg(theme->onSurfaceVariant().name()));
+    }
+    if (footerLabel_) {
+        footerLabel_->setStyleSheet(QStringLiteral("color: %1; background: transparent; padding-top: 8px;").arg(theme->onSurfaceVariant().name()));
+    }
+    if (scanBtn_) {
+        scanBtn_->setCustomBgColor(theme->primary());
+        scanBtn_->setIconColor(theme->onPrimary());
+    }
     updateThemeSelection();
     updateAccentSelection();
     updateConnectionButton();
+    updateMatugenCard();
+    if (scrollContent_) {
+        scrollContent_->update();
+        for (auto* child : scrollContent_->findChildren<QWidget*>()) {
+            child->update();
+        }
+    }
     update();
 }
 

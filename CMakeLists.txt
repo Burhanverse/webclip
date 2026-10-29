@@ -131,6 +131,10 @@ qt_add_resources(webclip "webclip_resources"
 )
 
 target_sources(webclip PRIVATE
+    src/gui/theme/matugen_loader.hpp
+    src/gui/theme/matugen_loader.cpp
+    src/gui/theme/matugen_watcher.hpp
+    src/gui/theme/matugen_watcher.cpp
     src/gui/theme/md3_theme.hpp
     src/gui/theme/md3_theme.cpp
     src/gui/models/clipboard_history_model.hpp

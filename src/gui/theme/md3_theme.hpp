@@ -1,5 +1,6 @@
 #pragma once
 
+#include "matugen_loader.hpp"
 #include <QObject>
 #include <QColor>
 #include <QFont>
@@ -85,6 +86,11 @@ public:
     QColor customColor() const { return customColor_; }
     void setCustomColor(const QColor& color);
 
+    bool isMatugen() const { return accentPreset_ == "matugen"; }
+    void setMatugenThemes(const MatugenThemes& themes);
+    const MatugenThemes& matugenThemes() const { return matugenThemes_; }
+    bool hasValidMatugenTheme() const { return hasMatugenThemes_ && matugenThemes_.isValid(); }
+
     QColor primary() const;
     QColor onPrimary() const;
     QColor primaryContainer() const;
@@ -155,7 +161,10 @@ private:
     int themeMode_ = 0;
     QString accentPreset_ = "purple";
     QColor customColor_ = QColor("#6750A4");
+    MatugenThemes matugenThemes_;
+    bool hasMatugenThemes_ = false;
 
+    const MD3Palette* activeMatugenPalette() const;
     QColor activeSeedColor() const;
     bool usesDirectSeedColor() const;
 };

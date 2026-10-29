@@ -61,6 +61,12 @@
       "mode_pitch_black": "Black",
       "accent_color": "Accent Color",
       "accent_custom": "Custom",
+      "accent_matugen": "Material You",
+      "matugen_status_loaded": "Theme Loaded",
+      "matugen_status_waiting": "Waiting for theme.json",
+      "matugen_status_error": "JSON Parse Error",
+      "matugen_btn_reload": "Reload",
+      "matugen_btn_browse": "Browse",
       "displayscale_title": "Display Scale",
       "displayscale_auto": "Auto (System)",
       "displayscale_restart_hint": "Restart required to apply new scale",
@@ -89,6 +95,7 @@
     "history_cleared": "Clipboard history cleared",
     "clipboard_empty": "Local clipboard is empty",
     "pushed": "Pushed %1 chars to phone",
-    "push_failed": "Push failed (HTTP %1)"
+    "push_failed": "Push failed (HTTP %1)",
+    "matugen_reloaded": "Material You theme reloaded"
   }
 }

@@ -81,6 +81,10 @@ void HeaderBar::setController(webclip::WebClipController* controller) {
     connect(controller_, &webclip::WebClipController::themeModeChanged, this, [this] {
         updateButtons();
     });
+    connect(webclip::MD3Theme::instance(), &webclip::MD3Theme::themeChanged, this, [this] {
+        updateButtons();
+        update();
+    });
 
     updateButtons();
 }

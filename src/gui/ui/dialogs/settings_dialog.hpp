@@ -36,6 +36,7 @@ private:
     void updateAccentSelection();
     void updateConnectionButton();
     void updateKnownHosts();
+    void updateMatugenCard();
     void onThemeChanged();
     void updateLayout();
     QLabel* createSectionHeader(const QString& text);
@@ -65,12 +66,20 @@ private:
     QLabel* pollingLabel_ = nullptr;
     Md3IconButton* resetPollBtn_ = nullptr;
     Md3Slider* pollSlider_ = nullptr;
+    QLabel* themeTitle_ = nullptr;
     Md3Button* themeAutoBtn_ = nullptr;
     Md3Button* themeLightBtn_ = nullptr;
     Md3Button* themeDarkBtn_ = nullptr;
     Md3Button* themePitchBtn_ = nullptr;
+    QLabel* accentLabel_ = nullptr;
     std::vector<AccentPill*> accentPills_;
     AccentPill* customAccentPill_ = nullptr;
+    AccentPill* matugenAccentPill_ = nullptr;
+    CardContainer* matugenCard_ = nullptr;
+    QLabel* matugenPathLabel_ = nullptr;
+    QLabel* matugenStatusLabel_ = nullptr;
+    Md3IconButton* matugenBrowseBtn_ = nullptr;
+    Md3IconButton* matugenReloadBtn_ = nullptr;
     CardContainer* displayScaleCard_ = nullptr;
     QLabel* displayScaleLabel_ = nullptr;
     Md3IconButton* resetDisplayScaleBtn_ = nullptr;
@@ -87,6 +96,7 @@ private:
     CardButtonRow* engineRow_ = nullptr;
     CardButtonRow* licenseRow_ = nullptr;
     Md3Button* githubBtn_ = nullptr;
+    QLabel* footerLabel_ = nullptr;
     ColorPickerDialog* colorPicker_ = nullptr;
 };
 }
