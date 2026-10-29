@@ -3,6 +3,8 @@
 #include <QtWidgets/QMainWindow>
 #include <QtCore/QPointer>
 
+class QFrame;
+
 namespace webclip {
 class WebClipController;
 class ClipboardHistoryModel;
@@ -29,6 +31,7 @@ public:
 
     void setController(webclip::WebClipController* controller);
     void showToast(const QString& message, bool isError = false);
+    void checkWlClipboardWarning();
     void minimizeToTray();
 
     [[nodiscard]] HeaderBar* headerBar() const noexcept { return headerBar_; }
@@ -55,6 +58,10 @@ private:
     ToastWidget* toast_ = nullptr;
     SettingsDialog* settingsDialog_ = nullptr;
     ImagePreviewModal* imagePreviewModal_ = nullptr;
+    QFrame* bannerWidget_ = nullptr;
+
+    void showWlClipboardBanner(const QString& warning);
+    void updateBannerStyle();
 };
 
 }

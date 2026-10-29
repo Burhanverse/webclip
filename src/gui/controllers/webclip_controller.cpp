@@ -225,34 +225,77 @@ QString WebClipController::escapeForLog(const QString& text, int maxLen) {
 bool WebClipController::shouldSuppressText(const QString& text, int64_t nowMs, int64_t windowMs) {
     std::lock_guard<std::mutex> guard(syncLock_);
     QString normCurrent = normalizeText(text);
+    QString normLocal = normalizeText(lastLocalText_);
+    QString normRemote = normalizeText(lastRemoteText_);
+    int64_t elapsed = nowMs - lastTextTimeMs_;
+
+    auto logDecision = [&](const char* result) {
+        WEBCLIP_LOG(QStringLiteral("[Suppression:Decision] text='") + escapeForLog(text, 40) +
+                    QStringLiteral("' normLocal='") + escapeForLog(normLocal, 40) +
+                    QStringLiteral("' elapsed=") + QString::number(elapsed) +
+                    QStringLiteral("ms result=") + QString::fromLatin1(result));
+    };
+
     if (normCurrent.isEmpty()) {
+        logDecision("SUPPRESSED");
         WEBCLIP_LOG(QStringLiteral("[EchoSuppression] Suppressed: empty text"));
         return true;
     }
 
-    QString normLocal = normalizeText(lastLocalText_);
-    QString normRemote = normalizeText(lastRemoteText_);
+    if (useWaylandWatcher_) {
+        for (auto it = recentRemoteHashes_.begin(); it != recentRemoteHashes_.end(); ) {
+            if ((nowMs - it->second) > 15000) {
+                it = recentRemoteHashes_.erase(it);
+            } else {
+                ++it;
+            }
+        }
+
+        std::string hash = QCryptographicHash::hash(normCurrent.toUtf8(), QCryptographicHash::Sha1).toHex().toStdString();
+        auto it = recentRemoteHashes_.find(hash);
+        if (it != recentRemoteHashes_.end() && (nowMs - it->second) < 15000) {
+            logDecision("SUPPRESSED");
+            WEBCLIP_LOG(QStringLiteral("[EchoSuppression] Suppressed: matches recent remote write hash: '") +
+                        escapeForLog(text) + QStringLiteral("'"));
+            return true;
+        }
+
+        if (normCurrent == normLocal) {
+            logDecision("SUPPRESSED");
+            WEBCLIP_LOG(QStringLiteral("[EchoSuppression] Suppressed: identical to local text: '") +
+                        escapeForLog(text) + QStringLiteral("'"));
+            return true;
+        }
+
+        logDecision("ALLOWED");
+        WEBCLIP_LOG(QStringLiteral("[EchoSuppression] NOT suppressed (Wayland): text='") + escapeForLog(text) +
+                    QStringLiteral("' (hash=") + QString::fromStdString(hash) + QStringLiteral(")"));
+        return false;
+    }
 
     if (normCurrent == normRemote) {
+        logDecision("SUPPRESSED");
         WEBCLIP_LOG(QStringLiteral("[EchoSuppression] Suppressed: identical to remote text: '") +
                     escapeForLog(text) + QStringLiteral("'"));
         return true;
     }
 
     if (normCurrent == normLocal) {
+        logDecision("SUPPRESSED");
         WEBCLIP_LOG(QStringLiteral("[EchoSuppression] Suppressed: identical to local text: '") +
                     escapeForLog(text) + QStringLiteral("'"));
         return true;
     }
 
-    int64_t elapsed = nowMs - lastTextTimeMs_;
     if (elapsed < windowMs) {
+        logDecision("SUPPRESSED");
         WEBCLIP_LOG(QStringLiteral("[EchoSuppression] Suppressed: elapsed (") + QString::number(elapsed) +
                     QStringLiteral("ms) < window (") + QString::number(windowMs) +
                     QStringLiteral("ms), text='") + escapeForLog(text) + QStringLiteral("'"));
         return true;
     }
 
+    logDecision("ALLOWED");
     WEBCLIP_LOG(QStringLiteral("[EchoSuppression] NOT suppressed: text='") + escapeForLog(text) +
                 QStringLiteral("' (norm='") + escapeForLog(normCurrent) +
                 QStringLiteral("') vs normLocal='") + escapeForLog(normLocal) +
@@ -304,9 +347,37 @@ WebClipController::WebClipController(QObject* parent)
     reconnectTimer_->setSingleShot(true);
     connect(reconnectTimer_, &QTimer::timeout, this, &WebClipController::connectToPortal);
 
-    if (QGuiApplication::clipboard()) {
+    const bool isWayland = QGuiApplication::platformName().startsWith(QLatin1String("wayland"));
+    if (isWayland) {
+        QString wlPastePath = QStandardPaths::findExecutable(QStringLiteral("wl-paste"));
+        QString wlCopyPath = QStandardPaths::findExecutable(QStringLiteral("wl-copy"));
+        if (wlPastePath.isEmpty() || wlCopyPath.isEmpty()) {
+            useWaylandWatcher_ = false;
+            WEBCLIP_LOG(QStringLiteral("[Wayland] wl-clipboard missing (wl-paste or wl-copy not found in PATH). Install wl-clipboard for Wayland clipboard support. Falling back to QClipboard."));
+        } else {
+            useWaylandWatcher_ = true;
+            startWaylandWatcher(true);
+        }
+    }
+
+    if (!useWaylandWatcher_ && QGuiApplication::clipboard()) {
         connect(QGuiApplication::clipboard(), &QClipboard::dataChanged, this, &WebClipController::onClipboardDataChanged);
     }
+
+    connect(qApp, &QCoreApplication::aboutToQuit, this, [this]() {
+        shuttingDown_ = true;
+        if (waylandRestartTimer_) {
+            waylandRestartTimer_->stop();
+        }
+        if (waylandWatcherProcess_) {
+            waylandWatcherProcess_->kill();
+            waylandWatcherProcess_->waitForFinished(1000);
+        }
+        if (wlCopyProcess_) {
+            wlCopyProcess_->kill();
+            wlCopyProcess_->waitForFinished(1000);
+        }
+    });
 
     loadSettings();
     captureClipboardToHistory();
@@ -343,6 +414,18 @@ void WebClipController::captureClipboardToHistory() {
 }
 
 WebClipController::~WebClipController() {
+    shuttingDown_ = true;
+    if (waylandRestartTimer_) {
+        waylandRestartTimer_->stop();
+    }
+    if (waylandWatcherProcess_) {
+        waylandWatcherProcess_->kill();
+        waylandWatcherProcess_->waitForFinished(1000);
+    }
+    if (wlCopyProcess_) {
+        wlCopyProcess_->kill();
+        wlCopyProcess_->waitForFinished(1000);
+    }
     blockSignals(true);
     disconnectFromPortal();
     saveSettings();
@@ -696,11 +779,7 @@ void WebClipController::connectToPortal() {
 
                         self->suppressNextLocalChange_.store(true);
                         self->suppressUntilMs_.store(nowMs + 1500);
-                        if (QGuiApplication::clipboard()) {
-                            QGuiApplication::clipboard()->setText(qRemoteText, QClipboard::Clipboard);
-                        } else if (self->nativeClipboard_) {
-                            self->nativeClipboard_->set_text(remoteText);
-                        }
+                        self->applyRemoteTextToClipboard(qRemoteText);
                         self->clipModel_.addClip(qRemoteText, "phone");
                     }
                 }
@@ -968,11 +1047,7 @@ void WebClipController::startSseListener() {
                                     QString::fromStdString(source) + QStringLiteral("': '") +
                                     WebClipController::escapeForLog(text) + QStringLiteral("', set suppressUntilMs=" ) +
                                     QString::number(nowMs + 1500));
-                        if (QGuiApplication::clipboard()) {
-                            QGuiApplication::clipboard()->setText(text, QClipboard::Clipboard);
-                        } else if (c->nativeClipboard_) {
-                            c->nativeClipboard_->set_text(text.toStdString());
-                        }
+                        c->applyRemoteTextToClipboard(text);
 
                         c->clipModel_.addClip(text, QString::fromStdString(source.empty() ? "phone" : source));
                         emit c->clipReceived(text, QString::fromStdString(source.empty() ? "phone" : source));
@@ -1188,6 +1263,8 @@ void WebClipController::discoverPhoneOnLan(bool knownHostsOnly, bool silent) {
 }
 
 void WebClipController::onClipboardDataChanged() {
+    if (useWaylandWatcher_) return;
+    WEBCLIP_LOG(QStringLiteral("[Clipboard:Signal] QClipboard::dataChanged received"));
     if (!autoSync_) return;
 
     int64_t nowMs = QDateTime::currentMSecsSinceEpoch();
@@ -1261,10 +1338,15 @@ void WebClipController::onClipboardDataChanged() {
         }
     }
 
+    const bool isWayland = !qEnvironmentVariableIsEmpty("WAYLAND_DISPLAY") ||
+                           QGuiApplication::platformName().startsWith(QLatin1String("wayland"));
+    const bool isAppActive = (QGuiApplication::applicationState() == Qt::ApplicationActive) ||
+                             (QGuiApplication::focusWindow() != nullptr);
     QString current;
-    if (QGuiApplication::clipboard()) {
+    if ((!isWayland || isAppActive) && QGuiApplication::clipboard()) {
         current = QGuiApplication::clipboard()->text(QClipboard::Clipboard);
     }
+    WEBCLIP_LOG(QStringLiteral("[Clipboard:QClipboardRead] raw='") + escapeForLog(current, 40) + QStringLiteral("'"));
     if (!current.isEmpty()) {
         handleNativeText(current);
         return;
@@ -1353,6 +1435,7 @@ void WebClipController::handleNativeText(QString current) {
 }
 
 void WebClipController::onPollTimer() {
+    if (useWaylandWatcher_) return;
     if (!connected_ || !autoSync_) return;
 
     QPointer<WebClipController> self(this);
@@ -1394,7 +1477,184 @@ void WebClipController::processPollReadResult(PollReadResult result) {
         img.valid = true;
         handleNativeImage(std::move(img));
     } else if (!result.text.empty()) {
-        handleNativeText(QString::fromStdString(result.text));
+        QString qtext = QString::fromStdString(result.text);
+        WEBCLIP_LOG(QStringLiteral("[Clipboard:NativeRead] source=wl-paste raw='") + escapeForLog(qtext, 40) + QStringLiteral("'"));
+        handleNativeText(qtext);
+    }
+}
+
+void WebClipController::startWaylandWatcher(bool initial) {
+    if (!useWaylandWatcher_ || shuttingDown_) return;
+
+    if (waylandWatcherProcess_) {
+        waylandWatcherProcess_->disconnect(this);
+        waylandWatcherProcess_->kill();
+        waylandWatcherProcess_->deleteLater();
+        waylandWatcherProcess_ = nullptr;
+    }
+
+    waylandWatcherBuffer_.clear();
+    waylandWatcherProcess_ = new QProcess(this);
+
+    connect(waylandWatcherProcess_, &QProcess::readyReadStandardOutput,
+            this, &WebClipController::onWaylandWatcherReadyRead);
+
+    connect(waylandWatcherProcess_, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
+            this, [this](int, QProcess::ExitStatus) {
+        if (shuttingDown_) return;
+        scheduleWaylandWatcherRestart();
+    });
+
+    QString wlPasteBin = QStandardPaths::findExecutable(QStringLiteral("wl-paste"));
+    if (wlPasteBin.isEmpty()) {
+        wlPasteBin = QStringLiteral("wl-paste");
+    }
+
+    QStringList args;
+    args << QStringLiteral("--watch") << QStringLiteral("sh") << QStringLiteral("-c")
+         << QString::fromUtf8(R"(types=$(wl-paste --list-types 2>/dev/null); case "$types" in *"text/plain;charset=utf-8"*|*"text/plain"*) cat; printf '\0' ;; *) cat > /dev/null ;; esac)");
+
+    waylandWatcherProcess_->start(wlPasteBin, args);
+    if (initial) {
+        WEBCLIP_LOG(QStringLiteral("[WaylandWatcher] Watcher started"));
+    }
+}
+
+void WebClipController::scheduleWaylandWatcherRestart() {
+    if (!useWaylandWatcher_ || shuttingDown_) return;
+    if (!waylandRestartTimer_) {
+        waylandRestartTimer_ = new QTimer(this);
+        waylandRestartTimer_->setSingleShot(true);
+        connect(waylandRestartTimer_, &QTimer::timeout, this, &WebClipController::restartWaylandWatcher);
+    }
+    if (!waylandRestartTimer_->isActive()) {
+        waylandRestartTimer_->start(waylandRestartBackoffMs_);
+        waylandRestartBackoffMs_ = std::min(waylandRestartBackoffMs_ * 2, 8000);
+    }
+}
+
+void WebClipController::restartWaylandWatcher() {
+    if (!useWaylandWatcher_ || shuttingDown_) return;
+    WEBCLIP_LOG(QStringLiteral("[WaylandWatcher] Watcher restarted"));
+    startWaylandWatcher(false);
+}
+
+void WebClipController::onWaylandWatcherReadyRead() {
+    if (!waylandWatcherProcess_) return;
+    waylandRestartBackoffMs_ = 1000;
+    waylandWatcherBuffer_.append(waylandWatcherProcess_->readAllStandardOutput());
+
+    int idx = -1;
+    while ((idx = waylandWatcherBuffer_.indexOf('\0')) >= 0) {
+        QByteArray chunk = waylandWatcherBuffer_.left(idx);
+        waylandWatcherBuffer_.remove(0, idx + 1);
+
+        QString text = QString::fromUtf8(chunk);
+        if (!text.isEmpty()) {
+            WEBCLIP_LOG(QStringLiteral("[WaylandWatcher] Text received: '") +
+                        escapeForLog(text, 40) + QStringLiteral("'"));
+            if (!connected_) {
+                {
+                    std::lock_guard<std::mutex> guard(syncLock_);
+                    lastLocalText_ = text;
+                }
+                clipModel_.addClip(text, "local");
+                hasOfflineCopy_ = true;
+                continue;
+            }
+            if (!autoSync_) continue;
+            handleNativeText(text);
+        }
+    }
+}
+
+void WebClipController::writeWaylandClipboard(const QString& text) {
+    if (QThread::currentThread() != this->thread()) {
+        QMetaObject::invokeMethod(this, [this, text]() {
+            writeWaylandClipboard(text);
+        });
+        return;
+    }
+
+    if (wlCopyProcess_) {
+        wlCopyProcess_->disconnect(this);
+        wlCopyProcess_->kill();
+        wlCopyProcess_->deleteLater();
+        wlCopyProcess_ = nullptr;
+    }
+
+    wlCopyProcess_ = new QProcess(this);
+
+    connect(wlCopyProcess_, qOverload<int, QProcess::ExitStatus>(&QProcess::finished),
+            this, [this](int, QProcess::ExitStatus) {
+        if (wlCopyProcess_) {
+            wlCopyProcess_->deleteLater();
+            wlCopyProcess_ = nullptr;
+        }
+    });
+
+    connect(wlCopyProcess_, &QProcess::errorOccurred, this, [this](QProcess::ProcessError) {
+        if (wlCopyProcess_) {
+            wlCopyProcess_->deleteLater();
+            wlCopyProcess_ = nullptr;
+        }
+    });
+
+    QString wlCopyBin = QStandardPaths::findExecutable(QStringLiteral("wl-copy"));
+    if (wlCopyBin.isEmpty()) {
+        wlCopyBin = QStringLiteral("wl-copy");
+    }
+
+    QStringList args;
+    args << QStringLiteral("--type") << QStringLiteral("text/plain");
+
+    wlCopyProcess_->start(wlCopyBin, args);
+    if (wlCopyProcess_->waitForStarted(1000)) {
+        wlCopyProcess_->write(text.toUtf8());
+        wlCopyProcess_->closeWriteChannel();
+    } else {
+        wlCopyProcess_->deleteLater();
+        wlCopyProcess_ = nullptr;
+    }
+}
+
+void WebClipController::recordRecentRemoteText(const QString& text, int64_t nowMs) {
+    std::lock_guard<std::mutex> guard(syncLock_);
+    QString norm = normalizeText(text);
+    if (norm.isEmpty()) return;
+    std::string hash = QCryptographicHash::hash(norm.toUtf8(), QCryptographicHash::Sha1).toHex().toStdString();
+
+    for (auto it = recentRemoteHashes_.begin(); it != recentRemoteHashes_.end(); ) {
+        if ((nowMs - it->second) > 15000) {
+            it = recentRemoteHashes_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    recentRemoteHashes_[hash] = nowMs;
+
+    while (recentRemoteHashes_.size() > 32) {
+        auto oldest = recentRemoteHashes_.begin();
+        for (auto it = recentRemoteHashes_.begin(); it != recentRemoteHashes_.end(); ++it) {
+            if (it->second < oldest->second) {
+                oldest = it;
+            }
+        }
+        recentRemoteHashes_.erase(oldest);
+    }
+}
+
+void WebClipController::applyRemoteTextToClipboard(const QString& text) {
+    int64_t nowMs = QDateTime::currentMSecsSinceEpoch();
+    recordRecentRemoteText(text, nowMs);
+
+    if (useWaylandWatcher_) {
+        writeWaylandClipboard(text);
+    } else if (QGuiApplication::clipboard()) {
+        QGuiApplication::clipboard()->setText(text, QClipboard::Clipboard);
+    } else if (nativeClipboard_) {
+        nativeClipboard_->set_text(text.toStdString());
     }
 }
 
@@ -1407,6 +1667,7 @@ bool WebClipController::pushClipboard(const QString& text, const QString& clipId
     std::string cId = clipId.isEmpty() ? generateClipId() : clipId.toStdString();
     markClipIdHandled(cId);
 
+    WEBCLIP_LOG(QStringLiteral("[Push:Dispatch] text='") + escapeForLog(text, 40) + QStringLiteral("'"));
     WEBCLIP_LOG(QStringLiteral("[Push] Pushing clipboard to phone (id=") + QString::fromStdString(cId) +
                 QStringLiteral("): '") + escapeForLog(text) + QStringLiteral("'"));
 
@@ -1666,7 +1927,9 @@ void WebClipController::copyToClipboard(const QString& text) {
     suppressUntilMs_.store(nowMs + 1500);
     WEBCLIP_LOG(QStringLiteral("[Clipboard] copyToClipboard: '") + escapeForLog(text) +
                 QStringLiteral("', suppressUntilMs=") + QString::number(nowMs + 1500));
-    if (QGuiApplication::clipboard()) {
+    if (useWaylandWatcher_) {
+        writeWaylandClipboard(text);
+    } else if (QGuiApplication::clipboard()) {
         QGuiApplication::clipboard()->setText(text, QClipboard::Clipboard);
     } else if (nativeClipboard_) {
         nativeClipboard_->set_text(text.toStdString());

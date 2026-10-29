@@ -43,6 +43,7 @@ target_include_directories(webclip_core PUBLIC
 target_link_libraries(webclip_core PUBLIC
     Threads::Threads
     ${CURL_LIBRARIES}
+    Qt6::Core
 )
 
 if(WIN32)

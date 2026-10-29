@@ -350,6 +350,8 @@ std::unique_ptr<IClipboard> create_clipboard() {
 #include <ctime>
 #include <cerrno>
 #include <algorithm>
+#include <chrono>
+#include "../gui/util/debug_logger.hpp"
 
 namespace webclip {
 
@@ -420,6 +422,72 @@ public:
 
             if (deadline_ms() >= deadline) return false;
         }
+    }
+
+    static bool drain_two_pipes_deadline(int fd_out, std::vector<uint8_t>& out,
+                                         int fd_err, std::vector<uint8_t>& err,
+                                         int timeout_ms) {
+        out.clear();
+        err.clear();
+        std::array<char, 4096> buffer;
+        auto deadline_ms = []() {
+            struct timespec ts;
+            clock_gettime(CLOCK_MONOTONIC, &ts);
+            return static_cast<int64_t>(ts.tv_sec) * 1000 + ts.tv_nsec / 1000000;
+        };
+        const int64_t deadline = deadline_ms() + timeout_ms;
+        bool out_open = true;
+        bool err_open = true;
+
+        fcntl(fd_out, F_SETFL, fcntl(fd_out, F_GETFL, 0) | O_NONBLOCK);
+        fcntl(fd_err, F_SETFL, fcntl(fd_err, F_GETFL, 0) | O_NONBLOCK);
+
+        while (out_open || err_open) {
+            int64_t remaining = deadline - deadline_ms();
+            if (remaining <= 0) return false;
+
+            struct pollfd pfds[2];
+            int nfds = 0;
+            int out_idx = -1;
+            int err_idx = -1;
+
+            if (out_open) {
+                out_idx = nfds;
+                pfds[nfds++] = {fd_out, POLLIN, 0};
+            }
+            if (err_open) {
+                err_idx = nfds;
+                pfds[nfds++] = {fd_err, POLLIN, 0};
+            }
+
+            int pr = poll(pfds, nfds, static_cast<int>(std::min<int64_t>(remaining, 200)));
+            if (pr < 0) {
+                if (errno == EINTR) continue;
+                return false;
+            }
+            if (pr == 0) continue;
+
+            if (out_idx >= 0 && (pfds[out_idx].revents & (POLLIN | POLLHUP | POLLERR))) {
+                ssize_t n = read(fd_out, buffer.data(), buffer.size());
+                if (n > 0) {
+                    out.insert(out.end(), buffer.data(), buffer.data() + n);
+                } else if (n == 0 || (n < 0 && errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK)) {
+                    out_open = false;
+                }
+            }
+
+            if (err_idx >= 0 && (pfds[err_idx].revents & (POLLIN | POLLHUP | POLLERR))) {
+                ssize_t n = read(fd_err, buffer.data(), buffer.size());
+                if (n > 0) {
+                    err.insert(err.end(), buffer.data(), buffer.data() + n);
+                } else if (n == 0 || (n < 0 && errno != EINTR && errno != EAGAIN && errno != EWOULDBLOCK)) {
+                    err_open = false;
+                }
+            }
+
+            if (deadline_ms() >= deadline) return false;
+        }
+        return true;
     }
 
 public:
@@ -521,42 +589,78 @@ private:
 
     static bool run_command_read(const std::vector<std::string>& args, std::string& output) {
         if (args.empty()) return false;
-        int pipefd[2];
-        if (pipe(pipefd) != 0) return false;
+        int out_pipe[2];
+        if (pipe(out_pipe) != 0) return false;
+        int err_pipe[2];
+        if (pipe(err_pipe) != 0) {
+            close(out_pipe[0]);
+            close(out_pipe[1]);
+            return false;
+        }
+
+        auto start_time = std::chrono::steady_clock::now();
 
         pid_t pid = fork();
         if (pid < 0) {
-            close(pipefd[0]);
-            close(pipefd[1]);
+            close(out_pipe[0]);
+            close(out_pipe[1]);
+            close(err_pipe[0]);
+            close(err_pipe[1]);
             return false;
         }
 
         if (pid == 0) {
-            close(pipefd[0]);
-            dup2(pipefd[1], STDOUT_FILENO);
-            int devnull = open("/dev/null", O_WRONLY);
-            if (devnull >= 0) {
-                dup2(devnull, STDERR_FILENO);
-                close(devnull);
-            }
-            close(pipefd[1]);
+            close(out_pipe[0]);
+            dup2(out_pipe[1], STDOUT_FILENO);
+            close(out_pipe[1]);
+
+            close(err_pipe[0]);
+            dup2(err_pipe[1], STDERR_FILENO);
+            close(err_pipe[1]);
 
             std::vector<char*> c_args;
             for (const auto& a : args) c_args.push_back(const_cast<char*>(a.c_str()));
             c_args.push_back(nullptr);
 
             execvp(c_args[0], c_args.data());
+            perror(c_args[0]);
             _exit(127);
         }
 
-        close(pipefd[1]);
-        std::vector<uint8_t> raw;
-        bool ok = drain_pipe_deadline(pipefd[0], raw, HELPER_TIMEOUT_MS);
-        close(pipefd[0]);
+        close(out_pipe[1]);
+        close(err_pipe[1]);
+
+        std::vector<uint8_t> raw_out;
+        std::vector<uint8_t> raw_err;
+        bool ok = drain_two_pipes_deadline(out_pipe[0], raw_out, err_pipe[0], raw_err, HELPER_TIMEOUT_MS);
+        close(out_pipe[0]);
+        close(err_pipe[0]);
 
         int exit_code = 127;
         wait_pid_deadline(pid, HELPER_TIMEOUT_MS, exit_code);
-        output.assign(raw.begin(), raw.end());
+
+        auto end_time = std::chrono::steady_clock::now();
+        int64_t elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+
+        output.assign(raw_out.begin(), raw_out.end());
+        std::string err_str(raw_err.begin(), raw_err.end());
+        while (!err_str.empty() && (err_str.back() == '\n' || err_str.back() == '\r')) {
+            err_str.pop_back();
+        }
+
+        std::string cmd_str;
+        for (size_t i = 0; i < args.size(); ++i) {
+            if (i > 0) cmd_str += " ";
+            cmd_str += args[i];
+        }
+
+        std::string log_msg = "[NativeHelper:Read] cmd='" + cmd_str +
+                              "' exit_code=" + std::to_string(exit_code) +
+                              " stdout_empty=" + (output.empty() ? "true" : "false") +
+                              " elapsed_ms=" + std::to_string(elapsed_ms) +
+                              " stderr='" + err_str + "'";
+        WEBCLIP_LOG(log_msg);
+
         return ok && exit_code == 0;
     }
 

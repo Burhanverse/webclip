@@ -9,12 +9,16 @@
 #include <QSettings>
 #include <QClipboard>
 #include <QGuiApplication>
+#include <QProcess>
+#include <QStandardPaths>
+#include <QCryptographicHash>
 #include <QImage>
 #include <memory>
 #include <atomic>
 #include <mutex>
 #include <deque>
 #include <unordered_set>
+#include <unordered_map>
 #include "../models/clipboard_history_model.hpp"
 #include "../../clipboard/clipboard.hpp"
 #include "../../net/http_client.hpp"
@@ -217,6 +221,23 @@ private:
     void markTextApplied(const QString& text, int64_t nowMs);
     bool shouldSuppressImage(const QString& hash, const QString& pixelFp, int64_t nowMs, int64_t windowMs = 3000);
     void markImageApplied(const QString& hash, const QString& pixelFp, int64_t nowMs);
+
+    QProcess* waylandWatcherProcess_ = nullptr;
+    QProcess* wlCopyProcess_ = nullptr;
+    QTimer* waylandRestartTimer_ = nullptr;
+    QByteArray waylandWatcherBuffer_;
+    std::unordered_map<std::string, int64_t> recentRemoteHashes_;
+    bool useWaylandWatcher_ = false;
+    bool shuttingDown_ = false;
+    int waylandRestartBackoffMs_ = 1000;
+
+    void startWaylandWatcher(bool initial = true);
+    void scheduleWaylandWatcherRestart();
+    void restartWaylandWatcher();
+    void onWaylandWatcherReadyRead();
+    void writeWaylandClipboard(const QString& text);
+    void recordRecentRemoteText(const QString& text, int64_t nowMs);
+    void applyRemoteTextToClipboard(const QString& text);
 };
 
 }

@@ -502,6 +502,8 @@ int main(int argc, char* argv[]) {
     auto trayManager = std::make_unique<webclip::TrayIconManager>(controller);
     trayManager->setMainWindow(mainWindow);
 
+    mainWindow->checkWlClipboardWarning();
+
     const auto activateFromSecondInstance = [&instanceServer, tray = trayManager.get()] {
         while (QLocalSocket* socket = instanceServer.nextPendingConnection()) {
             socket->deleteLater();
