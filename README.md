@@ -27,6 +27,11 @@ curl -fsSL https://raw.githubusercontent.com/Burhanverse/webclip/main/packaging/
 
 Or grab the standalone **AppImage** or **tar.gz** bundle from [Releases](https://github.com/Burhanverse/webclip/releases/latest).
 
+> **Note:** Install `wl-clipboard` for clipboard synchronization on Wayland:
+> - **Arch Linux**: `sudo pacman -S wl-clipboard`
+> - **Ubuntu / Debian**: `sudo apt install wl-clipboard`
+> - **Fedora**: `sudo dnf install wl-clipboard`
+
 To uninstall:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Burhanverse/webclip/main/packaging/uninstall.sh | bash
@@ -73,7 +78,7 @@ cmake --build --preset linux-clang
 
 ## Platform Notes
 
-- **Linux (Wayland)**: Requires `wl-clipboard`.
+- **Linux (Wayland)**: Requires `wl-clipboard` (`wl-copy` / `wl-paste`).
 - **Linux (X11)**: Requires `xclip` or `xsel`.
 - **GNOME**: Ensure AppIndicator extension is installed for system tray support.
 

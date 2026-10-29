@@ -255,3 +255,13 @@ case ":$PATH:" in
         echo ""
         ;;
 esac
+
+if ! command -v wl-copy >/dev/null 2>&1 || ! command -v wl-paste >/dev/null 2>&1; then
+    echo ""
+    echo "Note: 'wl-clipboard' (wl-copy / wl-paste) is required for Wayland clipboard sync."
+    echo "Install it via your package manager:"
+    echo "  Arch Linux:      sudo pacman -S wl-clipboard"
+    echo "  Ubuntu / Debian: sudo apt install wl-clipboard"
+    echo "  Fedora:          sudo dnf install wl-clipboard"
+    echo ""
+fi
