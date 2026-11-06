@@ -8,6 +8,7 @@
 #include <thread>
 #include "../clipboard/clipboard.hpp"
 #include "../net/http_client.hpp"
+#include "../net/file_download_manager.hpp"
 
 namespace webclip {
 
@@ -40,6 +41,7 @@ private:
     SyncConfig config_;
     std::unique_ptr<IClipboard> clipboard_;
     std::unique_ptr<HttpClient> client_;
+    std::unique_ptr<FileDownloadManager> download_manager_;
 
     std::mutex state_lock_;
     std::string last_remote_text_;

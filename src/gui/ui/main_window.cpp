@@ -6,13 +6,22 @@
 #include "clips/clip_widget.hpp"
 #include "dialogs/settings_dialog.hpp"
 #include "dialogs/image_preview_modal.hpp"
+#include "md3/drop_overlay_widget.hpp"
 #include "../theme/md3_theme.hpp"
 #include "../controllers/webclip_controller.hpp"
 #include "../util/display_scale.hpp"
+#include "../util/i18n.hpp"
 
 #include <QtCore/QTimer>
+#include <QtCore/QMimeData>
+#include <QtCore/QUrl>
+#include <QtCore/QFileInfo>
 #include <QtGui/QGuiApplication>
 #include <QtGui/QMouseEvent>
+#include <QtGui/QDragEnterEvent>
+#include <QtGui/QDragMoveEvent>
+#include <QtGui/QDragLeaveEvent>
+#include <QtGui/QDropEvent>
 #include <QtGui/QPainter>
 #include <QtGui/QScreen>
 #include <QtGui/QWindow>
@@ -33,6 +42,7 @@ MainWindow::MainWindow(QWidget* parent, webclip::WebClipController* controller)
     , controller_(controller) {
     setWindowFlags(Qt::FramelessWindowHint | Qt::WindowSystemMenuHint | Qt::Dialog);
     setAttribute(Qt::WA_TranslucentBackground);
+    setAcceptDrops(true);
 
     resize(webclip::scale::px(380), webclip::scale::px(800));
     setMinimumSize(webclip::scale::px(360), webclip::scale::px(680));
@@ -62,6 +72,7 @@ void MainWindow::setupUi() {
     toast_ = new ToastWidget(container_);
     settingsDialog_ = new SettingsDialog(container_, controller_);
     imagePreviewModal_ = new ImagePreviewModal(container_);
+    dropOverlay_ = new DropOverlayWidget(container_);
 
     connect(headerBar_, &HeaderBar::openSettingsRequested, this, [this] {
         settingsDialog_->open();
@@ -84,6 +95,18 @@ void MainWindow::setupUi() {
         );
         if (!path.isEmpty() && controller_) {
             controller_->pushImage(path);
+        }
+    });
+
+    connect(inputDock_, &InputDock::attachFilesRequested, this, [this] {
+        const QStringList paths = QFileDialog::getOpenFileNames(
+            this,
+            webclip::I18n::instance()->tr(QStringLiteral("chat.send_files_dialog_title")),
+            QString(),
+            QStringLiteral("All Files (*)")
+        );
+        if (!paths.isEmpty() && controller_) {
+            controller_->uploadFiles(paths);
         }
     });
 
@@ -116,6 +139,9 @@ void MainWindow::setController(webclip::WebClipController* controller) {
     inputDock_->setController(controller_);
     clipWidget_->setController(controller_);
     settingsDialog_->setController(controller_);
+    connect(controller_, &webclip::WebClipController::showToast, this, &MainWindow::showToast);
+    connect(controller_, &webclip::WebClipController::showOfferBanner, this, &MainWindow::showOfferBanner);
+    connect(controller_, &webclip::WebClipController::hideOfferBanner, this, &MainWindow::hideOfferBanner);
 }
 
 void MainWindow::showToast(const QString& message, bool isError) {
@@ -171,7 +197,14 @@ void MainWindow::updateLayout() {
         const int bannerW = w - 2 * bannerMargin;
         const int preferredH = bannerWidget_->sizeHint().height();
         bannerWidget_->setGeometry(bannerMargin, headerH + webclip::scale::px(4), bannerW, preferredH);
-        bannerH = preferredH + webclip::scale::px(8);
+        bannerH += preferredH + webclip::scale::px(8);
+    }
+    if (offerBannerWidget_ && offerBannerWidget_->isVisible()) {
+        const int bannerMargin = webclip::scale::px(12);
+        const int bannerW = w - 2 * bannerMargin;
+        const int preferredH = offerBannerWidget_->sizeHint().height();
+        offerBannerWidget_->setGeometry(bannerMargin, headerH + bannerH + webclip::scale::px(4), bannerW, preferredH);
+        bannerH += preferredH + webclip::scale::px(8);
     }
 
     inputDock_->setGeometry(0, h - dockH, w, dockH);
@@ -181,6 +214,94 @@ void MainWindow::updateLayout() {
 
     if (settingsDialog_) settingsDialog_->setGeometry(rect());
     if (imagePreviewModal_) imagePreviewModal_->setGeometry(rect());
+    if (dropOverlay_) dropOverlay_->setGeometry(0, 0, w, h);
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent* e) {
+    if ((settingsDialog_ && settingsDialog_->isVisible()) ||
+        (imagePreviewModal_ && imagePreviewModal_->isVisible())) {
+        e->ignore();
+        return;
+    }
+    if (!e->mimeData()->hasUrls()) {
+        e->ignore();
+        return;
+    }
+    bool hasLocal = false;
+    for (const QUrl& url : e->mimeData()->urls()) {
+        if (url.isLocalFile()) {
+            hasLocal = true;
+            break;
+        }
+    }
+    if (!hasLocal) {
+        e->ignore();
+        return;
+    }
+    e->acceptProposedAction();
+    if (controller_ && controller_->connected()) {
+        dropOverlay_->show();
+        dropOverlay_->raise();
+    }
+}
+
+void MainWindow::dragMoveEvent(QDragMoveEvent* e) {
+    if ((settingsDialog_ && settingsDialog_->isVisible()) ||
+        (imagePreviewModal_ && imagePreviewModal_->isVisible())) {
+        if (dropOverlay_ && dropOverlay_->isVisible()) {
+            dropOverlay_->hide();
+        }
+        e->ignore();
+        return;
+    }
+    e->acceptProposedAction();
+}
+
+void MainWindow::dragLeaveEvent(QDragLeaveEvent* e) {
+    if (dropOverlay_) {
+        dropOverlay_->hide();
+    }
+    QMainWindow::dragLeaveEvent(e);
+}
+
+void MainWindow::dropEvent(QDropEvent* e) {
+    if (dropOverlay_) {
+        dropOverlay_->hide();
+    }
+    if ((settingsDialog_ && settingsDialog_->isVisible()) ||
+        (imagePreviewModal_ && imagePreviewModal_->isVisible())) {
+        e->ignore();
+        return;
+    }
+    if (!controller_ || !controller_->connected()) {
+        showToast(webclip::I18n::instance()->tr(QStringLiteral("toast.not_connected")), true);
+        e->ignore();
+        return;
+    }
+    e->acceptProposedAction();
+
+    const QList<QUrl> urls = e->mimeData()->urls();
+    QStringList filePaths;
+    bool hasDirectory = false;
+    for (const QUrl& url : urls) {
+        if (url.isLocalFile()) {
+            const QString localPath = url.toLocalFile();
+            QFileInfo fi(localPath);
+            if (fi.isDir()) {
+                hasDirectory = true;
+            } else if (fi.isFile()) {
+                filePaths.append(localPath);
+            }
+        }
+    }
+
+    if (hasDirectory) {
+        showToast(webclip::I18n::instance()->tr(QStringLiteral("toast.directories_not_supported")), true);
+    }
+
+    if (!filePaths.isEmpty() && controller_) {
+        controller_->uploadFiles(filePaths);
+    }
 }
 
 void MainWindow::mousePressEvent(QMouseEvent* e) {
@@ -326,6 +447,113 @@ void MainWindow::showWlClipboardBanner(const QString& text) {
 
     bannerWidget_->show();
     updateLayout();
+}
+
+void MainWindow::showOfferBanner(const QString& batchId, const QString& title, const QString& details) {
+    if (offerBannerWidget_) {
+        delete offerBannerWidget_;
+        offerBannerWidget_ = nullptr;
+    }
+
+    offerBannerWidget_ = new QFrame(container_);
+    offerBannerWidget_->setObjectName(QStringLiteral("offerBanner"));
+    updateOfferBannerStyle();
+
+    auto* layout = new QVBoxLayout(offerBannerWidget_);
+    layout->setContentsMargins(
+        webclip::scale::px(12),
+        webclip::scale::px(10),
+        webclip::scale::px(12),
+        webclip::scale::px(10)
+    );
+    layout->setSpacing(webclip::scale::px(6));
+
+    auto* titleLabel = new QLabel(title, offerBannerWidget_);
+    auto* theme = webclip::MD3Theme::instance();
+    QFont tFont = theme->titleSmall();
+    tFont.setBold(true);
+    titleLabel->setFont(tFont);
+    layout->addWidget(titleLabel);
+
+    if (!details.isEmpty()) {
+        auto* detailsLabel = new QLabel(details, offerBannerWidget_);
+        detailsLabel->setFont(theme->bodySmall());
+        detailsLabel->setWordWrap(true);
+        layout->addWidget(detailsLabel);
+    }
+
+    auto* actionsRow = new QHBoxLayout();
+    actionsRow->setContentsMargins(0, 0, 0, 0);
+    actionsRow->setSpacing(webclip::scale::px(8));
+    actionsRow->addStretch(1);
+
+    auto* declineBtn = new QPushButton(QStringLiteral("Decline"), offerBannerWidget_);
+    declineBtn->setFont(theme->labelMedium());
+    declineBtn->setCursor(Qt::PointingHandCursor);
+    connect(declineBtn, &QPushButton::clicked, this, [this, batchId]() {
+        if (controller_) {
+            controller_->declineFileOffer(batchId);
+        }
+        hideOfferBanner();
+    });
+    actionsRow->addWidget(declineBtn);
+
+    auto* acceptBtn = new QPushButton(QStringLiteral("Accept"), offerBannerWidget_);
+    acceptBtn->setFont(theme->labelMedium());
+    acceptBtn->setCursor(Qt::PointingHandCursor);
+    connect(acceptBtn, &QPushButton::clicked, this, [this, batchId]() {
+        if (controller_) {
+            controller_->acceptFileOffer(batchId);
+        }
+        hideOfferBanner();
+    });
+    actionsRow->addWidget(acceptBtn);
+
+    layout->addLayout(actionsRow);
+
+    offerBannerWidget_->show();
+    updateLayout();
+
+    if (isHidden() || isMinimized()) {
+        if (controller_) {
+            emit controller_->showTrayNotification(
+                QStringLiteral("Incoming file transfer from Phone"),
+                QStringLiteral("Click to view")
+            );
+        }
+    }
+}
+
+void MainWindow::hideOfferBanner() {
+    if (offerBannerWidget_) {
+        offerBannerWidget_->hide();
+        offerBannerWidget_->deleteLater();
+        offerBannerWidget_ = nullptr;
+        updateLayout();
+    }
+}
+
+void MainWindow::updateOfferBannerStyle() {
+    if (!offerBannerWidget_) return;
+    auto* theme = webclip::MD3Theme::instance();
+    const QString style = QStringLiteral(
+        "#offerBanner { background-color: %1; border: 1px solid %2; border-radius: %3px; }"
+        "QLabel { color: %4; background: transparent; }"
+        "QPushButton { background: %5; color: %6; font-weight: bold; border: none; border-radius: %7px; padding: %8px %9px; }"
+        "QPushButton:hover { background-color: %10; }"
+    ).arg(
+        theme->primaryContainer().name(),
+        theme->primary().name(),
+        QString::number(webclip::scale::px(10)),
+        theme->onPrimaryContainer().name(),
+        theme->primary().name(),
+        theme->onPrimary().name(),
+        QString::number(webclip::scale::px(6)),
+        QString::number(webclip::scale::px(4)),
+        QString::number(webclip::scale::px(12)),
+        theme->colorWithAlpha(theme->primary(), 0.85).name(QColor::HexArgb)
+    );
+    offerBannerWidget_->setStyleSheet(style);
 }
 
 }

@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "clip_text_layout.hpp"
+#include "../models/clipboard_history_model.hpp"
 
 class QPainter;
 
@@ -37,12 +38,17 @@ public:
         None,
         Text,
         Image,
+        File,
         BtnLink,
         BtnCopy,
         BtnDownload,
         BtnSend,
         BtnDelete,
         ExpandChip,
+        BtnOpen,
+        BtnFolder,
+        BtnAccept,
+        BtnDecline,
     };
 
     explicit ClipElement(IClipViewHost* owner);
@@ -64,6 +70,11 @@ public:
     void refreshTheme();
     QString clipId() const { return id_; }
     bool isImage() const { return isImage_; }
+    bool isFile() const { return type_ == ClipType::File; }
+    QString fileName() const { return fileName_; }
+    QString localFilePath() const { return localFilePath_; }
+    QString batchId() const { return batchId_; }
+    FileStatus fileStatus() const { return fileStatus_; }
 
     void setExpanded(bool on);
     bool expanded() const { return expanded_; }
@@ -130,6 +141,18 @@ private:
     int lastWrapWidth_ = 0;
 
     QString id_;
+    ClipType type_ = ClipType::Text;
+    FileStatus fileStatus_ = FileStatus::Completed;
+    QString fileName_;
+    qint64 fileSize_ = 0;
+    QString localFilePath_;
+    QString mimeType_;
+    QString batchId_;
+    int batchIndex_ = 1;
+    int batchTotal_ = 1;
+    qint64 bytesTransferred_ = 0;
+    QRectF fileAreaRect_;
+    QRectF progressBarRect_;
     bool isImage_ = false;
     bool fromPhone_ = false;
     bool connectedFlag_ = false;

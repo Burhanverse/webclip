@@ -18,6 +18,7 @@ class InputDock;
 class ToastWidget;
 class SettingsDialog;
 class ImagePreviewModal;
+class DropOverlayWidget;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -31,6 +32,8 @@ public:
 
     void setController(webclip::WebClipController* controller);
     void showToast(const QString& message, bool isError = false);
+    void showOfferBanner(const QString& batchId, const QString& title, const QString& details);
+    void hideOfferBanner();
     void checkWlClipboardWarning();
     void minimizeToTray();
 
@@ -43,6 +46,10 @@ protected:
     void mousePressEvent(QMouseEvent* e) override;
     void mouseMoveEvent(QMouseEvent* e) override;
     void changeEvent(QEvent* e) override;
+    void dragEnterEvent(QDragEnterEvent* e) override;
+    void dragMoveEvent(QDragMoveEvent* e) override;
+    void dragLeaveEvent(QDragLeaveEvent* e) override;
+    void dropEvent(QDropEvent* e) override;
 
 private:
     void setupUi();
@@ -58,10 +65,13 @@ private:
     ToastWidget* toast_ = nullptr;
     SettingsDialog* settingsDialog_ = nullptr;
     ImagePreviewModal* imagePreviewModal_ = nullptr;
+    DropOverlayWidget* dropOverlay_ = nullptr;
     QFrame* bannerWidget_ = nullptr;
+    QFrame* offerBannerWidget_ = nullptr;
 
     void showWlClipboardBanner(const QString& warning);
     void updateBannerStyle();
+    void updateOfferBannerStyle();
 };
 
 }

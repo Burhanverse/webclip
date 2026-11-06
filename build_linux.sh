@@ -87,6 +87,10 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+if [ "$USE_LEGACY" = false ] && { ! command -v clang >/dev/null 2>&1 || ! command -v clang++ >/dev/null 2>&1; }; then
+    USE_LEGACY=true
+fi
+
 echo "=========================================="
 echo "  WebClip Linux Builder"
 echo "  Toolchain:  $(if [ "$USE_LEGACY" = true ]; then echo "GCC (Legacy)"; else echo "Clang + lld"; fi)"
@@ -106,6 +110,15 @@ fi
 if [ "$CLEAN" = true ]; then
     echo "==> Cleaning previous build directories..."
     rm -rf "$BUILD_DIR" "$OUTPUT_DIR" AppDir
+elif [ -f "$BUILD_DIR/CMakeCache.txt" ]; then
+    CACHED_GENERATOR=$(grep -E "^CMAKE_GENERATOR:INTERNAL=" "$BUILD_DIR/CMakeCache.txt" | cut -d= -f2 || true)
+    if [ -n "$CACHED_GENERATOR" ] && [ "$CACHED_GENERATOR" != "$GENERATOR" ]; then
+        echo "==> Generator mismatch detected (cached: $CACHED_GENERATOR, target: $GENERATOR). Cleaning $BUILD_DIR..."
+        rm -rf "$BUILD_DIR"
+    elif grep -q "flatpak" "$BUILD_DIR/CMakeCache.txt"; then
+        echo "==> Contaminated Flatpak runtime paths detected in $BUILD_DIR/CMakeCache.txt. Cleaning $BUILD_DIR..."
+        rm -rf "$BUILD_DIR"
+    fi
 fi
 
 mkdir -p "$BUILD_DIR" "$OUTPUT_DIR"

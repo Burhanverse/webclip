@@ -17,7 +17,12 @@
     "action_copy": "Copy to clipboard",
     "action_send": "Push to phone",
     "action_delete": "Delete clip",
-    "action_paste": "Paste from clipboard"
+    "action_paste": "Paste from clipboard",
+    "attach_image_tooltip": "Attach image",
+    "send_files_tooltip": "Send files to phone",
+    "send_files_dialog_title": "Select Files to Send",
+    "drop_files_title": "Drop files to send to phone",
+    "drop_files_subtitle": "Release to upload"
   },
   "settings": {
     "title": "Settings",
@@ -50,6 +55,9 @@
       "section_title": "Sync Behavior",
       "autosync_title": "Automatic Two-Way Sync",
       "autosync_subtitle": "Instant sync on PC clipboard copy",
+      "download_folder_title": "Download Folder",
+      "download_folder_subtitle": "Directory for received files",
+      "choose_download_folder": "Select Download Folder",
       "polling_title": "Polling Interval"
     },
     "appearance": {
@@ -96,6 +104,16 @@
     "clipboard_empty": "Local clipboard is empty",
     "pushed": "Pushed %1 chars to phone",
     "push_failed": "Push failed (HTTP %1)",
-    "matugen_reloaded": "Material You theme reloaded"
+    "matugen_reloaded": "Material You theme reloaded",
+    "not_connected": "Not connected to phone",
+    "directories_not_supported": "Folders cannot be sent directly"
+  },
+  "tray": {
+    "open": "Open WebClip",
+    "cancel_transfers": "Cancel transfers",
+    "status_connected": "Status: Connected (%1:%2)",
+    "status_disconnected": "Status: Disconnected",
+    "auto_sync": "Auto-Sync",
+    "quit": "Quit WebClip"
   }
 }

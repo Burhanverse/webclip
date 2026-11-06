@@ -5,6 +5,15 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <cstdio>
+#include <cctype>
+#include <string_view>
+#if defined(_WIN32)
+#include <windows.h>
+#include <io.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace webclip {
 
@@ -54,6 +63,227 @@ int progress_cb(void* clientp, curl_off_t, curl_off_t, curl_off_t, curl_off_t) {
     return 0;
 }
 
+struct FileDownloadContext {
+    FILE* file = nullptr;
+    int64_t offset = 0;
+    int64_t downloaded_bytes = 0;
+    int http_status = 0;
+    int retry_after = 0;
+    bool is_resumed = false;
+    bool reset_to_zero = false;
+    const std::atomic<bool>* cancel_flag = nullptr;
+    std::function<void(int64_t downloaded, int64_t total)>* progress_cb = nullptr;
+};
+
+size_t file_download_write_cb(void* ptr, size_t size, size_t nmemb, void* userdata) {
+    auto* ctx = static_cast<FileDownloadContext*>(userdata);
+    if (ctx->cancel_flag && ctx->cancel_flag->load()) {
+        return 0;
+    }
+    size_t total = size * nmemb;
+    if (total == 0) {
+        return 0;
+    }
+    if (ctx->http_status >= 400) {
+        return total;
+    }
+    size_t written = std::fwrite(ptr, 1, total, ctx->file);
+    if (written > 0) {
+        ctx->downloaded_bytes += static_cast<int64_t>(written);
+    }
+    return written;
+}
+
+size_t file_download_header_cb(char* buffer, size_t size, size_t nitems, void* userdata) {
+    size_t total = size * nitems;
+    auto* ctx = static_cast<FileDownloadContext*>(userdata);
+    std::string_view line(buffer, total);
+    if (line.rfind("HTTP/", 0) == 0) {
+        size_t first_space = line.find(' ');
+        if (first_space != std::string_view::npos) {
+            int code = 0;
+            for (size_t i = first_space + 1; i < line.size() && std::isdigit(static_cast<unsigned char>(line[i])); ++i) {
+                code = code * 10 + (line[i] - '0');
+            }
+            ctx->http_status = code;
+            if (ctx->is_resumed && code == 200 && !ctx->reset_to_zero) {
+                ctx->reset_to_zero = true;
+                if (ctx->file) {
+                    std::fflush(ctx->file);
+#if defined(_WIN32)
+                    _chsize_s(_fileno(ctx->file), 0);
+#else
+                    if (ftruncate(fileno(ctx->file), 0) != 0) {}
+#endif
+                    std::fseek(ctx->file, 0, SEEK_SET);
+                    ctx->offset = 0;
+                    ctx->downloaded_bytes = 0;
+                }
+            }
+        }
+    } else if (line.size() >= 12) {
+        std::string lower;
+        lower.reserve(line.size());
+        for (char c : line) {
+            lower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+        }
+        if (lower.rfind("retry-after:", 0) == 0) {
+            size_t colon = lower.find(':');
+            size_t start = lower.find_first_not_of(" \t", colon + 1);
+            if (start != std::string::npos) {
+                int seconds = 0;
+                for (size_t i = start; i < lower.size() && std::isdigit(static_cast<unsigned char>(lower[i])); ++i) {
+                    seconds = seconds * 10 + (lower[i] - '0');
+                }
+                ctx->retry_after = seconds;
+            }
+        }
+    }
+    return total;
+}
+
+int file_download_xferinfo_cb(void* clientp, curl_off_t dltotal, curl_off_t dlnow, curl_off_t, curl_off_t) {
+    auto* ctx = static_cast<FileDownloadContext*>(clientp);
+    if (ctx->cancel_flag && ctx->cancel_flag->load()) {
+        return 1;
+    }
+    if (ctx->progress_cb && *ctx->progress_cb) {
+        int64_t total = (dltotal > 0) ? (ctx->offset + static_cast<int64_t>(dltotal)) : 0;
+        int64_t current = ctx->offset + static_cast<int64_t>(dlnow);
+        (*ctx->progress_cb)(current, total);
+    }
+    return 0;
+}
+
+#if defined(_WIN32)
+std::wstring utf8_to_wide(const std::string& str) {
+    if (str.empty()) return std::wstring();
+    int len = MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, nullptr, 0);
+    if (len <= 0) return std::wstring();
+    std::wstring out(len - 1, 0);
+    MultiByteToWideChar(CP_UTF8, 0, str.c_str(), -1, out.data(), len);
+    return out;
+}
+#endif
+
+struct FileUploadContext {
+    FILE* file = nullptr;
+    int64_t start_offset = 0;
+    int64_t total_size = 0;
+    int64_t uploaded_bytes = 0;
+    const std::atomic<bool>* cancel_flag = nullptr;
+    std::function<void(int64_t uploaded, int64_t total)>* progress_cb = nullptr;
+};
+
+struct FileUploadHeaderContext {
+    int http_status = 0;
+    int retry_after = 0;
+};
+
+size_t file_upload_read_cb(char* buffer, size_t size, size_t nitems, void* userdata) {
+    auto* ctx = static_cast<FileUploadContext*>(userdata);
+    if (ctx->cancel_flag && ctx->cancel_flag->load()) {
+        return CURL_READFUNC_ABORT;
+    }
+    size_t max_bytes = size * nitems;
+    if (max_bytes == 0) {
+        return 0;
+    }
+    int64_t remaining = ctx->total_size - (ctx->start_offset + ctx->uploaded_bytes);
+    if (remaining <= 0) {
+        return 0;
+    }
+    if (static_cast<int64_t>(max_bytes) > remaining) {
+        max_bytes = static_cast<size_t>(remaining);
+    }
+    size_t read_bytes = std::fread(buffer, 1, max_bytes, ctx->file);
+    if (read_bytes > 0) {
+        ctx->uploaded_bytes += static_cast<int64_t>(read_bytes);
+    }
+    return read_bytes;
+}
+
+int file_upload_seek_cb(void* userp, curl_off_t offset, int origin) {
+    auto* ctx = static_cast<FileUploadContext*>(userp);
+    if (!ctx || !ctx->file) {
+        return CURL_SEEKFUNC_CANTSEEK;
+    }
+    int64_t target = 0;
+    if (origin == SEEK_SET) {
+        target = ctx->start_offset + static_cast<int64_t>(offset);
+    } else if (origin == SEEK_CUR) {
+#if defined(_WIN32)
+        target = _ftelli64(ctx->file) + static_cast<int64_t>(offset);
+#else
+        target = ftello(ctx->file) + static_cast<int64_t>(offset);
+#endif
+    } else if (origin == SEEK_END) {
+        target = ctx->total_size + static_cast<int64_t>(offset);
+    } else {
+        return CURL_SEEKFUNC_CANTSEEK;
+    }
+    if (target < ctx->start_offset || target > ctx->total_size) {
+        return CURL_SEEKFUNC_CANTSEEK;
+    }
+#if defined(_WIN32)
+    if (_fseeki64(ctx->file, target, SEEK_SET) != 0) {
+        return CURL_SEEKFUNC_CANTSEEK;
+    }
+#else
+    if (fseeko(ctx->file, static_cast<off_t>(target), SEEK_SET) != 0) {
+        return CURL_SEEKFUNC_CANTSEEK;
+    }
+#endif
+    return CURL_SEEKFUNC_OK;
+}
+
+size_t file_upload_header_cb(char* buffer, size_t size, size_t nitems, void* userdata) {
+    size_t total = size * nitems;
+    auto* ctx = static_cast<FileUploadHeaderContext*>(userdata);
+    std::string_view line(buffer, total);
+    if (line.rfind("HTTP/", 0) == 0) {
+        size_t first_space = line.find(' ');
+        if (first_space != std::string_view::npos) {
+            int code = 0;
+            for (size_t i = first_space + 1; i < line.size() && std::isdigit(static_cast<unsigned char>(line[i])); ++i) {
+                code = code * 10 + (line[i] - '0');
+            }
+            ctx->http_status = code;
+        }
+    } else if (line.size() >= 12) {
+        std::string lower;
+        lower.reserve(line.size());
+        for (char c : line) {
+            lower.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+        }
+        if (lower.rfind("retry-after:", 0) == 0) {
+            size_t colon = lower.find(':');
+            size_t start = lower.find_first_not_of(" \t", colon + 1);
+            if (start != std::string::npos) {
+                int seconds = 0;
+                for (size_t i = start; i < lower.size() && std::isdigit(static_cast<unsigned char>(lower[i])); ++i) {
+                    seconds = seconds * 10 + (lower[i] - '0');
+                }
+                ctx->retry_after = seconds;
+            }
+        }
+    }
+    return total;
+}
+
+int file_upload_xferinfo_cb(void* clientp, curl_off_t, curl_off_t, curl_off_t, curl_off_t ulnow) {
+    auto* ctx = static_cast<FileUploadContext*>(clientp);
+    if (ctx->cancel_flag && ctx->cancel_flag->load()) {
+        return 1;
+    }
+    if (ctx->progress_cb && *ctx->progress_cb) {
+        int64_t current = ctx->start_offset + static_cast<int64_t>(ulnow);
+        int64_t total = ctx->total_size;
+        (*ctx->progress_cb)(current, total);
+    }
+    return 0;
+}
+
 }
 
 HttpClient::HttpClient(std::string host, int port, std::string code, bool use_https, bool insecure, std::string client_id)
@@ -97,6 +327,11 @@ void HttpClient::update_endpoint(const std::string& host, int port, const std::s
     use_https_ = use_https;
     insecure_ = insecure;
     post_url_ = build_url("/clipboard");
+}
+
+void HttpClient::set_low_speed_options(long limit_bytes_per_sec, long time_seconds) {
+    low_speed_limit_ = limit_bytes_per_sec;
+    low_speed_time_ = time_seconds;
 }
 
 std::string HttpClient::get_base_url() const {
@@ -374,6 +609,99 @@ HttpResponse HttpClient::post_json_body(std::string json_body, long timeout_s, l
     return resp;
 }
 
+HttpResponse HttpClient::post_json(const std::string& path, const std::string& json_body, long timeout_s) {
+    HttpResponse resp;
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        resp.error = "Failed to initialize CURL";
+        return resp;
+    }
+
+    std::string url = build_url(path);
+    struct curl_slist* headers = nullptr;
+    headers = curl_slist_append(headers, "Content-Type: application/json; charset=utf-8");
+    headers = curl_slist_append(headers, ("X-Pairing-Code: " + code_).c_str());
+    headers = curl_slist_append(headers, "Accept: application/json");
+    headers = curl_slist_append(headers, "Expect:");
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT.c_str());
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, json_body.c_str());
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, static_cast<long>(json_body.size()));
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_string_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp.body);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout_s > 0 ? timeout_s : 10L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+
+    if (insecure_ || use_https_) {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, insecure_ ? 0L : 2L);
+        if (insecure_) {
+            curl_easy_setopt(curl, CURLOPT_SSL_CIPHER_LIST, "DEFAULT@SECLEVEL=0");
+        }
+    }
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        resp.error = curl_easy_strerror(res);
+    } else {
+        long http_code = 0;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+        resp.status_code = static_cast<int>(http_code);
+    }
+
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    return resp;
+}
+
+HttpResponse HttpClient::get_json(const std::string& path, long timeout_s) {
+    HttpResponse resp;
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        resp.error = "Failed to initialize CURL";
+        return resp;
+    }
+
+    std::string url = build_url(path);
+    struct curl_slist* headers = nullptr;
+    headers = curl_slist_append(headers, ("X-Pairing-Code: " + code_).c_str());
+    headers = curl_slist_append(headers, "Accept: application/json");
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT.c_str());
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_string_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp.body);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, timeout_s > 0 ? timeout_s : 10L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+
+    if (insecure_ || use_https_) {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, insecure_ ? 0L : 2L);
+        if (insecure_) {
+            curl_easy_setopt(curl, CURLOPT_SSL_CIPHER_LIST, "DEFAULT@SECLEVEL=0");
+        }
+    }
+
+    CURLcode res = curl_easy_perform(curl);
+    if (res != CURLE_OK) {
+        resp.error = curl_easy_strerror(res);
+    } else {
+        long http_code = 0;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+        resp.status_code = static_cast<int>(http_code);
+    }
+
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    return resp;
+}
+
 void HttpClient::stream_events(
     std::function<void(const SseEvent&)> on_event,
     std::function<void(const std::string&)> on_status,
@@ -442,6 +770,344 @@ void HttpClient::stream_events(
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
         }
     }
+}
+
+bool HttpClient::download_file(
+    const std::string& path,
+    const std::string& target_part_path,
+    int64_t offset,
+    std::function<void(int64_t downloaded, int64_t total)> progress_cb,
+    const std::atomic<bool>& cancel_flag,
+    int& out_http_code,
+    int& out_retry_after
+) {
+    out_http_code = 0;
+    out_retry_after = 0;
+
+    if (cancel_flag.load()) {
+        return false;
+    }
+
+#if defined(_WIN32)
+    FILE* file = _wfopen(utf8_to_wide(target_part_path).c_str(), (offset > 0) ? L"ab" : L"wb");
+#else
+    FILE* file = std::fopen(target_part_path.c_str(), (offset > 0) ? "ab" : "wb");
+#endif
+    if (!file) {
+        return false;
+    }
+    std::setvbuf(file, nullptr, _IOFBF, 512 * 1024);
+
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        std::fclose(file);
+        return false;
+    }
+
+    std::string url;
+    if (path.rfind("http://", 0) == 0 || path.rfind("https://", 0) == 0) {
+        url = path;
+    } else {
+        url = build_url(path);
+    }
+
+    struct curl_slist* headers = nullptr;
+    headers = curl_slist_append(headers, ("X-Pairing-Code: " + code_).c_str());
+    headers = curl_slist_append(headers, "Connection: keep-alive");
+
+    FileDownloadContext ctx;
+    ctx.file = file;
+    ctx.offset = offset;
+    ctx.is_resumed = (offset > 0);
+    ctx.cancel_flag = &cancel_flag;
+    ctx.progress_cb = &progress_cb;
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT.c_str());
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, file_download_write_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &ctx);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, file_download_header_cb);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &ctx);
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, file_download_xferinfo_cb);
+    curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &ctx);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 512L * 1024L);
+    curl_easy_setopt(curl, CURLOPT_TCP_NODELAY, 1L);
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 15L);
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 5L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 0L);
+    curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, low_speed_limit_);
+    curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, low_speed_time_);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+
+    if (insecure_ || use_https_) {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, insecure_ ? 0L : 2L);
+        if (insecure_) {
+            curl_easy_setopt(curl, CURLOPT_SSL_CIPHER_LIST, "DEFAULT@SECLEVEL=0");
+        }
+    }
+
+    if (offset > 0) {
+        curl_easy_setopt(curl, CURLOPT_RESUME_FROM_LARGE, static_cast<curl_off_t>(offset));
+    }
+
+    CURLcode res = curl_easy_perform(curl);
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    out_http_code = (http_code > 0) ? static_cast<int>(http_code) : ctx.http_status;
+    out_retry_after = ctx.retry_after;
+
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    std::fflush(file);
+    std::fclose(file);
+
+    if (out_http_code >= 400 && offset == 0) {
+#if defined(_WIN32)
+        _wremove(utf8_to_wide(target_part_path).c_str());
+#else
+        std::remove(target_part_path.c_str());
+#endif
+    }
+
+    if (cancel_flag.load() || res == CURLE_ABORTED_BY_CALLBACK) {
+        return false;
+    }
+
+    return (res == CURLE_OK) && (out_http_code == 200 || out_http_code == 206);
+}
+
+bool HttpClient::upload_file(
+    const std::string& path,
+    const std::string& source_file_path,
+    int64_t offset,
+    int64_t total_size,
+    const std::string& upload_id,
+    const std::string& file_name,
+    const std::string& batch_id,
+    int batch_index,
+    int batch_total,
+    std::function<void(int64_t uploaded, int64_t total)> progress_cb,
+    const std::atomic<bool>& cancel_flag,
+    int& out_http_code,
+    int& out_retry_after,
+    std::string& out_response_body
+) {
+    out_http_code = 0;
+    out_retry_after = 0;
+    out_response_body.clear();
+
+    if (cancel_flag.load()) {
+        return false;
+    }
+
+#if defined(_WIN32)
+    FILE* file = _wfopen(utf8_to_wide(source_file_path).c_str(), L"rb");
+#else
+    FILE* file = std::fopen(source_file_path.c_str(), "rb");
+#endif
+    if (!file) {
+        return false;
+    }
+    std::setvbuf(file, nullptr, _IOFBF, 512 * 1024);
+
+    if (offset > 0) {
+#if defined(_WIN32)
+        if (_fseeki64(file, offset, SEEK_SET) != 0) {
+            std::fclose(file);
+            return false;
+        }
+#else
+        if (fseeko(file, static_cast<off_t>(offset), SEEK_SET) != 0) {
+            std::fclose(file);
+            return false;
+        }
+#endif
+    }
+
+    int64_t remaining = total_size - offset;
+    if (remaining < 0) {
+        std::fclose(file);
+        return false;
+    }
+
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        std::fclose(file);
+        return false;
+    }
+
+    std::string url;
+    if (path.rfind("http://", 0) == 0 || path.rfind("https://", 0) == 0) {
+        url = path;
+    } else {
+        url = build_url(path);
+    }
+
+    char* escaped_name = curl_easy_escape(curl, file_name.c_str(), static_cast<int>(file_name.length()));
+    std::string encoded_name = escaped_name ? escaped_name : file_name;
+    if (escaped_name) {
+        curl_free(escaped_name);
+    }
+
+    struct curl_slist* headers = nullptr;
+    headers = curl_slist_append(headers, ("X-Pairing-Code: " + code_).c_str());
+    headers = curl_slist_append(headers, ("X-Upload-Id: " + upload_id).c_str());
+    headers = curl_slist_append(headers, ("X-File-Name: " + encoded_name).c_str());
+    headers = curl_slist_append(headers, ("X-File-Size: " + std::to_string(total_size)).c_str());
+    headers = curl_slist_append(headers, ("X-File-Offset: " + std::to_string(offset)).c_str());
+    headers = curl_slist_append(headers, ("X-Batch-Id: " + batch_id).c_str());
+    headers = curl_slist_append(headers, ("X-Batch-Index: " + std::to_string(batch_index)).c_str());
+    headers = curl_slist_append(headers, ("X-Batch-Total: " + std::to_string(batch_total)).c_str());
+    headers = curl_slist_append(headers, "Expect:");
+    headers = curl_slist_append(headers, "Connection: keep-alive");
+
+    FileUploadContext ctx;
+    ctx.file = file;
+    ctx.start_offset = offset;
+    ctx.total_size = total_size;
+    ctx.cancel_flag = &cancel_flag;
+    ctx.progress_cb = &progress_cb;
+
+    FileUploadHeaderContext hdr_ctx;
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT.c_str());
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(remaining));
+    curl_easy_setopt(curl, CURLOPT_READFUNCTION, file_upload_read_cb);
+    curl_easy_setopt(curl, CURLOPT_READDATA, &ctx);
+    curl_easy_setopt(curl, CURLOPT_SEEKFUNCTION, file_upload_seek_cb);
+    curl_easy_setopt(curl, CURLOPT_SEEKDATA, &ctx);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_string_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &out_response_body);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, file_upload_header_cb);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &hdr_ctx);
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, file_upload_xferinfo_cb);
+    curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &ctx);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(curl, CURLOPT_BUFFERSIZE, 512L * 1024L);
+    curl_easy_setopt(curl, CURLOPT_UPLOAD_BUFFERSIZE, 512L * 1024L);
+    curl_easy_setopt(curl, CURLOPT_TCP_NODELAY, 1L);
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPALIVE, 1L);
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPIDLE, 15L);
+    curl_easy_setopt(curl, CURLOPT_TCP_KEEPINTVL, 5L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 0L);
+    curl_easy_setopt(curl, CURLOPT_LOW_SPEED_LIMIT, low_speed_limit_);
+    curl_easy_setopt(curl, CURLOPT_LOW_SPEED_TIME, low_speed_time_);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+
+    if (insecure_ || use_https_) {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, insecure_ ? 0L : 2L);
+        if (insecure_) {
+            curl_easy_setopt(curl, CURLOPT_SSL_CIPHER_LIST, "DEFAULT@SECLEVEL=0");
+        }
+    }
+
+    CURLcode res = curl_easy_perform(curl);
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    out_http_code = (http_code > 0) ? static_cast<int>(http_code) : hdr_ctx.http_status;
+    out_retry_after = hdr_ctx.retry_after;
+
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+    std::fclose(file);
+
+    if (cancel_flag.load() || res == CURLE_ABORTED_BY_CALLBACK) {
+        return false;
+    }
+
+    return (res == CURLE_OK) && (out_http_code == 200);
+}
+
+bool HttpClient::get_upload_status(
+    const std::string& upload_id,
+    int64_t& out_offset,
+    int64_t& out_size,
+    int& out_http_code,
+    int& out_retry_after,
+    bool& out_complete
+) {
+    out_offset = 0;
+    out_size = 0;
+    out_http_code = 0;
+    out_retry_after = 0;
+    out_complete = false;
+
+    CURL* curl = curl_easy_init();
+    if (!curl) {
+        return false;
+    }
+
+    std::string url = build_url("/files/upload/" + upload_id);
+    struct curl_slist* headers = nullptr;
+    headers = curl_slist_append(headers, ("X-Pairing-Code: " + code_).c_str());
+
+    std::string resp_body;
+    FileUploadHeaderContext hdr_ctx;
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_USERAGENT, CLIENT_USER_AGENT.c_str());
+    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_string_cb);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &resp_body);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, file_upload_header_cb);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &hdr_ctx);
+    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L);
+
+    if (insecure_ || use_https_) {
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, insecure_ ? 0L : 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, insecure_ ? 0L : 2L);
+        if (insecure_) {
+            curl_easy_setopt(curl, CURLOPT_SSL_CIPHER_LIST, "DEFAULT@SECLEVEL=0");
+        }
+    }
+
+    CURLcode res = curl_easy_perform(curl);
+    long http_code = 0;
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    out_http_code = (http_code > 0) ? static_cast<int>(http_code) : hdr_ctx.http_status;
+    out_retry_after = hdr_ctx.retry_after;
+
+    curl_slist_free_all(headers);
+    curl_easy_cleanup(curl);
+
+    if (res == CURLE_OK && out_http_code == 200) {
+        JsonValue j = JsonValue::parse(resp_body);
+        if (j.has("offset")) {
+            out_offset = j.get_int64("offset");
+        }
+        if (j.has("size")) {
+            out_size = j.get_int64("size");
+        }
+        if (j.has("complete")) {
+            out_complete = j.get_bool("complete");
+        }
+        return true;
+    }
+
+    return (res == CURLE_OK);
+}
+
+bool HttpClient::get_upload_status(
+    const std::string& upload_id,
+    int64_t& out_offset,
+    int64_t& out_size,
+    int& out_http_code,
+    int& out_retry_after
+) {
+    bool complete = false;
+    return get_upload_status(upload_id, out_offset, out_size, out_http_code, out_retry_after, complete);
 }
 
 }

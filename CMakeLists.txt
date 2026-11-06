@@ -1,7 +1,24 @@
 cmake_minimum_required(VERSION 3.22)
+
+set(CMAKE_DISABLE_FIND_PACKAGE_WrapVulkanHeaders TRUE)
+list(APPEND CMAKE_IGNORE_PATH "/var/lib/flatpak")
+list(APPEND CMAKE_IGNORE_PREFIX_PATH "/var/lib/flatpak")
+foreach(prefix IN LISTS CMAKE_SYSTEM_PREFIX_PATH)
+    if(prefix MATCHES "flatpak")
+        list(REMOVE_ITEM CMAKE_SYSTEM_PREFIX_PATH "${prefix}")
+    endif()
+endforeach()
+
 project(webclip VERSION 2.0.0 LANGUAGES CXX)
 
+foreach(prefix IN LISTS CMAKE_SYSTEM_PREFIX_PATH)
+    if(prefix MATCHES "flatpak")
+        list(REMOVE_ITEM CMAKE_SYSTEM_PREFIX_PATH "${prefix}")
+    endif()
+endforeach()
+
 option(USE_LEGACY_TOOLCHAIN "Use legacy toolchain (GCC on Linux, MSVC cl.exe on Windows)" OFF)
+option(WEBCLIP_BUILD_TESTS "Build automated unit and fault-injection tests" OFF)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -27,6 +44,10 @@ add_library(webclip_core STATIC
     src/clipboard/clipboard.cpp
     src/net/http_client.hpp
     src/net/http_client.cpp
+    src/net/file_download_manager.hpp
+    src/net/file_download_manager.cpp
+    src/net/file_upload_manager.hpp
+    src/net/file_upload_manager.cpp
     src/net/sse_parser.hpp
     src/net/sse_parser.cpp
     src/sync/sync_manager.hpp
@@ -179,6 +200,8 @@ target_sources(webclip PRIVATE
     src/gui/ui/md3/md3_card.cpp
     src/gui/ui/md3/md3_slider.hpp
     src/gui/ui/md3/md3_slider.cpp
+    src/gui/ui/md3/drop_overlay_widget.hpp
+    src/gui/ui/md3/drop_overlay_widget.cpp
     src/gui/ui/chrome/header_bar.hpp
     src/gui/ui/chrome/header_bar.cpp
     src/gui/ui/chrome/input_dock.hpp
@@ -226,6 +249,24 @@ else()
 endif()
 
 include(GNUInstallDirs)
+
+if(WEBCLIP_BUILD_TESTS)
+    find_package(Qt6 6.2 REQUIRED COMPONENTS Test)
+    enable_testing()
+
+    add_executable(test_persistence
+        tests/test_persistence.cpp
+        src/gui/models/clipboard_history_model.cpp
+    )
+    target_link_libraries(test_persistence PRIVATE Qt6::Test Qt6::Core Qt6::Gui)
+    target_include_directories(test_persistence PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    add_test(NAME test_persistence COMMAND test_persistence)
+
+    add_executable(test_file_transfer tests/test_file_transfer.cpp)
+    target_link_libraries(test_file_transfer PRIVATE webclip_core Qt6::Test Qt6::Core)
+    target_include_directories(test_file_transfer PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    add_test(NAME test_file_transfer COMMAND test_file_transfer)
+endif()
 
 install(TARGETS webclip
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}

@@ -20,6 +20,7 @@ public:
 
     void setMainWindow(QWidget* window);
     void showFirstMinimizeNotification();
+    void showMessage(const QString& title, const QString& message, QSystemTrayIcon::MessageIcon icon = QSystemTrayIcon::Information, int timeoutMs = 3000);
 
 public slots:
     void toggleWindowVisibility();
@@ -42,6 +43,7 @@ private:
     QAction* openAction_{nullptr};
     QAction* statusAction_{nullptr};
     QAction* autoSyncAction_{nullptr};
+    QAction* cancelTransfersAction_{nullptr};
     QAction* quitAction_{nullptr};
 
     bool firstMinimizeShown_{false};

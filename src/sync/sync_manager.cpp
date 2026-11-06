@@ -6,6 +6,8 @@
 #include <iomanip>
 #include <sstream>
 #include <cstring>
+#include <fstream>
+#include <sys/stat.h>
 
 namespace webclip {
 
@@ -20,6 +22,18 @@ SyncManager::SyncManager(SyncConfig config, std::unique_ptr<IClipboard> clipboar
         config_.insecure,
         config_.client_id
     );
+
+    download_manager_ = std::make_unique<FileDownloadManager>();
+    download_manager_->set_client(std::shared_ptr<HttpClient>(client_.get(), [](HttpClient*){}));
+    download_manager_->set_progress_callback([](const std::string&, int index, int total, int64_t, int64_t, const std::string& name) {
+        std::cout << "[file] Downloading (" << index << "/" << total << "): " << name << std::endl;
+    });
+    download_manager_->set_completion_callback([](const std::string&, int total_files) {
+        std::cout << "[file] Received " << total_files << (total_files == 1 ? " file." : " files.") << std::endl;
+    });
+    download_manager_->set_failure_callback([](const std::string& file_name, const std::string& reason) {
+        std::cerr << "[file error] Failed to download " << file_name << ": " << reason << std::endl;
+    });
 }
 
 SyncManager::~SyncManager() {
@@ -136,6 +150,45 @@ void SyncManager::mark_image_applied(const std::string& hash, int64_t now_ms) {
 }
 
 void SyncManager::handle_sse_event(const SseEvent& event) {
+    if (event.event == "file") {
+        JsonValue data = JsonValue::parse(event.data);
+        std::string client_id = data.get_string("clientId");
+        if (!client_id.empty() && client_id != client_->get_client_id()) {
+            return;
+        }
+        std::string token = data.get_string("token");
+        std::string name = data.get_string("name");
+        int64_t size = data.get_int64("size");
+        std::string mime_type = data.get_string("mimeType");
+        std::string batch_id = data.get_string("batchId");
+        int index = static_cast<int>(data.get_int64("index"));
+        int total = static_cast<int>(data.get_int64("total"));
+
+        if (token.empty() || name.empty()) {
+            return;
+        }
+
+        FileOfferTask task;
+        task.token = std::move(token);
+        task.name = std::move(name);
+        task.size = size;
+        task.mime_type = std::move(mime_type);
+        task.batch_id = std::move(batch_id);
+        task.index = index;
+        task.total = total;
+        task.client_id = std::move(client_id);
+        task.host = config_.host;
+        task.port = config_.port;
+        task.use_https = config_.use_https;
+        task.insecure = config_.insecure;
+        task.pairing_code = config_.code;
+
+        if (download_manager_) {
+            download_manager_->enqueue_task(std::move(task));
+        }
+        return;
+    }
+
     if (event.event != "clipboard") {
         return;
     }
@@ -152,7 +205,8 @@ void SyncManager::handle_sse_event(const SseEvent& event) {
 
     auto now = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
-    if (type == "image") {
+    bool has_image = (type == "image") || data.get_bool("hasImage");
+    if (has_image) {
         std::string mime_type = data.get_string("mimeType");
         if (mime_type.empty()) mime_type = "image/png";
         std::string inline_data = data.take_string("data");
@@ -170,6 +224,8 @@ void SyncManager::handle_sse_event(const SseEvent& event) {
             HttpResponse img_resp = client_->get_image(image_url);
             if (img_resp.status_code == 200 && !img_resp.binary_body.empty()) {
                 image_bytes = std::move(img_resp.binary_body);
+            } else {
+                std::cerr << "[image error] Failed to fetch image from phone: HTTP " << img_resp.status_code << std::endl;
             }
         }
 
@@ -219,6 +275,18 @@ void SyncManager::run() {
         config_.insecure,
         config_.client_id
     );
+
+    download_manager_ = std::make_unique<FileDownloadManager>();
+    download_manager_->set_client(std::shared_ptr<HttpClient>(client_.get(), [](HttpClient*){}));
+    download_manager_->set_progress_callback([](const std::string&, int index, int total, int64_t, int64_t, const std::string& name) {
+        std::cout << "[file] Downloading (" << index << "/" << total << "): " << name << std::endl;
+    });
+    download_manager_->set_completion_callback([](const std::string&, int total_files) {
+        std::cout << "[file] Received " << total_files << (total_files == 1 ? " file." : " files.") << std::endl;
+    });
+    download_manager_->set_failure_callback([](const std::string& file_name, const std::string& reason) {
+        std::cerr << "[file error] Failed to download " << file_name << ": " << reason << std::endl;
+    });
 
     HttpResponse initial_state = client_->get_state();
     if (initial_state.status_code == 200) {
@@ -350,6 +418,56 @@ void SyncManager::run() {
                 continue;
             }
 
+            std::string candidate_path = current_local;
+            if (candidate_path.rfind("file://", 0) == 0) {
+                candidate_path = candidate_path.substr(7);
+            }
+            while (!candidate_path.empty() && (candidate_path.back() == '\n' || candidate_path.back() == '\r' || candidate_path.back() == ' ')) {
+                candidate_path.pop_back();
+            }
+            if (candidate_path.size() >= 3 && candidate_path[0] == '/' && std::isalpha(static_cast<unsigned char>(candidate_path[1])) && candidate_path[2] == ':') {
+                candidate_path = candidate_path.substr(1);
+            }
+            bool is_abs_path = (!candidate_path.empty() && candidate_path[0] == '/') ||
+                               (candidate_path.size() >= 3 && std::isalpha(static_cast<unsigned char>(candidate_path[0])) && candidate_path[1] == ':' && (candidate_path[2] == '\\' || candidate_path[2] == '/'));
+            if (candidate_path.find('\n') == std::string::npos && candidate_path.find('\r') == std::string::npos && is_abs_path) {
+                struct stat st;
+                if (stat(candidate_path.c_str(), &st) == 0 && S_ISREG(st.st_mode) && st.st_size > 0 && st.st_size <= 20 * 1024 * 1024) {
+                    std::ifstream f(candidate_path, std::ios::binary);
+                    if (f.is_open()) {
+                        std::vector<uint8_t> file_bytes((std::istreambuf_iterator<char>(f)), std::istreambuf_iterator<char>());
+                        if (file_bytes.size() >= 4) {
+                            const uint8_t* fu = file_bytes.data();
+                            bool file_is_png = (fu[0] == 0x89 && fu[1] == 0x50 && fu[2] == 0x4E && fu[3] == 0x47);
+                            bool file_is_jpg = (fu[0] == 0xFF && fu[1] == 0xD8 && fu[2] == 0xFF);
+                            bool file_is_gif = (fu[0] == 0x47 && fu[1] == 0x49 && fu[2] == 0x46 && fu[3] == 0x38);
+                            bool file_is_webp = (file_bytes.size() >= 12 && fu[0] == 'R' && fu[1] == 'I' && fu[2] == 'F' && fu[3] == 'F' && fu[8] == 'W' && fu[9] == 'E' && fu[10] == 'B' && fu[11] == 'P');
+                            if (file_is_png || file_is_jpg || file_is_gif || file_is_webp) {
+                                std::string mime = file_is_png ? "image/png" : (file_is_jpg ? "image/jpeg" : (file_is_gif ? "image/gif" : "image/webp"));
+                                std::string hash = compute_hash(file_bytes);
+                                bool should_push = false;
+                                {
+                                    std::lock_guard<std::mutex> guard(state_lock_);
+                                    if (hash != last_local_img_hash_ && hash != last_remote_img_hash_) {
+                                        last_local_img_hash_ = hash;
+                                        last_local_text_ = current_local;
+                                        last_img_time_ms_ = now;
+                                        should_push = true;
+                                    }
+                                }
+                                if (should_push) {
+                                    HttpResponse push_resp = client_->push_image(file_bytes, mime);
+                                    if (push_resp.status_code == 200) {
+                                        std::cout << "[local -> phone image] " << file_bytes.size() << " bytes (" << mime << ")" << std::endl;
+                                    }
+                                }
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+
             bool should_push_text = false;
             {
                 std::lock_guard<std::mutex> guard(state_lock_);
@@ -378,6 +496,10 @@ void SyncManager::run() {
 
 void SyncManager::stop() {
     stop_flag_.store(true);
+    if (download_manager_) {
+        download_manager_->cancel_all();
+        download_manager_->stop();
+    }
     if (sse_thread_ && sse_thread_->joinable()) {
         if (sse_thread_->get_id() == std::this_thread::get_id()) {
 

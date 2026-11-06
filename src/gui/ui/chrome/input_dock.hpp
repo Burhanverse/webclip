@@ -33,6 +33,7 @@ public:
 signals:
     void sendRequested(const QString& text);
     void attachImageRequested();
+    void attachFilesRequested();
 
 protected:
     void paintEvent(QPaintEvent* e) override;
@@ -45,6 +46,7 @@ private:
 
     webclip::WebClipController* controller_ = nullptr;
     Md3IconButton* attachBtn_ = nullptr;
+    Md3IconButton* attachFilesBtn_ = nullptr;
     Md3IconButton* pasteBtn_ = nullptr;
     Md3IconButton* sendBtn_ = nullptr;
     QLineEdit* lineEdit_ = nullptr;

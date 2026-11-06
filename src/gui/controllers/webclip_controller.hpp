@@ -23,6 +23,8 @@
 #include "../theme/matugen_watcher.hpp"
 #include "../../clipboard/clipboard.hpp"
 #include "../../net/http_client.hpp"
+#include "../../net/file_download_manager.hpp"
+#include "../../net/file_upload_manager.hpp"
 #include "../../version.hpp"
 
 namespace webclip {
@@ -39,6 +41,7 @@ class WebClipController : public QObject {
     Q_PROPERTY(bool insecure READ insecure WRITE setInsecure NOTIFY insecureChanged)
     Q_PROPERTY(bool autoConnect READ autoConnect WRITE setAutoConnect NOTIFY autoConnectChanged)
     Q_PROPERTY(bool autoSync READ autoSync WRITE setAutoSync NOTIFY autoSyncChanged)
+    Q_PROPERTY(bool askReceiveFiles READ askReceiveFiles WRITE setAskReceiveFiles NOTIFY askReceiveFilesChanged)
     Q_PROPERTY(double pollInterval READ pollInterval WRITE setPollInterval NOTIFY pollIntervalChanged)
     Q_PROPERTY(QString clipboardBackend READ clipboardBackend CONSTANT)
     Q_PROPERTY(int themeMode READ themeMode WRITE setThemeMode NOTIFY themeModeChanged)
@@ -46,6 +49,7 @@ class WebClipController : public QObject {
     Q_PROPERTY(QColor customColor READ customColor WRITE setCustomColor NOTIFY customColorChanged)
     Q_PROPERTY(double displayScale READ displayScale WRITE setDisplayScale NOTIFY displayScaleChanged)
     Q_PROPERTY(bool scanningLan READ scanningLan NOTIFY scanningLanChanged)
+    Q_PROPERTY(QString downloadDirectory READ downloadDirectory WRITE setDownloadDirectory NOTIFY downloadDirectoryChanged)
     Q_PROPERTY(ClipboardHistoryModel* clipModel READ clipModel CONSTANT)
     Q_PROPERTY(QString appVersion READ appVersion CONSTANT)
     Q_PROPERTY(QString qtVersion READ qtVersion CONSTANT)
@@ -64,6 +68,7 @@ public:
     bool insecure() const { return insecure_; }
     bool autoConnect() const { return autoConnect_; }
     bool autoSync() const { return autoSync_; }
+    bool askReceiveFiles() const { return askReceiveFiles_; }
     double pollInterval() const { return pollInterval_; }
     QString clipboardBackend() const;
     int themeMode() const { return themeMode_; }
@@ -74,6 +79,7 @@ public:
     bool matugenAutoReload() const;
     MatugenWatcher* matugenWatcher() { return &matugenWatcher_; }
     bool scanningLan() const { return scanningLan_; }
+    QString downloadDirectory() const;
     bool restartRequested() const { return restartRequested_; }
     bool debugLogging() const { return debugLogging_; }
     ClipboardHistoryModel* clipModel() { return &clipModel_; }
@@ -89,8 +95,10 @@ public:
     void setInsecure(bool insecure);
     void setAutoConnect(bool autoConnect);
     void setAutoSync(bool autoSync);
+    Q_INVOKABLE void setAskReceiveFiles(bool ask);
     void setPollInterval(double interval);
     void setDebugLogging(bool enabled);
+    Q_INVOKABLE void setDownloadDirectory(const QString& dir);
     Q_INVOKABLE void setThemeMode(int mode);
     Q_INVOKABLE void setAccentPreset(const QString& preset);
     Q_INVOKABLE void setCustomColor(const QColor& color);
@@ -110,6 +118,11 @@ public:
     Q_INVOKABLE bool pushImage(const QString& filePathOrDataUrl);
     Q_INVOKABLE bool pushImageBytes(const QByteArray& bytes, const QString& mimeType = "image/png", const QString& clipId = "");
     Q_INVOKABLE bool pushCurrentClipboard();
+    Q_INVOKABLE bool uploadFiles(const QStringList& filePaths);
+    Q_INVOKABLE void cancelTransfers();
+    Q_INVOKABLE bool hasActiveTransfers() const;
+    Q_INVOKABLE void acceptFileOffer(const QString& batchId);
+    Q_INVOKABLE void declineFileOffer(const QString& batchId);
     Q_INVOKABLE void copyToClipboard(const QString& text);
     Q_INVOKABLE void copyImageToClipboard(int index);
     Q_INVOKABLE bool saveImage(int index, const QString& destinationPath);
@@ -128,6 +141,7 @@ signals:
     void insecureChanged();
     void autoConnectChanged();
     void autoSyncChanged();
+    void askReceiveFilesChanged();
     void pollIntervalChanged();
     void debugLoggingChanged();
     void themeModeChanged();
@@ -139,6 +153,11 @@ signals:
     void discoveryFinished(bool found, const QString& host, int port, bool useHttps);
     void clipReceived(const QString& text, const QString& source);
     void showToast(const QString& message, bool isError);
+    void showTrayNotification(const QString& title, const QString& message);
+    void showOfferBanner(const QString& batchId, const QString& title, const QString& details);
+    void hideOfferBanner();
+    void activeTransfersChanged(bool active);
+    void downloadDirectoryChanged();
     void minimizedToTray();
     void matugenThemePathChanged();
     void matugenAutoReloadChanged();
@@ -175,10 +194,15 @@ private:
     QString accentPreset_ = "purple";
     QColor customColor_ = QColor("#6750A4");
     double displayScale_ = 0.0;
+    QString downloadDirectory_;
 
     ClipboardHistoryModel clipModel_;
     std::unique_ptr<IClipboard> nativeClipboard_;
     std::shared_ptr<HttpClient> httpClient_;
+    std::shared_ptr<FileDownloadManager> downloadManager_;
+    std::shared_ptr<FileUploadManager> uploadManager_;
+    int lastAnnouncedUploadIndex_ = -1;
+    int lastAnnouncedDownloadIndex_ = -1;
 
     QTimer* pollTimer_ = nullptr;
     QTimer* reconnectTimer_ = nullptr;
@@ -248,6 +272,22 @@ private:
     void writeWaylandClipboard(const QString& text);
     void recordRecentRemoteText(const QString& text, int64_t nowMs);
     void applyRemoteTextToClipboard(const QString& text);
+
+    struct IncomingBatchContext {
+        QString batchId;
+        int expectedTotal = 0;
+        std::vector<FileOfferTask> tasks;
+        int64_t totalBytes = 0;
+        QTimer* debounceTimer = nullptr;
+        QTimer* expiryTimer = nullptr;
+    };
+
+    bool askReceiveFiles_ = true;
+    QHash<QString, std::shared_ptr<IncomingBatchContext>> pendingIncomingBatches_;
+
+    void onIncomingFileOfferReceived(const FileOfferTask& task);
+    void onIncomingBatchDebounced(const QString& batchId);
+    void onIncomingBatchExpired(const QString& batchId);
 
     MatugenWatcher matugenWatcher_;
 };

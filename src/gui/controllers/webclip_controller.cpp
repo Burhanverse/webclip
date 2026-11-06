@@ -20,6 +20,7 @@
 #include <QMimeData>
 #include <QRandomGenerator>
 #include <QImageReader>
+#include <QThreadPool>
 #include <QCoreApplication>
 #include <QtNetwork/QNetworkInterface>
 #include <QtNetwork/QHostAddress>
@@ -314,15 +315,14 @@ void WebClipController::markTextApplied(const QString& text, int64_t nowMs) {
 }
 
 bool WebClipController::shouldSuppressImage(const QString& hash, const QString& pixelFp, int64_t nowMs, int64_t windowMs) {
+    Q_UNUSED(nowMs);
+    Q_UNUSED(windowMs);
     std::lock_guard<std::mutex> guard(syncLock_);
     if (!hash.isEmpty()) {
         if (hash == lastLocalImgHash_ || hash == lastRemoteImgHash_) return true;
     }
     if (!pixelFp.isEmpty()) {
         if (pixelFp == lastLocalPixelFp_ || pixelFp == lastRemotePixelFp_) return true;
-    }
-    if ((nowMs - lastImgTimeMs_) < windowMs) {
-        return true;
     }
     return false;
 }
@@ -389,6 +389,136 @@ WebClipController::WebClipController(QObject* parent)
         emit matugenStatusChanged();
     });
 
+    downloadManager_ = std::make_shared<FileDownloadManager>();
+    downloadManager_->set_progress_callback([this](const std::string& batch_id, int index, int total, int64_t downloaded, int64_t totalBytes, const std::string& name) {
+        QPointer<WebClipController> self(this);
+        QMetaObject::invokeMethod(this, [self, batch_id, index, total, downloaded, totalBytes, name]() {
+            if (!self) return;
+            self->clipModel_.updateFileProgress(
+                QString::fromStdString(batch_id),
+                index,
+                QString::fromStdString(name),
+                downloaded,
+                totalBytes);
+            if (self->lastAnnouncedDownloadIndex_ != index) {
+                self->lastAnnouncedDownloadIndex_ = index;
+                QString msg = QStringLiteral("Downloading files (%1/%2): %3").arg(index).arg(total).arg(QString::fromStdString(name));
+                emit self->showTrayNotification(QStringLiteral("WebClip File Transfer"), msg);
+                emit self->showToast(msg, false);
+            }
+            emit self->activeTransfersChanged(true);
+        });
+    });
+    downloadManager_->set_completion_callback([this](const std::string& batch_id, const std::vector<FileDownloadResult>& files) {
+        QPointer<WebClipController> self(this);
+        QMetaObject::invokeMethod(this, [self, batch_id, files]() {
+            if (!self) return;
+            self->lastAnnouncedDownloadIndex_ = -1;
+            int total_files = static_cast<int>(files.size());
+            QString summary = QStringLiteral("Received %1 %2").arg(total_files).arg(total_files == 1 ? QStringLiteral("file") : QStringLiteral("files"));
+            emit self->showTrayNotification(QStringLiteral("WebClip File Transfer"), summary);
+            emit self->showToast(summary, false);
+            emit self->activeTransfersChanged(self->hasActiveTransfers());
+            for (int i = 0; i < total_files; ++i) {
+                const auto& f = files[i];
+                self->clipModel_.updateFileCompleted(
+                    QString::fromStdString(batch_id),
+                    i + 1,
+                    QString::fromStdString(f.name),
+                    QString::fromStdString(f.local_path),
+                    f.size,
+                    QString::fromStdString(f.mime_type));
+            }
+            WEBCLIP_LOG(QStringLiteral("[FileTransfer] ") + summary);
+        });
+    });
+    downloadManager_->set_failure_callback([this](const std::string& file_name, const std::string& reason) {
+        QPointer<WebClipController> self(this);
+        QMetaObject::invokeMethod(this, [self, file_name, reason]() {
+            if (!self) return;
+            self->lastAnnouncedDownloadIndex_ = -1;
+            emit self->showToast(QStringLiteral("Download failed for %1: %2")
+                .arg(QString::fromStdString(file_name)).arg(QString::fromStdString(reason)), true);
+            emit self->activeTransfersChanged(self->hasActiveTransfers());
+            self->clipModel_.updateFileFailed(QString(), QString::fromStdString(file_name));
+            WEBCLIP_LOG(QStringLiteral("[FileTransfer] Download failed for ") +
+                QString::fromStdString(file_name) + QStringLiteral(": ") + QString::fromStdString(reason));
+        });
+    });
+
+    uploadManager_ = std::make_shared<FileUploadManager>();
+    uploadManager_->set_progress_callback([this](const std::string& batch_id, int index, int total, int64_t uploaded, int64_t totalBytes, const std::string& name) {
+        if (uploaded <= 0 && totalBytes > 0) {
+            return;
+        }
+        QPointer<WebClipController> self(this);
+        QMetaObject::invokeMethod(this, [self, batch_id, index, total, uploaded, totalBytes, name]() {
+            if (!self) return;
+            self->clipModel_.updateFileProgress(
+                QString::fromStdString(batch_id),
+                index,
+                QString::fromStdString(name),
+                uploaded,
+                totalBytes);
+            if (self->lastAnnouncedUploadIndex_ != index) {
+                self->lastAnnouncedUploadIndex_ = index;
+                QString msg = QStringLiteral("Uploading files (%1/%2): %3").arg(index).arg(total).arg(QString::fromStdString(name));
+                emit self->showTrayNotification(QStringLiteral("WebClip File Transfer"), msg);
+                emit self->showToast(msg, false);
+            }
+            emit self->activeTransfersChanged(true);
+        });
+    });
+    uploadManager_->set_completion_callback([this](const std::string& batch_id, const std::vector<FileUploadResult>& files) {
+        QPointer<WebClipController> self(this);
+        QMetaObject::invokeMethod(this, [self, batch_id, files]() {
+            if (!self) return;
+            self->lastAnnouncedUploadIndex_ = -1;
+            int total_files = static_cast<int>(files.size());
+            QString summary = QStringLiteral("Sent %1 %2 to phone").arg(total_files).arg(total_files == 1 ? QStringLiteral("file") : QStringLiteral("files"));
+            emit self->showTrayNotification(QStringLiteral("WebClip File Transfer"), summary);
+            emit self->showToast(summary, false);
+            emit self->activeTransfersChanged(self->hasActiveTransfers());
+            for (int i = 0; i < total_files; ++i) {
+                const auto& f = files[i];
+                self->clipModel_.updateFileCompleted(
+                    QString::fromStdString(batch_id),
+                    i + 1,
+                    QString::fromStdString(f.name),
+                    QString::fromStdString(f.local_path),
+                    f.size,
+                    QStringLiteral("application/octet-stream"));
+            }
+            WEBCLIP_LOG(QStringLiteral("[FileUpload] ") + summary);
+        });
+    });
+    uploadManager_->set_failure_callback([this](const std::string& file_name, const std::string& reason) {
+        QPointer<WebClipController> self(this);
+        QMetaObject::invokeMethod(this, [self, file_name, reason]() {
+            if (!self) return;
+            self->lastAnnouncedUploadIndex_ = -1;
+            QString failureMsg = QStringLiteral("Upload failed for %1: %2")
+                .arg(QString::fromStdString(file_name)).arg(QString::fromStdString(reason));
+            emit self->showTrayNotification(QStringLiteral("WebClip File Transfer"), failureMsg);
+            emit self->showToast(failureMsg, true);
+            emit self->activeTransfersChanged(self->hasActiveTransfers());
+            self->clipModel_.updateFileFailed(QString(), QString::fromStdString(file_name));
+            WEBCLIP_LOG(QStringLiteral("[FileUpload] Upload failed for ") +
+                QString::fromStdString(file_name) + QStringLiteral(": ") + QString::fromStdString(reason));
+        });
+    });
+    uploadManager_->set_batch_cancelled_callback([this](const std::string& batch_id) {
+        QPointer<WebClipController> self(this);
+        QMetaObject::invokeMethod(this, [self, batch_id]() {
+            if (!self) return;
+            self->lastAnnouncedUploadIndex_ = -1;
+            self->clipModel_.updateFileStatusByBatch(QString::fromStdString(batch_id), FileStatus::Cancelled);
+            emit self->showToast(QStringLiteral("Transfer cancelled on phone"), true);
+            emit self->activeTransfersChanged(self->hasActiveTransfers());
+            WEBCLIP_LOG(QStringLiteral("[FileUpload] Transfer cancelled on phone"));
+        });
+    });
+
     loadSettings();
     captureClipboardToHistory();
 }
@@ -435,6 +565,14 @@ WebClipController::~WebClipController() {
     if (wlCopyProcess_) {
         wlCopyProcess_->kill();
         wlCopyProcess_->waitForFinished(1000);
+    }
+    if (downloadManager_) {
+        downloadManager_->cancel_all();
+        downloadManager_->stop();
+    }
+    if (uploadManager_) {
+        uploadManager_->cancel_all();
+        uploadManager_->stop();
     }
     blockSignals(true);
     disconnectFromPortal();
@@ -594,6 +732,21 @@ void WebClipController::setDisplayScale(double scale) {
     }
 }
 
+QString WebClipController::downloadDirectory() const {
+    if (!downloadDirectory_.isEmpty()) {
+        return downloadDirectory_;
+    }
+    return FileDownloadManager::get_download_directory();
+}
+
+void WebClipController::setDownloadDirectory(const QString& dir) {
+    if (downloadDirectory_ != dir) {
+        downloadDirectory_ = dir;
+        saveSettings();
+        emit downloadDirectoryChanged();
+    }
+}
+
 void WebClipController::restartApplication() {
     saveSettings();
     restartRequested_ = true;
@@ -677,6 +830,12 @@ void WebClipController::connectToPortal() {
         clientId_
     );
     httpClient_ = client;
+    if (downloadManager_) {
+        downloadManager_->set_client(client);
+    }
+    if (uploadManager_) {
+        uploadManager_->set_client(client);
+    }
 
     QPointer<WebClipController> self(this);
     std::thread([self, client, generation]() {
@@ -729,6 +888,12 @@ void WebClipController::connectToPortal() {
                         self->port_ = fallbackPort;
                         self->insecure_ = true;
                         self->httpClient_ = fallbackClient;
+                        if (self->downloadManager_) {
+                            self->downloadManager_->set_client(fallbackClient);
+                        }
+                        if (self->uploadManager_) {
+                            self->uploadManager_->set_client(fallbackClient);
+                        }
                         self->saveSettings();
                         emit self->useHttpsChanged();
                         emit self->portChanged();
@@ -931,6 +1096,47 @@ void WebClipController::startSseListener() {
             [self, client](const SseEvent& ev) {
                 WebClipController* c = self.data();
                 if (!c) return;
+                if (ev.event == "file") {
+                    JsonValue data = JsonValue::parse(ev.data);
+                    std::string evClientId = data.get_string("clientId");
+                    if (!evClientId.empty() && evClientId != client->get_client_id()) {
+                        return;
+                    }
+                    std::string token = data.get_string("token");
+                    std::string name = data.get_string("name");
+                    int64_t size = data.get_int64("size");
+                    std::string mimeType = data.get_string("mimeType");
+                    std::string batchId = data.get_string("batchId");
+                    int index = static_cast<int>(data.get_int64("index"));
+                    int total = static_cast<int>(data.get_int64("total"));
+
+                    if (token.empty() || name.empty()) {
+                        return;
+                    }
+
+                    FileOfferTask task;
+                    task.token = std::move(token);
+                    task.name = std::move(name);
+                    task.size = size;
+                    task.mime_type = std::move(mimeType);
+                    task.batch_id = std::move(batchId);
+                    task.index = index;
+                    task.total = total;
+                    task.client_id = std::move(evClientId);
+                    task.host = c->host().toStdString();
+                    task.port = c->port();
+                    task.use_https = c->useHttps();
+                    task.insecure = c->insecure();
+                    task.pairing_code = c->code().toStdString();
+
+                    QPointer<WebClipController> selfCtrl(c);
+                    QMetaObject::invokeMethod(c, [selfCtrl, task]() {
+                        if (selfCtrl) {
+                            selfCtrl->onIncomingFileOfferReceived(task);
+                        }
+                    });
+                    return;
+                }
                 if (ev.event == "clipboard") {
                     JsonValue data = JsonValue::parse(ev.data);
                     std::string type = data.get_string("type");
@@ -951,7 +1157,9 @@ void WebClipController::startSseListener() {
 
                     int64_t nowMs = QDateTime::currentMSecsSinceEpoch();
 
-                    if (type == "image") {
+                    bool hasImage = (type == "image") || data.get_bool("hasImage");
+
+                    if (hasImage) {
                         std::string mimeType = data.get_string("mimeType");
                         if (mimeType.empty()) mimeType = "image/png";
                         std::string inlineData = data.take_string("data");
@@ -1032,7 +1240,13 @@ void WebClipController::startSseListener() {
                                 HttpResponse imgResp = client->get_image(imageUrl);
                                 WebClipController* c = self.data();
                                 if (!c) return;
-                                if (imgResp.status_code != 200 || imgResp.binary_body.empty()) return;
+                                if (imgResp.status_code != 200 || imgResp.binary_body.empty()) {
+                                    WEBCLIP_LOG(QStringLiteral("[SSE] Failed to fetch image: HTTP ") + QString::number(imgResp.status_code));
+                                    QMetaObject::invokeMethod(c, [self, status = imgResp.status_code]() {
+                                        if (self) emit self->showToast("Failed to download image from phone (HTTP " + QString::number(status) + ")", true);
+                                    });
+                                    return;
+                                }
                                 QByteArray bytes(reinterpret_cast<const char*>(imgResp.binary_body.data()), static_cast<int>(imgResp.binary_body.size()));
                                 std::vector<uint8_t>().swap(imgResp.binary_body);
 
@@ -1446,6 +1660,17 @@ void WebClipController::handleNativeText(QString current) {
     int64_t nowMs = QDateTime::currentMSecsSinceEpoch();
     if (current.trimmed().isEmpty()) return;
 
+    int controlCharCount = 0;
+    for (QChar ch : current) {
+        ushort u = ch.unicode();
+        if (u < 0x20 && u != '\t' && u != '\n' && u != '\r') {
+            controlCharCount++;
+            if (controlCharCount > 2) {
+                return;
+            }
+        }
+    }
+
     QByteArray rawBytes = current.toUtf8();
     if (rawBytes.size() >= 4) {
         const uint8_t* u = reinterpret_cast<const uint8_t*>(rawBytes.constData());
@@ -1466,6 +1691,42 @@ void WebClipController::handleNativeText(QString current) {
             markImageApplied(hash, pixelFp, nowMs);
             pushImageBytes(rawBytes, mime);
             return;
+        }
+    }
+
+    QString candidatePath = current.trimmed();
+    if (candidatePath.startsWith(QStringLiteral("file://"))) {
+        candidatePath = QUrl(candidatePath).toLocalFile();
+    }
+    if (!candidatePath.contains('\n') && !candidatePath.contains('\r')) {
+        QFileInfo fi(candidatePath);
+        if (fi.isAbsolute() && fi.isFile() && fi.exists() && fi.isReadable() && fi.size() > 0 && fi.size() <= 20 * 1024 * 1024) {
+            QString suffix = fi.suffix().toLower();
+            if (suffix == QStringLiteral("png") || suffix == QStringLiteral("jpg") || suffix == QStringLiteral("jpeg") || suffix == QStringLiteral("webp")) {
+                QFile f(candidatePath);
+                if (f.open(QIODevice::ReadOnly)) {
+                    QByteArray fileBytes = f.readAll();
+                    f.close();
+                    if (fileBytes.size() >= 4) {
+                        const uint8_t* fu = reinterpret_cast<const uint8_t*>(fileBytes.constData());
+                        bool fileIsPng = (fu[0] == 0x89 && fu[1] == 0x50 && fu[2] == 0x4E && fu[3] == 0x47);
+                        bool fileIsJpg = (fu[0] == 0xFF && fu[1] == 0xD8 && fu[2] == 0xFF);
+                        bool fileIsWebp = (fileBytes.size() >= 12 && fu[0] == 'R' && fu[1] == 'I' && fu[2] == 'F' && fu[3] == 'F' && fu[8] == 'W' && fu[9] == 'E' && fu[10] == 'B' && fu[11] == 'P');
+                        if (fileIsPng || fileIsJpg || fileIsWebp) {
+                            QString mime = fileIsPng ? QStringLiteral("image/png") : (fileIsJpg ? QStringLiteral("image/jpeg") : QStringLiteral("image/webp"));
+                            QString hash = computeImageHash(fileBytes);
+                            QString pixelFp = computePixelFingerprint(fileBytes);
+                            if (shouldSuppressImage(hash, pixelFp, nowMs, 2000)) {
+                                return;
+                            }
+                            markImageApplied(hash, pixelFp, nowMs);
+                            markTextApplied(current, nowMs);
+                            pushImageBytes(fileBytes, mime);
+                            return;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -1556,7 +1817,7 @@ void WebClipController::startWaylandWatcher(bool initial) {
 
     QStringList args;
     args << QStringLiteral("--watch") << QStringLiteral("sh") << QStringLiteral("-c")
-         << QString::fromUtf8(R"(types=$(wl-paste --list-types 2>/dev/null); case "$types" in *"text/plain;charset=utf-8"*|*"text/plain"*) cat; printf '\0' ;; *) cat > /dev/null ;; esac)");
+         << QString::fromUtf8(R"(types=$(wl-paste --list-types 2>/dev/null); case "$types" in *"image/"*) cat >/dev/null; printf '__WEBCLIP_IMAGE__\0' ;; *"text/plain;charset=utf-8"*|*"text/plain"*) cat; printf '\0' ;; *) cat >/dev/null ;; esac)");
 
     waylandWatcherProcess_->start(wlPasteBin, args);
     if (initial) {
@@ -1592,6 +1853,39 @@ void WebClipController::onWaylandWatcherReadyRead() {
     while ((idx = waylandWatcherBuffer_.indexOf('\0')) >= 0) {
         QByteArray chunk = waylandWatcherBuffer_.left(idx);
         waylandWatcherBuffer_.remove(0, idx + 1);
+
+        if (chunk == "__WEBCLIP_IMAGE__") {
+            WEBCLIP_LOG(QStringLiteral("[WaylandWatcher] Image event received"));
+            if (!connected_) {
+                QPointer<WebClipController> self(this);
+                std::thread([self]() {
+                    auto cb = webclip::create_clipboard();
+                    if (!cb || !cb->has_image()) return;
+                    ClipboardImage img = cb->get_image();
+                    if (!img.valid || img.data.empty()) return;
+                    QMetaObject::invokeMethod(self.data(), [self, img = std::move(img)]() mutable {
+                        if (!self) return;
+                        QByteArray ba(reinterpret_cast<const char*>(img.data.data()), static_cast<int>(img.data.size()));
+                        QString mime = QString::fromStdString(img.mime_type.empty() ? "image/png" : img.mime_type);
+                        QString fileUrl = saveImageBytesToCache(ba, mime);
+                        self->clipModel_.addClipImage(fileUrl, mime, ba.size(), "local");
+                    });
+                }).detach();
+                continue;
+            }
+            if (!autoSync_) continue;
+            QPointer<WebClipController> self(this);
+            std::thread([self]() {
+                auto cb = webclip::create_clipboard();
+                if (!cb || !cb->has_image()) return;
+                ClipboardImage img = cb->get_image();
+                if (!img.valid || img.data.empty()) return;
+                QMetaObject::invokeMethod(self.data(), [self, img = std::move(img)]() mutable {
+                    if (self) self->handleNativeImage(std::move(img));
+                });
+            }).detach();
+            continue;
+        }
 
         QString text = QString::fromUtf8(chunk);
         if (!text.isEmpty()) {
@@ -1737,6 +2031,265 @@ bool WebClipController::pushClipboard(const QString& text, const QString& clipId
     }).detach();
 
     return true;
+}
+
+bool WebClipController::uploadFiles(const QStringList& filePaths) {
+    if (!connected_) {
+        emit showToast(QStringLiteral("Not connected to phone"), true);
+        return false;
+    }
+    QStringList validFiles;
+    for (const QString& path : filePaths) {
+        QFileInfo fi(path);
+        if (fi.exists() && fi.isFile() && fi.isReadable()) {
+            validFiles.append(path);
+        }
+    }
+    if (validFiles.isEmpty()) {
+        emit showToast(QStringLiteral("No valid files to send"), true);
+        return false;
+    }
+    if (validFiles.size() > 500) {
+        emit showToast(QStringLiteral("Transfer capped at 500 files per batch"), true);
+        validFiles = validFiles.mid(0, 500);
+    }
+    if (!uploadManager_) {
+        return false;
+    }
+    lastAnnouncedUploadIndex_ = -1;
+    QString batchId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    int total = validFiles.size();
+    std::vector<FileUploadResult> batchFiles;
+    int64_t batchTotalSize = 0;
+    batchFiles.reserve(total);
+    for (const QString& filePath : validFiles) {
+        QFileInfo fi(filePath);
+        batchFiles.push_back({fi.fileName().toStdString(), filePath.toStdString(), fi.size()});
+        batchTotalSize += fi.size();
+    }
+    for (int i = 0; i < total; ++i) {
+        const QString& filePath = validFiles.at(i);
+        QFileInfo fi(filePath);
+        clipModel_.addClipFile(
+            fi.fileName(),
+            fi.size(),
+            filePath,
+            QStringLiteral("application/octet-stream"),
+            QStringLiteral("desktop"),
+            batchId,
+            i + 1,
+            total,
+            FileStatus::Transferring
+        );
+        FileUploadTask task;
+        task.upload_id = QUuid::createUuid().toString(QUuid::WithoutBraces).toStdString();
+        task.local_path = filePath.toStdString();
+        task.file_name = fi.fileName().toStdString();
+        task.file_size = fi.size();
+        task.batch_id = batchId.toStdString();
+        task.index = i + 1;
+        task.total = total;
+        task.client_id = clientId_;
+        task.host = host_.toStdString();
+        task.port = port_;
+        task.use_https = useHttps_;
+        task.insecure = insecure_;
+        task.pairing_code = code_.toStdString();
+        task.batch_files = batchFiles;
+        task.batch_total_size = batchTotalSize;
+        uploadManager_->enqueue_task(std::move(task));
+    }
+    emit activeTransfersChanged(true);
+    return true;
+}
+
+void WebClipController::cancelTransfers() {
+    if (downloadManager_) {
+        downloadManager_->cancel_all();
+    }
+    if (uploadManager_) {
+        uploadManager_->cancel_all();
+    }
+    clipModel_.cancelActiveTransfers();
+    emit activeTransfersChanged(false);
+}
+
+bool WebClipController::hasActiveTransfers() const {
+    const bool dl = downloadManager_ && downloadManager_->is_busy();
+    const bool ul = uploadManager_ && uploadManager_->is_busy();
+    return dl || ul;
+}
+
+void WebClipController::acceptFileOffer(const QString& batchId) {
+    clipModel_.updateFileStatusByBatch(batchId, FileStatus::Transferring);
+    emit hideOfferBanner();
+    auto client = httpClient_;
+    if (client && !batchId.isEmpty()) {
+        std::string bId = batchId.toStdString();
+        QThreadPool::globalInstance()->start([client, bId]() {
+            std::string path = "/files/offer/" + bId + "/respond";
+            client->post_json(path, "{\"accept\":true}", 5L);
+        });
+    }
+    auto it = pendingIncomingBatches_.find(batchId);
+    if (it != pendingIncomingBatches_.end()) {
+        auto ctx = it.value();
+        if (ctx->expiryTimer) {
+            ctx->expiryTimer->stop();
+            ctx->expiryTimer->deleteLater();
+            ctx->expiryTimer = nullptr;
+        }
+        if (downloadManager_) {
+            for (auto& task : ctx->tasks) {
+                downloadManager_->enqueue_task(std::move(task));
+            }
+        }
+        pendingIncomingBatches_.erase(it);
+    }
+}
+
+void WebClipController::declineFileOffer(const QString& batchId) {
+    clipModel_.updateFileStatusByBatch(batchId, FileStatus::Cancelled);
+    emit hideOfferBanner();
+    auto client = httpClient_;
+    if (client && !batchId.isEmpty()) {
+        std::string bId = batchId.toStdString();
+        QThreadPool::globalInstance()->start([client, bId]() {
+            std::string path = "/files/offer/" + bId + "/respond";
+            client->post_json(path, "{\"accept\":false}", 5L);
+        });
+    }
+    auto it = pendingIncomingBatches_.find(batchId);
+    if (it != pendingIncomingBatches_.end()) {
+        auto ctx = it.value();
+        if (ctx->expiryTimer) {
+            ctx->expiryTimer->stop();
+            ctx->expiryTimer->deleteLater();
+            ctx->expiryTimer = nullptr;
+        }
+        pendingIncomingBatches_.erase(it);
+    }
+}
+
+void WebClipController::onIncomingBatchExpired(const QString& batchId) {
+    declineFileOffer(batchId);
+}
+
+void WebClipController::onIncomingFileOfferReceived(const FileOfferTask& task) {
+    QString bId = QString::fromStdString(task.batch_id);
+    if (bId.isEmpty()) {
+        bId = QStringLiteral("single_") + QString::fromStdString(task.token);
+    }
+    auto& ctx = pendingIncomingBatches_[bId];
+    if (!ctx) {
+        ctx = std::make_shared<IncomingBatchContext>();
+        ctx->batchId = bId;
+    }
+    ctx->tasks.push_back(task);
+    ctx->totalBytes += task.size;
+    if (task.total > 0) {
+        ctx->expectedTotal = task.total;
+    }
+
+    const bool allArrived = (ctx->expectedTotal > 0 && static_cast<int>(ctx->tasks.size()) >= ctx->expectedTotal);
+
+    if (!ctx->debounceTimer) {
+        ctx->debounceTimer = new QTimer(this);
+        ctx->debounceTimer->setSingleShot(true);
+        connect(ctx->debounceTimer, &QTimer::timeout, this, [this, bId]() {
+            onIncomingBatchDebounced(bId);
+        });
+    }
+
+    if (allArrived) {
+        ctx->debounceTimer->stop();
+        onIncomingBatchDebounced(bId);
+    } else {
+        ctx->debounceTimer->start(400);
+    }
+}
+
+void WebClipController::onIncomingBatchDebounced(const QString& batchId) {
+    auto it = pendingIncomingBatches_.find(batchId);
+    if (it == pendingIncomingBatches_.end()) return;
+    auto ctx = it.value();
+    if (ctx->debounceTimer) {
+        ctx->debounceTimer->stop();
+        ctx->debounceTimer->deleteLater();
+        ctx->debounceTimer = nullptr;
+    }
+
+    if (!askReceiveFiles_) {
+        auto client = httpClient_;
+        if (client) {
+            std::string bId = batchId.toStdString();
+            QThreadPool::globalInstance()->start([client, bId]() {
+                client->post_json("/files/offer/" + bId + "/respond", "{\"accept\":true}", 5L);
+            });
+        }
+        int count = static_cast<int>(ctx->tasks.size());
+        for (int i = 0; i < count; ++i) {
+            const auto& t = ctx->tasks[i];
+            clipModel_.addClipFile(
+                QString::fromStdString(t.name),
+                t.size,
+                QString(),
+                QString::fromStdString(t.mime_type),
+                QStringLiteral("phone"),
+                batchId,
+                i + 1,
+                count,
+                FileStatus::Transferring
+            );
+        }
+        if (downloadManager_) {
+            for (auto& task : ctx->tasks) {
+                downloadManager_->enqueue_task(std::move(task));
+            }
+        }
+        pendingIncomingBatches_.erase(it);
+        return;
+    }
+
+    int count = static_cast<int>(ctx->tasks.size());
+    auto formatBytes = [](qint64 bytes) -> QString {
+        if (bytes < 1024) return QStringLiteral("%1 B").arg(bytes);
+        if (bytes < 1024 * 1024) return QStringLiteral("%1 KB").arg(bytes / 1024.0, 0, 'f', 1);
+        if (bytes < 1024LL * 1024 * 1024) return QStringLiteral("%1 MB").arg(bytes / (1024.0 * 1024.0), 0, 'f', 1);
+        return QStringLiteral("%1 GB").arg(bytes / (1024.0 * 1024.0 * 1024.0), 0, 'f', 1);
+    };
+
+    QString title = QStringLiteral("Incoming file transfer from Phone");
+    QString details;
+    if (count == 1) {
+        details = QStringLiteral("%1 (%2)").arg(QString::fromStdString(ctx->tasks[0].name)).arg(formatBytes(ctx->totalBytes));
+    } else {
+        details = QStringLiteral("%1 files (%2)").arg(count).arg(formatBytes(ctx->totalBytes));
+    }
+
+    for (int i = 0; i < count; ++i) {
+        const auto& t = ctx->tasks[i];
+        clipModel_.addClipFile(
+            QString::fromStdString(t.name),
+            t.size,
+            QString(),
+            QString::fromStdString(t.mime_type),
+            QStringLiteral("phone"),
+            batchId,
+            i + 1,
+            count,
+            FileStatus::Pending
+        );
+    }
+
+    emit showOfferBanner(batchId, title, details);
+
+    ctx->expiryTimer = new QTimer(this);
+    ctx->expiryTimer->setSingleShot(true);
+    connect(ctx->expiryTimer, &QTimer::timeout, this, [this, batchId]() {
+        onIncomingBatchExpired(batchId);
+    });
+    ctx->expiryTimer->start(120000);
 }
 
 bool WebClipController::pushImage(const QString& filePathOrDataUrl) {
@@ -2078,6 +2631,14 @@ void WebClipController::setDebugLogging(bool enabled) {
     }
 }
 
+void WebClipController::setAskReceiveFiles(bool ask) {
+    if (askReceiveFiles_ != ask) {
+        askReceiveFiles_ = ask;
+        saveSettings();
+        emit askReceiveFilesChanged();
+    }
+}
+
 void WebClipController::saveSettings() {
     QSettings s("Burhanverse", "WebClip");
     s.setValue("host", host_);
@@ -2088,6 +2649,7 @@ void WebClipController::saveSettings() {
     s.setValue("insecure", insecure_);
     s.setValue("autoSync", autoSync_);
     s.setValue("autoConnect", autoConnect_);
+    s.setValue("askReceiveFiles", askReceiveFiles_);
     s.setValue("pollInterval", pollInterval_);
     s.setValue("debugLogging", debugLogging_);
     s.setValue("themeMode", themeMode_);
@@ -2096,6 +2658,7 @@ void WebClipController::saveSettings() {
     s.setValue("matugenThemePath", matugenWatcher_.themePath() == MatugenWatcher::defaultThemePath() ? QString() : matugenWatcher_.themePath());
     s.setValue("matugenAutoReload", matugenWatcher_.autoReload());
     s.setValue("displayScale", displayScale_);
+    s.setValue("downloadDirectory", downloadDirectory_);
 }
 
 void WebClipController::loadSettings() {
@@ -2108,9 +2671,11 @@ void WebClipController::loadSettings() {
     insecure_ = s.value("insecure", true).toBool();
     autoSync_ = s.value("autoSync", true).toBool();
     autoConnect_ = s.value("autoConnect", false).toBool();
+    askReceiveFiles_ = s.value("askReceiveFiles", true).toBool();
     pollInterval_ = s.value("pollInterval", 1.0).toDouble();
     debugLogging_ = s.value("debugLogging", false).toBool();
     DebugLogger::setEnabled(debugLogging_);
+    downloadDirectory_ = s.value("downloadDirectory", "").toString();
     themeMode_ = s.value("themeMode", 0).toInt();
     accentPreset_ = s.value("accentPreset", "purple").toString();
     customColor_ = QColor(s.value("customColor", "#6750A4").toString());

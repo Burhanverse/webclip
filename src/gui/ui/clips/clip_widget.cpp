@@ -10,11 +10,14 @@
 #include "../../clips/clip_text_layout.hpp"
 
 #include <QtGui/QClipboard>
+#include <QtGui/QDesktopServices>
 #include <QtGui/QGuiApplication>
 #include <QtGui/QKeyEvent>
 #include <QtGui/QMouseEvent>
 #include <QtGui/QPainter>
 #include <QtGui/QWheelEvent>
+#include <QtCore/QFileInfo>
+#include <QtCore/QUrl>
 #include <cmath>
 
 namespace Ui {
@@ -512,6 +515,33 @@ void ClipWidget::activateZone(const HitContext& at) {
     case webclip::ClipElement::Zone::BtnDownload:
         emit saveImageRequested(el->row());
         break;
+    case webclip::ClipElement::Zone::BtnOpen:
+    case webclip::ClipElement::Zone::File: {
+        const QString path = el->localFilePath();
+        if (!path.isEmpty()) {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+        }
+        break;
+    }
+    case webclip::ClipElement::Zone::BtnFolder: {
+        const QString path = el->localFilePath();
+        if (!path.isEmpty()) {
+            QDesktopServices::openUrl(QUrl::fromLocalFile(QFileInfo(path).absolutePath()));
+        }
+        break;
+    }
+    case webclip::ClipElement::Zone::BtnAccept: {
+        if (controller_) {
+            controller_->acceptFileOffer(el->batchId());
+        }
+        break;
+    }
+    case webclip::ClipElement::Zone::BtnDecline: {
+        if (controller_) {
+            controller_->declineFileOffer(el->batchId());
+        }
+        break;
+    }
     case webclip::ClipElement::Zone::BtnDelete:
         handleDelete(el);
         break;

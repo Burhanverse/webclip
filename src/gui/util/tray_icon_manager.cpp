@@ -1,4 +1,5 @@
 #include "tray_icon_manager.hpp"
+#include "i18n.hpp"
 #include "../controllers/webclip_controller.hpp"
 #include <QCoreApplication>
 #include <QApplication>
@@ -20,7 +21,15 @@ TrayIconManager::TrayIconManager(WebClipController* controller, QObject* parent)
         connect(controller_, &WebClipController::autoSyncChanged, this, &TrayIconManager::updateTrayMenu);
         connect(controller_, &WebClipController::hostChanged, this, &TrayIconManager::updateTrayMenu);
         connect(controller_, &WebClipController::portChanged, this, &TrayIconManager::updateTrayMenu);
+        connect(controller_, &WebClipController::activeTransfersChanged, this, [this](bool active) {
+            if (cancelTransfersAction_) {
+                cancelTransfersAction_->setEnabled(active);
+            }
+        });
         connect(controller_, &WebClipController::minimizedToTray, this, &TrayIconManager::showFirstMinimizeNotification);
+        connect(controller_, &WebClipController::showTrayNotification, this, [this](const QString& title, const QString& message) {
+            showMessage(title, message, QSystemTrayIcon::Information, 3000);
+        });
     }
 }
 
@@ -60,13 +69,14 @@ void TrayIconManager::createTrayIcon() {
     trayIcon_->setToolTip(QStringLiteral("WebClip Sync - Material You Clipboard Bridge"));
 
     connect(trayIcon_, &QSystemTrayIcon::activated, this, &TrayIconManager::onTrayActivated);
+    connect(trayIcon_, &QSystemTrayIcon::messageClicked, this, &TrayIconManager::showWindow);
 }
 
 void TrayIconManager::setupMenu() {
 
     trayMenu_ = new QMenu();
 
-    openAction_ = trayMenu_->addAction(QStringLiteral("Open WebClip"));
+    openAction_ = trayMenu_->addAction(webclip::I18n::instance()->tr(QStringLiteral("tray.open")));
     QFont boldFont = openAction_->font();
     boldFont.setBold(true);
     openAction_->setFont(boldFont);
@@ -74,10 +84,10 @@ void TrayIconManager::setupMenu() {
 
     trayMenu_->addSeparator();
 
-    statusAction_ = trayMenu_->addAction(QStringLiteral("Status: Disconnected"));
+    statusAction_ = trayMenu_->addAction(webclip::I18n::instance()->tr(QStringLiteral("tray.status_disconnected")));
     statusAction_->setEnabled(false);
 
-    autoSyncAction_ = trayMenu_->addAction(QStringLiteral("Auto-Sync"));
+    autoSyncAction_ = trayMenu_->addAction(webclip::I18n::instance()->tr(QStringLiteral("tray.auto_sync")));
     autoSyncAction_->setCheckable(true);
     autoSyncAction_->setChecked(controller_ ? controller_->autoSync() : true);
     connect(autoSyncAction_, &QAction::triggered, this, [this](bool checked) {
@@ -86,9 +96,20 @@ void TrayIconManager::setupMenu() {
         }
     });
 
+    cancelTransfersAction_ = trayMenu_->addAction(webclip::I18n::instance()->tr(QStringLiteral("tray.cancel_transfers")));
+    cancelTransfersAction_->setEnabled(false);
+    connect(cancelTransfersAction_, &QAction::triggered, this, [this] {
+        if (controller_) {
+            controller_->cancelTransfers();
+        }
+        if (cancelTransfersAction_) {
+            cancelTransfersAction_->setEnabled(false);
+        }
+    });
+
     trayMenu_->addSeparator();
 
-    quitAction_ = trayMenu_->addAction(QStringLiteral("Quit WebClip"));
+    quitAction_ = trayMenu_->addAction(webclip::I18n::instance()->tr(QStringLiteral("tray.quit")));
     connect(quitAction_, &QAction::triggered, this, [this]() {
         if (controller_) {
             controller_->disconnectFromPortal();
@@ -127,6 +148,12 @@ void TrayIconManager::showFirstMinimizeNotification() {
     }
 }
 
+void TrayIconManager::showMessage(const QString& title, const QString& message, QSystemTrayIcon::MessageIcon icon, int timeoutMs) {
+    if (trayIcon_ && trayIcon_->isVisible()) {
+        trayIcon_->showMessage(title, message, icon, timeoutMs);
+    }
+}
+
 void TrayIconManager::toggleWindowVisibility() {
     if (!mainWindow_) return;
 
@@ -158,14 +185,18 @@ void TrayIconManager::updateTrayMenu() {
     bool isConn = controller_->connected();
     if (statusAction_) {
         if (isConn) {
-            statusAction_->setText(QStringLiteral("Status: Connected (%1:%2)").arg(controller_->host()).arg(controller_->port()));
+            statusAction_->setText(webclip::I18n::instance()->tr(QStringLiteral("tray.status_connected")).arg(controller_->host()).arg(controller_->port()));
         } else {
-            statusAction_->setText(QStringLiteral("Status: Disconnected"));
+            statusAction_->setText(webclip::I18n::instance()->tr(QStringLiteral("tray.status_disconnected")));
         }
     }
 
     if (autoSyncAction_) {
         autoSyncAction_->setChecked(controller_->autoSync());
+    }
+
+    if (cancelTransfersAction_) {
+        cancelTransfersAction_->setEnabled(controller_->hasActiveTransfers());
     }
 
     if (trayIcon_) {

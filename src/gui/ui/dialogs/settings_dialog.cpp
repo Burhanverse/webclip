@@ -313,6 +313,39 @@ void SettingsDialog::setupContent() {
         if (controller_) controller_->setAutoSync(val);
     });
     syncCard_->addRow(autoSyncRow_);
+
+    askReceiveFilesRow_ = new CardToggleRow(
+        syncCard_,
+        QStringLiteral("Ask before receiving files"),
+        QStringLiteral("Require approval before receiving incoming files"),
+        QStringLiteral("download"),
+        true
+    );
+    connect(askReceiveFilesRow_, &CardToggleRow::toggled, this, [this](bool val) {
+        if (controller_) controller_->setAskReceiveFiles(val);
+    });
+    syncCard_->addRow(askReceiveFilesRow_);
+
+    downloadFolderRow_ = new CardButtonRow(
+        syncCard_,
+        webclip::I18n::instance()->tr(QStringLiteral("settings.sync.download_folder_title")),
+        QString(),
+        QStringLiteral("folder")
+    );
+    downloadFolderRow_->addClickHandler([this] {
+        if (!controller_) return;
+        QString currentDir = controller_->downloadDirectory();
+        QString chosen = QFileDialog::getExistingDirectory(
+            this,
+            webclip::I18n::instance()->tr(QStringLiteral("settings.sync.choose_download_folder")),
+            currentDir
+        );
+        if (!chosen.isEmpty()) {
+            controller_->setDownloadDirectory(chosen);
+            downloadFolderRow_->setSubtitle(chosen);
+        }
+    });
+    syncCard_->addRow(downloadFolderRow_);
     mainLayout_->addWidget(syncCard_);
 
     // Polling Interval Card
@@ -736,9 +769,20 @@ void SettingsDialog::setController(webclip::WebClipController* controller) {
     httpsRow_->setChecked(controller_->useHttps(), anim::type::instant);
     insecureRow_->setChecked(controller_->insecure(), anim::type::instant);
     autoSyncRow_->setChecked(controller_->autoSync(), anim::type::instant);
+    if (askReceiveFilesRow_) {
+        askReceiveFilesRow_->setChecked(controller_->askReceiveFiles(), anim::type::instant);
+    }
     autoConnectRow_->setChecked(controller_->autoConnect(), anim::type::instant);
     updateKnownHosts();
     connect(controller_, &webclip::WebClipController::knownHostsChanged, this, &SettingsDialog::updateKnownHosts, Qt::UniqueConnection);
+    if (downloadFolderRow_) {
+        downloadFolderRow_->setSubtitle(controller_->downloadDirectory());
+    }
+    connect(controller_, &webclip::WebClipController::downloadDirectoryChanged, this, [this] {
+        if (downloadFolderRow_ && controller_) {
+            downloadFolderRow_->setSubtitle(controller_->downloadDirectory());
+        }
+    }, Qt::UniqueConnection);
     debugLoggingRow_->setChecked(controller_->debugLogging(), anim::type::instant);
 
     if (pollSlider_) {
@@ -843,6 +887,12 @@ void SettingsDialog::setController(webclip::WebClipController* controller) {
     connect(controller_, &webclip::WebClipController::autoSyncChanged, this, [this] {
         if (controller_ && autoSyncRow_) {
             autoSyncRow_->setChecked(controller_->autoSync(), anim::type::instant);
+        }
+    });
+
+    connect(controller_, &webclip::WebClipController::askReceiveFilesChanged, this, [this] {
+        if (controller_ && askReceiveFilesRow_) {
+            askReceiveFilesRow_->setChecked(controller_->askReceiveFiles(), anim::type::instant);
         }
     });
 

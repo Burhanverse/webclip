@@ -62,6 +62,8 @@ private:
     CardToggleRow* insecureRow_ = nullptr;
     CardContainer* syncCard_ = nullptr;
     CardToggleRow* autoSyncRow_ = nullptr;
+    CardToggleRow* askReceiveFilesRow_ = nullptr;
+    CardButtonRow* downloadFolderRow_ = nullptr;
     CardContainer* pollingCard_ = nullptr;
     QLabel* pollingLabel_ = nullptr;
     Md3IconButton* resetPollBtn_ = nullptr;

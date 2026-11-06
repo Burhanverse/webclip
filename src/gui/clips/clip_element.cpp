@@ -49,6 +49,10 @@ QString actionIconName(ClipElement::Zone zone) {
         case ClipElement::Zone::BtnDownload: return QStringLiteral("download");
         case ClipElement::Zone::BtnSend: return QStringLiteral("send");
         case ClipElement::Zone::BtnDelete: return QStringLiteral("delete");
+        case ClipElement::Zone::BtnOpen: return QStringLiteral("attach_file");
+        case ClipElement::Zone::BtnFolder: return QStringLiteral("download");
+        case ClipElement::Zone::BtnAccept: return QStringLiteral("check");
+        case ClipElement::Zone::BtnDecline: return QStringLiteral("close");
         default: return QString();
     }
 }
@@ -115,7 +119,7 @@ void clearClipElementCaches() {
 ClipElement::ClipElement(IClipViewHost* owner) : owner_(owner) {}
 
 bool ClipElement::isLongText() const {
-    if (isImage_) return false;
+    if (isImage_ || type_ == ClipType::File) return false;
     if (charCount_ > 350) return true;
     return headText_.count(QLatin1Char('\n')) + 1 > 5;
 }
@@ -132,14 +136,36 @@ void ClipElement::refreshContent() {
     if (!item) {
         id_.clear();
         isImage_ = false;
+        type_ = ClipType::Text;
+        fileStatus_ = FileStatus::Completed;
+        fileName_.clear();
+        fileSize_ = 0;
+        localFilePath_.clear();
+        mimeType_.clear();
+        batchId_.clear();
+        batchIndex_ = 1;
+        batchTotal_ = 1;
+        bytesTransferred_ = 0;
         headText_.clear();
         height_ = 0;
         bubbleRect_ = QRectF();
+        fileAreaRect_ = QRectF();
+        progressBarRect_ = QRectF();
         return;
     }
 
     id_ = item->id;
     isImage_ = item->isImage;
+    type_ = item->type;
+    fileStatus_ = item->fileStatus;
+    fileName_ = item->fileName;
+    fileSize_ = item->fileSize;
+    localFilePath_ = item->localFilePath;
+    mimeType_ = item->mimeType;
+    batchId_ = item->batchId;
+    batchIndex_ = item->batchIndex;
+    batchTotal_ = item->batchTotal;
+    bytesTransferred_ = item->bytesTransferred;
     fromPhone_ = (item->source == QLatin1String("phone"));
     headText_ = item->text;
     timeString_ = item->formattedTime();
@@ -170,7 +196,7 @@ void ClipElement::rebuildText() {
     bubbleColor_ =
         fromPhone_ ? theme->secondaryContainer() : theme->primaryContainer();
 
-    if (isImage_) {
+    if (isImage_ || type_ == ClipType::File) {
         text_ = ClipTextLayout();
         return;
     }
@@ -182,7 +208,7 @@ void ClipElement::refreshTheme() {
     pendingResize_ = true;
     laidOutWidth_ = -1;
     rebuildText();
-    if (lastWrapWidth_ > 0 && !isImage_) {
+    if (lastWrapWidth_ > 0 && !isImage_ && type_ != ClipType::File) {
         text_.layout(lastWrapWidth_);
     }
 }
@@ -205,6 +231,13 @@ ClipElement::Metrics ClipElement::computeMetrics(int containerWidth) const {
     const qreal pillWidth = actionsPillWidth();
     const qreal metaNeeded =
         timeFm.horizontalAdvance(timeString_) + pillWidth + scale::pxF(24.0) + m.totalHPad;
+
+    if (type_ == ClipType::File) {
+        const qreal cardW = qMin(m.maxBubbleWidth, scale::pxF(300.0));
+        const qreal needed = std::max(cardW, metaNeeded);
+        m.bubbleWidth = qMin(m.maxBubbleWidth, needed);
+        return m;
+    }
 
     if (isImage_) {
         qreal natW = nativeDims_.width();
@@ -290,6 +323,22 @@ int ClipElement::resizeGetHeight(int containerWidth) {
             totalH += scale::pxF(220.0) + kSectionSpacing();
         }
         textAreaRect_ = QRectF();
+        fileAreaRect_ = QRectF();
+        progressBarRect_ = QRectF();
+        collapsedLong_ = false;
+    } else if (type_ == ClipType::File) {
+        fileAreaRect_ = QRectF(contentX, cy, contentW, scale::pxF(44.0));
+        cy += fileAreaRect_.height() + kSectionSpacing();
+        totalH += fileAreaRect_.height() + kSectionSpacing();
+        if (fileStatus_ == FileStatus::Transferring) {
+            progressBarRect_ = QRectF(contentX, cy, contentW, scale::pxF(4.0));
+            cy += progressBarRect_.height() + kSectionSpacing();
+            totalH += progressBarRect_.height() + kSectionSpacing();
+        } else {
+            progressBarRect_ = QRectF();
+        }
+        textAreaRect_ = QRectF();
+        imageAreaRect_ = QRectF();
         collapsedLong_ = false;
     } else {
         collapsedLong_ = isLongText() && !expanded_;
@@ -339,6 +388,21 @@ void ClipElement::updateButtonsVisibility() {
     auto* ctrl = owner_ ? owner_->controller() : nullptr;
     connectedFlag_ = ctrl && ctrl->connected();
     buttons_.clear();
+    if (type_ == ClipType::File) {
+        if (fileStatus_ == FileStatus::Pending) {
+            buttons_.push_back({Zone::BtnAccept, QRectF(), true});
+            buttons_.push_back({Zone::BtnDecline, QRectF(), true});
+        } else if (fileStatus_ == FileStatus::Completed) {
+            if (!localFilePath_.isEmpty()) {
+                buttons_.push_back({Zone::BtnOpen, QRectF(), true});
+                buttons_.push_back({Zone::BtnFolder, QRectF(), true});
+            }
+            buttons_.push_back({Zone::BtnDelete, QRectF(), true});
+        } else {
+            buttons_.push_back({Zone::BtnDelete, QRectF(), true});
+        }
+        return;
+    }
     if (hasUrl_ && !isImage_) buttons_.push_back({Zone::BtnLink, QRectF(), true});
     buttons_.push_back({Zone::BtnCopy, QRectF(), true});
     if (isImage_) buttons_.push_back({Zone::BtnDownload, QRectF(), true});
@@ -388,6 +452,82 @@ void ClipElement::paint(const PaintContext& context) const {
         p->fillPath(bgPath, containerBg);
         if (imageState_ == ImageReady) {
             drawRoundedImage(p, imageScaled_, imageAreaRect_, scale::pxF(12.0));
+        }
+    }
+
+    if (type_ == ClipType::File && fileAreaRect_.isValid()) {
+        const QRectF badgeRect(fileAreaRect_.left(), fileAreaRect_.top() + scale::pxF(4.0), scale::pxF(36.0), scale::pxF(36.0));
+        const QColor badgeBg = fromPhone_ ? theme->surfaceContainerHigh() : theme->secondaryContainer();
+        p->setPen(Qt::NoPen);
+        p->setBrush(badgeBg);
+        p->drawRoundedRect(badgeRect, scale::pxF(8.0), scale::pxF(8.0));
+
+        Ui::IconLoader::paint(*p, QStringLiteral("attach_file"),
+                              QRectF(badgeRect.center().x() - scale::pxF(10.0),
+                                     badgeRect.center().y() - scale::pxF(10.0),
+                                     scale::pxF(20.0), scale::pxF(20.0)),
+                              theme->primary());
+
+        const qreal textX = badgeRect.right() + scale::pxF(10.0);
+        const qreal textW = qMax<qreal>(0.0, fileAreaRect_.right() - textX);
+
+        QFont nameFont = bodyFont_;
+        nameFont.setBold(true);
+        QFontMetricsF nameFm(nameFont);
+        const QString elidedName = nameFm.elidedText(fileName_, Qt::ElideMiddle, textW);
+
+        p->setFont(nameFont);
+        p->setPen(textColor_);
+        p->drawText(QRectF(textX, fileAreaRect_.top() + scale::pxF(2.0), textW, scale::pxF(20.0)),
+                    Qt::AlignVCenter | Qt::AlignLeft, elidedName);
+
+        auto formatBytes = [](qint64 bytes) -> QString {
+            if (bytes < 1024) return QStringLiteral("%1 B").arg(bytes);
+            if (bytes < 1024 * 1024) return QStringLiteral("%1 KB").arg(bytes / 1024.0, 0, 'f', 1);
+            if (bytes < 1024LL * 1024 * 1024) return QStringLiteral("%1 MB").arg(bytes / (1024.0 * 1024.0), 0, 'f', 1);
+            return QStringLiteral("%1 GB").arg(bytes / (1024.0 * 1024.0 * 1024.0), 0, 'f', 1);
+        };
+
+        const QString sizeStr = formatBytes(fileSize_);
+        QString statusStr;
+        if (fileStatus_ == FileStatus::Pending) {
+            statusStr = QStringLiteral("Pending • %1").arg(sizeStr);
+        } else if (fileStatus_ == FileStatus::Transferring) {
+            statusStr = QStringLiteral("Transferring • %1 / %2").arg(formatBytes(bytesTransferred_)).arg(sizeStr);
+        } else if (fileStatus_ == FileStatus::Completed) {
+            statusStr = sizeStr;
+        } else if (fileStatus_ == FileStatus::Failed) {
+            statusStr = QStringLiteral("Failed • %1").arg(sizeStr);
+        } else if (fileStatus_ == FileStatus::Cancelled) {
+            statusStr = QStringLiteral("Cancelled • %1").arg(sizeStr);
+        }
+        if (batchTotal_ > 1) {
+            statusStr = QStringLiteral("(%1/%2) %3").arg(batchIndex_).arg(batchTotal_).arg(statusStr);
+        }
+
+        QFont subFont = timeFont_;
+        p->setFont(subFont);
+        QColor subCol = textColor_;
+        subCol.setAlphaF(subCol.alphaF() * 0.7);
+        p->setPen(subCol);
+        p->drawText(QRectF(textX, fileAreaRect_.top() + scale::pxF(22.0), textW, scale::pxF(18.0)),
+                    Qt::AlignVCenter | Qt::AlignLeft, statusStr);
+
+        if (progressBarRect_.isValid() && fileStatus_ == FileStatus::Transferring) {
+            p->setPen(Qt::NoPen);
+            p->setBrush(theme->surfaceContainerHighest());
+            p->drawRoundedRect(progressBarRect_, scale::pxF(2.0), scale::pxF(2.0));
+
+            double ratio = 0.0;
+            if (fileSize_ > 0) {
+                ratio = std::clamp(static_cast<double>(bytesTransferred_) / static_cast<double>(fileSize_), 0.0, 1.0);
+            }
+            if (ratio > 0.0) {
+                QRectF fillRect = progressBarRect_;
+                fillRect.setWidth(progressBarRect_.width() * ratio);
+                p->setBrush(theme->primary());
+                p->drawRoundedRect(fillRect, scale::pxF(2.0), scale::pxF(2.0));
+            }
         }
     }
 
@@ -503,6 +643,10 @@ ClipElement::Hit ClipElement::hitTest(QPointF localPos, int containerWidth) cons
     }
     if (showExpandChip_ && expandChipRect_.contains(localPos)) {
         hit.zone = Zone::ExpandChip;
+        return hit;
+    }
+    if (type_ == ClipType::File && fileAreaRect_.contains(localPos)) {
+        hit.zone = Zone::File;
         return hit;
     }
     if (isImage_ && imageAreaRect_.contains(localPos)) {
