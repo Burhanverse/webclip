@@ -7,7 +7,9 @@
 #include <cstring>
 
 #if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
@@ -289,7 +291,7 @@ public:
         return img;
     }
 
-    bool set_image(const std::vector<uint8_t>& data, const std::string& mime_type) override {
+    bool set_image(const std::vector<uint8_t>& data, const std::string&) override {
         if (data.empty()) return false;
 
         UINT pngFormat = RegisterClipboardFormatW(L"PNG");

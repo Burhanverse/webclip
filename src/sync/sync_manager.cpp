@@ -9,6 +9,14 @@
 #include <fstream>
 #include <sys/stat.h>
 
+#ifndef S_ISREG
+#if defined(_S_IFMT) && defined(_S_IFREG)
+#define S_ISREG(m) (((m) & _S_IFMT) == _S_IFREG)
+#elif defined(S_IFMT) && defined(S_IFREG)
+#define S_ISREG(m) (((m) & S_IFMT) == S_IFREG)
+#endif
+#endif
+
 namespace webclip {
 
 SyncManager::SyncManager(SyncConfig config, std::unique_ptr<IClipboard> clipboard)
