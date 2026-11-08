@@ -133,6 +133,7 @@ qt_add_resources(webclip "webclip_resources"
         src/gui/resources/icons/delete.svg
         src/gui/resources/icons/download.svg
         src/gui/resources/icons/edit.svg
+        src/gui/resources/icons/folder.svg
         src/gui/resources/icons/image.svg
         src/gui/resources/icons/laptop.svg
         src/gui/resources/icons/light_mode.svg
