@@ -12,7 +12,14 @@ QString MatugenWatcher::defaultThemePath() {
     if (configDir.isEmpty()) {
         configDir = QDir::homePath() + QStringLiteral("/.config");
     }
-    return configDir + QStringLiteral("/webclip/theme.json");
+    const QString lowerPath = configDir + QStringLiteral("/webclip/theme.json");
+    if (!QFile::exists(lowerPath)) {
+        const QString upperPath = configDir + QStringLiteral("/WebClip/theme.json");
+        if (QFile::exists(upperPath)) {
+            return upperPath;
+        }
+    }
+    return lowerPath;
 }
 
 MatugenWatcher::MatugenWatcher(QObject* parent)
@@ -26,6 +33,7 @@ MatugenWatcher::MatugenWatcher(QObject* parent)
     connect(&watcher_, &QFileSystemWatcher::directoryChanged, this, &MatugenWatcher::onDirectoryChanged);
 
     setupWatcher();
+    reloadNow();
 }
 
 QString MatugenWatcher::themePath() const {
@@ -39,8 +47,13 @@ void MatugenWatcher::setThemePath(const QString& path) {
         if (QFile::exists(lowerCandidate)) {
             resolved = lowerCandidate;
         }
+    } else if (resolved.contains(QLatin1String("/webclip/")) && !QFile::exists(resolved)) {
+        const QString upperCandidate = QString(resolved).replace(QLatin1String("/webclip/"), QLatin1String("/WebClip/"));
+        if (QFile::exists(upperCandidate)) {
+            resolved = upperCandidate;
+        }
     }
-    if (themePath_ != resolved) {
+    if (themePath_ != resolved || !isLoaded_) {
         themePath_ = resolved;
         setupWatcher();
         reloadNow();

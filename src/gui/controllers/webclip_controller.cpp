@@ -2696,8 +2696,13 @@ void WebClipController::loadSettings() {
     bool matugenAuto = s.value("matugenAutoReload", true).toBool();
     matugenWatcher_.setThemePath(matugenPath);
     matugenWatcher_.setAutoReload(matugenAuto);
+    if (!matugenWatcher_.isLoaded()) {
+        matugenWatcher_.reloadNow();
+    }
     if (accentPreset_ == QLatin1String("matugen")) {
-        MD3Theme::instance()->setMatugenThemes(matugenWatcher_.currentThemes());
+        if (matugenWatcher_.isLoaded()) {
+            MD3Theme::instance()->setMatugenThemes(matugenWatcher_.currentThemes());
+        }
     }
     MD3Theme::instance()->setCustomColor(customColor_);
     MD3Theme::instance()->setThemeMode(themeMode_);

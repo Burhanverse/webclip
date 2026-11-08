@@ -506,6 +506,11 @@ int main(int argc, char* argv[]) {
                 if (QFile::exists(lower)) {
                     path = lower;
                 }
+            } else if (path.contains(QLatin1String("/webclip/")) && !QFile::exists(path)) {
+                const QString upper = QString(path).replace(QLatin1String("/webclip/"), QLatin1String("/WebClip/"));
+                if (QFile::exists(upper)) {
+                    path = upper;
+                }
             }
             webclip::MatugenThemes themes;
             if (webclip::MatugenLoader::loadFromFile(path, themes) == webclip::MatugenParseStatus::Success) {
