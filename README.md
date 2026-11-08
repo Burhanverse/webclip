@@ -14,7 +14,7 @@
 - **Text & Images**: Sync text (with clickable URLs) and images (PNG, JPEG, WebP).
 - **Desktop Integration**: System tray support, background sync, and native clipboard integration (Wayland, X11, Windows).
 - **Material Design 3 UI**: Clean native interface with light/dark themes and clip history.
-- **CLI Mode**: Direct terminal/headless sync support.
+- **File Transfer**: Drag-and-drop to send files to phone or receive files from phone.
 
 ## Installation
 

@@ -9,7 +9,7 @@ foreach(prefix IN LISTS CMAKE_SYSTEM_PREFIX_PATH)
     endif()
 endforeach()
 
-project(webclip VERSION 2.0.0 LANGUAGES CXX)
+project(webclip VERSION 2.1.0 LANGUAGES CXX)
 
 foreach(prefix IN LISTS CMAKE_SYSTEM_PREFIX_PATH)
     if(prefix MATCHES "flatpak")
